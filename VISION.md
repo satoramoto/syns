@@ -2,6 +2,28 @@ syns enables the user to manifest their ideas by maintaining a blissful and effo
 
 # Vision
 
+## First principle: never interrupt, batch
+
+Interruptions are the biggest anti-pattern. syn never interrupts; it batches.
+
+- **Questions** go to the inbox and never stop work mid-flow. Reversible ones
+  proceed on Claude's recommendation.
+- **Approvals** block only their own job, and wait in the inbox rather than
+  popping up, unless you're idle and nothing else is left to do.
+- **Reports and completions** arrive when you look, or at a natural pause,
+  not as a stream.
+- **Each permission prompt is an interruption too**, and a signal that a rule
+  or an allowlist entry should exist so it doesn't recur.
+
+The anti-patterns, plainly:
+
+- interruptions;
+- re-explaining context;
+- waiting on long turns in the main session;
+- ambiguous words.
+
+## Why each part exists
+
 Everything below exists for that one outcome. Each part removes one thing
 that breaks flow:
 
@@ -10,6 +32,8 @@ that breaks flow:
 - **routing** keeps the session conversational;
 - **modes** match the work's rigour to your mood;
 - **shared vocabulary** removes ambiguity.
+
+## What syn is
 
 syn is one long-lived Claude Code session that works as an extension of your
 brain. You open it at the start of the month and keep talking to it until the

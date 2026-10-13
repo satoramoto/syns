@@ -25,6 +25,32 @@ maintaining a blissful and effortless flow state. The machine serves it:
 - Working styles ("modes") are presets of one machine, so concepts are shared
   and new modes cost a record, not new code.
 
+## Never interrupt, batch
+
+Interruptions are the biggest anti-pattern (see [VISION.md](../VISION.md)).
+Concretely:
+
+- **B1.** Every question an agent or the main session has for the user is
+  queued in the inbox; the model is told (through a guard's send-back, rule
+  32) to add it there instead of ending its turn on it.
+- **B2.** A turn that would end on a question to the user while other work is
+  unblocked is sent back from `classic.Stop` with "add it to the inbox and
+  continue".
+- **B3.** A blocking approval is surfaced (as a quiz prompt) only when the main
+  session is otherwise idle: no jobs in flight that it doesn't block, and the
+  user has sent nothing new. Otherwise it waits in the inbox and the head's
+  count.
+- **B4.** Agent reports and job completions are folded into the pane and the
+  next hidden-context line (rule 31). The main session relays them at a
+  natural pause (the end of its current reply, or when asked), batched, never
+  one message per completion.
+- **B5.** Each permission prompt is logged as an interruption with its tool and
+  pattern. `/syn stats` lists the repeat offenders and proposes an allowlist
+  entry or rule for each, as an inbox approval.
+- **B6.** The log counts interruptions per job and mode (questions that
+  stopped a turn, approvals surfaced, permission prompts), so the number can
+  be driven down.
+
 ## Core data model: brain state and the inbox
 
 Brain state lives in `BRAIN.md` (default `~/.claude/BRAIN.md`; template in
