@@ -15,12 +15,28 @@ Interruptions are the biggest anti-pattern. syn never interrupts; it batches.
 - **Each permission prompt is an interruption too**, and a signal that a rule
   or an allowlist entry should exist so it doesn't recur.
 
-The anti-patterns, plainly:
+## Flow anti-patterns, ranked
 
-- interruptions;
-- re-explaining context;
-- waiting on long turns in the main session;
-- ambiguous words.
+Interruptions are the umbrella. Under it are five ways flow breaks, all of
+which matter, in this order:
+
+1. **Waiting.** You're ready and the tool isn't: long turns in the main
+   session. Answer: routing keeps the main session conversational and sends
+   the heavy work to background agents.
+2. **Too many decisions.** Decision fatigue. Answer: recommendation-first
+   quizzes, so most answers are a single tap on ★.
+3. **Silence.** Not knowing whether anything is happening, so you break flow
+   to check. Answer: live state in the pane: jobs in flight, what each is
+   waiting on, and the inbox count.
+4. **Losing trust.** A bad surprise turns you into a supervisor. Answer:
+   reversible work proceeds under a veto; irreversible work waits for
+   approval.
+5. **Losing the thread.** Coming back with no idea where you were, or
+   re-explaining after compaction. Answer: brain state. This one is a fine
+   line: syn is for polymaths, who need to go off on tangents freely without
+   losing the thread. Tangents are welcome; losing the thread isn't.
+
+Ambiguous words feed all five; the shared vocabulary answers them.
 
 ## Why each part exists
 
@@ -104,6 +120,33 @@ override. Clearing ten items takes a minute.
 
 The inbox exists to **keep you out of interruptions**: nothing pings you
 mid-thought, and nothing stalls waiting for you unless it truly must.
+
+## Time bucketing
+
+Buckets instead of time boxes. Anything may happen at any time, but each
+thread has a maximum amount of time it may take, and buckets can give time to
+each other.
+
+- Each thread on the board has a **bucket**: an **allowance** per period (a
+  week or a month).
+- syn measures **spend** automatically from its log: the main session's
+  active time on the thread's asks, plus agent time and tokens attributed
+  through jobs. You never log time by hand.
+- **Tangents** are free. A tangent draws from its own thread's bucket, and a
+  new idea becomes a shelf thread with a small default bucket, so you can
+  follow it at once without it eating into something else.
+- When a bucket runs dry, syn never interrupts. It adds an inbox question
+  ("X is over its bucket: borrow from Y, raise it, or park X?") with a
+  recommendation, and keeps going.
+- A **transfer** between buckets is explicit, logged and reversible.
+- The pane shows each bucket's fill as a reading: label, thin gauge, spent,
+  of allowance.
+
+Buckets exist so a polymath can go off on tangents freely while the month
+still goes where they meant it to.
+
+New terms, proposed for the lexicon and awaiting acceptance: **bucket**,
+**allowance**, **spend**, **transfer**, **tangent**.
 
 ## Onboarding
 

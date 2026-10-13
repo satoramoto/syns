@@ -104,6 +104,51 @@ type InboxItem = {
    the lexicon), then leaves the inbox. A veto that overrides a
    recommendation that work already proceeded on becomes a job of its own.
 
+### Buckets (draft)
+
+Buckets instead of time boxes: anything may happen at any time, but each
+thread has a maximum it may take, and buckets can give time to each other.
+Proposed terms, awaiting acceptance: **bucket**, **allowance**, **spend**,
+**transfer**, **tangent**.
+
+```ts
+type Bucket = {
+  thread: number;
+  allowance: number;          // per period (open question 6), in the unit of open question 7
+  spent: number;              // derived from the log, never typed in
+  transfers: Transfer[];
+};
+
+type Transfer = {
+  id: number;
+  from: number;               // thread id
+  to: number;
+  amount: number;
+  at: string;                 // ISO time
+  reverted?: string;          // set when undone
+};
+```
+
+- **K1.** Every thread on the board or shelf has a bucket. A thread without
+  an allowance gets the default for where it sits (board or shelf).
+- **K2.** Spend is measured from the log (rule 40): the main session's active
+  time on the thread's asks, plus agent time and tokens attributed through the
+  thread's jobs. The exact formula is open question 7.
+- **K3.** A tangent (an ask about a different thread, or about no thread yet)
+  is never refused or deferred. It's attributed to its own thread; an ask
+  about a new idea creates a shelf thread with the small default bucket.
+- **K4.** When a bucket's spend passes its allowance, syn adds one inbox
+  question ("X is over its bucket: borrow from Y, raise it, or park X?") with
+  a recommendation, and work continues. No turn is stopped or sent back for
+  it, and the same bucket isn't raised again in the period until that item is
+  answered.
+- **K5.** A transfer is explicit (an inbox answer or `/syn bucket`), is
+  logged, and is reversible: reverting it restores both allowances.
+- **K6.** Buckets reset at the start of each period. Unspent allowance does
+  not carry over.
+- **K7.** The pane shows each thread's bucket as a reading: label, thin flat
+  gauge (spent over allowance), value, unit.
+
 ### The inbox as a quiz
 
 6. `/syn quiz` (and the pane's inbox section) asks the open items one at a
@@ -345,6 +390,8 @@ decision.
 - `/syn`: brain state at a glance: the inbox count, then the board.
 - `/syn onboard`: onboarding (rules 8–12).
 - `/syn quiz`: answer the inbox.
+- `/syn bucket [thread] [set <allowance> | give <amount> to <thread> | revert <id>]`:
+  show, set or transfer buckets.
 - `/syn mode <name>`: switch mode for new jobs.
 - `/syn feature`: mark the current ask a feature.
 - `/syn stats`: numbers from the log.
@@ -370,3 +417,9 @@ decision.
 4. Should jobs survive a session restart, rebuilt from the log? (★ yes.)
 5. Should `BRAIN.md` stay markdown parsed by the plugin, or become JSON with a
    rendered markdown view? (★ markdown: it's edited by hand.)
+6. A bucket's period: a week or a month? (★ a week: a month gives no
+   feedback until it's too late.)
+7. The spend formula: how do the main session's active time, agent wall time
+   and tokens combine into one number? (★ minutes only, main-session active
+   time plus agent wall time, with tokens shown beside it but not counted,
+   until the log shows which tracks effort better.)

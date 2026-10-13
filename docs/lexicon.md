@@ -75,6 +75,20 @@ in brief:
 In circuit terms: threads are chips, their links are traces, the month is the
 board, and the base context is a bus every assistant taps.
 
+## Proposed (awaiting acceptance)
+
+Coined for time bucketing ([spec](spec.md), Buckets). Not accepted yet: each
+is an inbox **term** until it is.
+
+- **Bucket:** a thread's time budget for a period. A maximum, not a time box:
+  the work may happen at any time.
+- **Allowance:** how much a bucket holds per period.
+- **Spend:** what a thread has used of its allowance, measured from the log.
+- **Transfer:** an explicit, logged, reversible move of allowance from one
+  bucket to another.
+- **Tangent:** an ask that leaves the current thread; it's free, and draws
+  from its own thread's bucket (a new idea gets a shelf thread).
+
 ## Inspector (how the pane looks)
 
 - **Section:** a collapsible heading (icon, title, figures, fold chevron last)
