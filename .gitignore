@@ -1,0 +1,11 @@
+# The curated base context is personal and changes often.
+.claude/base-context.md
+.claude/settings.local.json
+
+# Docker: an optional bind-mounted config dir for a container login, and env
+# files holding an API key. Never commit either.
+docker-home/
+.env
+*.env
+
+.DS_Store

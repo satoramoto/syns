@@ -1,0 +1,15 @@
+{
+  "name": "syn",
+  "version": "0.0.1",
+  "description": "One long-lived Claude Code session as an extension of your brain: brain state, an inbox answered as a quiz, modes and routing. Skeleton: /syn prints the inbox count.",
+  "author": {
+    "name": "Ryan Gavin"
+  },
+  "license": "MIT",
+  "keywords": [
+    "session",
+    "brain-state",
+    "inbox",
+    "workflow"
+  ]
+}

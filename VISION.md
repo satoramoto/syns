@@ -239,7 +239,10 @@ In:
 Next, not in this POC yet:
 - **the real mod**: the state machine, guards, routing log and the pane
   (brain state, jobs in flight, and the inbox as a quiz), built out from the
-  plugin skeleton;
+  plugin skeleton. It stays its own plugin in this repo, so syns installs on
+  its own, and draws its pane with awesome-claude's `kit/` (the inspector
+  tokens and components), copied in at build time the way awesome-claude
+  compiles the kit into each of its mods;
 - onboarding implemented end to end;
 - the machine editor on zen's graph primitives;
 - an installer.
