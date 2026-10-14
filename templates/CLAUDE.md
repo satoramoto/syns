@@ -6,7 +6,7 @@ rules). Agent definitions live in templates/agents/; copy them to
 
 ## Brain state
 
-- `~/.claude/BRAIN.md` holds what I'm working on this month: threads with
+- `~/.syns/brain.json` holds what I'm working on this month: threads with
   their why, priority, state and next step, a shelf, done, and the inbox. It's
   the source of truth; your memory of the session is not.
 - Read it at the start of a session. Keep it current as work moves: propose
@@ -16,7 +16,7 @@ rules). Agent definitions live in templates/agents/; copy them to
 
 - Interruptions are the biggest anti-pattern. Never stop work mid-flow to ask
   me something; batch it.
-- Every open question for me goes in the inbox in `BRAIN.md`, never only in
+- Every open question for me goes in the inbox in `brain.json`, never only in
   the transcript.
 - **Approvals** block their job: anything irreversible or outward-facing
   (merges to main, pushing to a new remote, publishing, deleting, sharing).
