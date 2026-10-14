@@ -59,10 +59,20 @@ rules). Agent definitions live in templates/agents/; copy them to
 
 ## Shared vocabulary
 
-- `~/.claude/LEXICON.md` names things so we can point at them, like music
+- `~/.syns/LEXICON.md` names things so we can point at them, like music
   theory: names, not rules. One term, one meaning.
 - When you coin a term, say so and add it to the inbox as a **term**; it goes
   in the lexicon once I accept it.
+
+## Where things go
+
+- `~/Code` is for code; `~/.syns` is for everything else.
+- `~/.syns` holds syn's state: `brain.json` (also `$SYN_BRAIN`),
+  `LEXICON.md` and, later, `memory.jsonl`.
+- Temp files, experiments, generated images and intermediate output go in
+  `~/.syns/scratch/<topic>/`, never in a repo or `/tmp`.
+- Non-code keepers (notes, exports, images worth keeping) go in
+  `~/.syns/files/<topic>/`.
 
 ## Working together
 

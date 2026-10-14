@@ -5,7 +5,8 @@ description: Get back into flow after time away - what we're doing, what was dec
 The user just sat back down and needs to get back into flow in under a
 minute. Give them a re-entry brief, nothing else.
 
-Read `~/.claude/brain.json` (or `$SYN_BRAIN`). Also check, quickly and only
+Read the brain file (the path in `$SYN_BRAIN`, or `~/.syns/brain.json` when
+that's unset). Also check, quickly and only
 if cheap, the state of PRs mentioned there (`gh pr view <n> --repo <r> --json
 state` per PR) and any agents still running in this session.
 

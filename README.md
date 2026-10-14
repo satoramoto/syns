@@ -46,6 +46,59 @@ docker run --rm -it -e ANTHROPIC_API_KEY -v "$PWD":/work syns-syn
 
 More in [AGENTS.md](AGENTS.md).
 
+## Dogfood syns
+
+One permanent Claude session in Docker that spans all your projects, on the
+latest Claude Code, with syn's plugins loaded from this checkout. The full
+reference (what persists where, signing, sandboxing) is in
+[AGENTS.md](AGENTS.md#dogfood-syns). In short:
+
+- `~/Code` is for code; `~/.syns` is for everything else: syn's state
+  (`brain.json`, `LEXICON.md`, later `memory.jsonl`), `scratch/<topic>/` for
+  temp files and experiments, `files/<topic>/` for non-code keepers. These two
+  are the only host folders the container can write; the session's `TMPDIR`
+  is `~/.syns/scratch`.
+- Claude's config, logins, sessions and transcripts, and `gh`'s login, live in
+  named volumes (`syns-claude`, `syns-gh`): you log in once, and only removing
+  the volumes logs you out.
+
+```sh
+# build
+docker build --target dogfood -t syns-dogfood .
+
+# first run: creates the `syns` container; log in to Claude, then run `! gh auth login`
+docker run -it --name syns --hostname syns \
+  --cap-drop=ALL --security-opt no-new-privileges --group-add 0 \
+  -v syns-claude:/home/claude/.claude \
+  -v syns-gh:/home/claude/.config/gh \
+  -v "$HOME/Code":"$HOME/Code" \
+  -v "$HOME/.syns":"$HOME/.syns" \
+  -v "$(git config --get user.signingkey)":/home/claude/.ssh/signing.pub:ro \
+  -v /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock:ro \
+  -e SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock \
+  -e SYNS_HOME="$HOME/.syns" \
+  -e SYNS_DIR="$HOME/Code/satoramoto/syns" \
+  -e SYN_BRAIN="$HOME/.syns/brain.json" \
+  -e TMPDIR="$HOME/.syns/scratch" \
+  -e CLAUDE_CODE_TMPDIR="$HOME/.syns/scratch" \
+  -e GIT_AUTHOR_NAME="$(git config --get user.name)" \
+  -e GIT_AUTHOR_EMAIL="$(git config --get user.email)" \
+  -e GIT_COMMITTER_NAME="$(git config --get user.name)" \
+  -e GIT_COMMITTER_EMAIL="$(git config --get user.email)" \
+  -w "$HOME/Code" \
+  syns-dogfood
+
+# every time after: re-attach (resumes the same conversation)
+docker start -ai syns
+
+# update Claude: rebuild only the final stage, then re-create the container
+docker build --target dogfood --no-cache-filter dogfood -t syns-dogfood .
+docker rm syns   # then the first-run command again; the volumes keep everything
+
+# reset: forget the session, config and logins (~/Code and ~/.syns are untouched)
+docker rm syns && docker volume rm syns-claude syns-gh
+```
+
 ## Docs
 
 - [VISION.md](VISION.md): the why, the shape, what it isn't, and the POC's scope.

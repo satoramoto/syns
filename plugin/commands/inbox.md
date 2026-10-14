@@ -5,8 +5,8 @@ description: Run through the inbox in BRAIN.md as a quiz, then apply the answers
 Run the user through their inbox, then apply what they decide. This is M1 of
 syn: the smallest version of the approval loop.
 
-1. Read `inbox` in `~/.claude/brain.json` (or the path in `$SYN_BRAIN`), taking
-   the items with `status: "open"`. Order them: approvals first, then
+1. Read `inbox` in the brain file (the path in `$SYN_BRAIN`, or
+   `~/.syns/brain.json` when that's unset), taking the items with `status: "open"`. Order them: approvals first, then
    questions whose `blocks` isn't empty, then the rest.
 2. Ask with the question tool, up to 4 items per call, using each item exactly
    as stored:
