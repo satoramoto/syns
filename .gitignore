@@ -9,3 +9,6 @@ docker-home/
 *.env
 
 .DS_Store
+
+# Laid by the engine beside a mod it loads (types for tsc).
+.claude-plugin/types/

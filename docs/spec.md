@@ -376,6 +376,34 @@ decision.
 38. **Done** folds finished jobs, showing the last N.
 39. **The terminal** gets the same layout in a terminal look.
 
+### The dashboard today (`syns-dashboard`, built)
+
+The first version is a re-entry view, for sitting back down after time away.
+It opens on session start (and with `/dashboard`), reads `$SYN_BRAIN` or
+`~/.syns/brain.json`, and reads it again whenever its mtime moves (checked
+every 2 s while the pane is shown; nothing runs while it's hidden). Sections,
+in awesome-claude's inspector look on the desktop and the terminal:
+
+- **Doing:** the outcome, then the top 3 active threads by priority, each its
+  title (up to the first colon), priority, and its `next` (first sentence).
+- **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
+  newest `answer.at` first: the choice, or the note when the choice was Other,
+  with the question dim after it.
+- **Running:** live agents (`$.agent.list()`) with each one's latest tool call,
+  then the PRs brain.json names (`owner/repo#n` or a pull URL) that gh says are
+  open, read when the list changes and every 5 minutes.
+- **Needs you:** open approvals, then the count of open questions and a button
+  that runs `/syn:inbox`.
+- **Next:** brain.json's own `next` if it has one, else the top thread's.
+- A footer: **Standup** (`/syn:standup`) and **Brief** (`/syn:back`).
+
+Not built yet, and wanted as the work pulls them in: everything in 33–38
+above (the session state and mode switch in the head, the quiz in the pane,
+jobs as rows with their states, the graph view of the machine, Done), guards
+and modes shown on it, each thread's bucket as a reading (K7), previews
+registered in brain.json listed and launched from it, and events from
+`memory.jsonl` (the ledger) in place of mtime polling.
+
 ## Log and measurement
 
 40. Every event, transition, guard decision and inbox change is appended to
