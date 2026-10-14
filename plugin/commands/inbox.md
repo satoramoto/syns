@@ -5,22 +5,23 @@ description: Run through the inbox in BRAIN.md as a quiz, then apply the answers
 Run the user through their inbox, then apply what they decide. This is M1 of
 syn: the smallest version of the approval loop.
 
-1. Read the Inbox table in `~/.claude/BRAIN.md` (or the path in `$SYN_BRAIN`).
-   Order the items: approvals first, then questions that block something,
-   then the rest.
-2. Ask with the question tool, up to 4 items per call. For each item:
-   - the question is the item, phrased as one clear question;
-   - the header is its kind and number (e.g. "Approval 14");
-   - the first option is the ★ recommendation, labelled "(Recommended)", with
-     one to three real alternatives.
+1. Read `inbox` in `~/.claude/brain.json` (or the path in `$SYN_BRAIN`), taking
+   the items with `status: "open"`. Order them: approvals first, then
+   questions whose `blocks` isn't empty, then the rest.
+2. Ask with the question tool, up to 4 items per call, using each item exactly
+   as stored:
+   - the question is its `question`;
+   - the header is its kind and id (e.g. "Approval 14");
+   - the options are its `options`, in order, with the one at `recommended`
+     first and labelled "(Recommended)".
    The user can always answer "Other".
 3. After each batch, apply the answers right away:
-   - update whatever each answer decides (a spec, a contract, the lexicon,
-     BRAIN.md's board);
-   - remove answered items from the Inbox table and add one line each to an
-     "Answered" list under it (date, number, the decision);
-   - an approval means the action it names may now happen, so do it, or hand
-     it to an assistant.
+   - do what the item's `applies` names, using the chosen option;
+   - set the item's `status` to "answered" and its `answer` to
+     `{ choice, note?, at }`, then move it from `inbox` to `answered`;
+   - an approval (`reversible: false`) means the action may now happen, so do
+     it, or hand it to an assistant.
+   A dismissed batch changes nothing.
 4. Keep going batch by batch until the inbox is empty or the user stops.
    Never ask anything outside the inbox during the run.
 5. End with one line: how many were answered, what's left, and what each
