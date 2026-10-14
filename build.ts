@@ -1,25 +1,27 @@
-// Copies awesome-claude's shared kit into each syns mod that draws with it.
+// Copies zen's Claude Code kit into each syns mod that draws with it.
 //
-// The engine refuses a plugin's imports from outside its own folder, so a mod
-// carries its own copy of the kit (`<mod>/kit/`, committed), as awesome-claude's
-// build puts one into each of its plugins. The mod imports it by relative path
-// (`../kit/ui`), so nothing else is rewritten. Run it again to take a newer kit.
+// The kit lives in zen (satoramoto/zen, `src/harness/claude-code/kit/`; how to build
+// a mod with it: zen's docs/harness-claude-code.md). The engine refuses a plugin's
+// imports from outside its own folder, so a mod carries its own copy of the kit
+// (`<mod>/kit/`, committed), as awesome-claude's build puts one into each of its
+// plugins. The mod imports it by relative path (`../kit/ui`), so nothing else is
+// rewritten. Run it again to take a newer kit.
 //
-//   bun build.ts      copy the kit from ../awesome-claude/kit (or $AWESOME_CLAUDE/kit)
+//   bun build.ts      copy the kit from ../zen (or $ZEN, a zen checkout)
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = import.meta.dir
-const SOURCE = join(process.env.AWESOME_CLAUDE ?? join(ROOT, '..', 'awesome-claude'), 'kit')
+const SOURCE = join(process.env.ZEN ?? join(ROOT, '..', 'zen'), 'src', 'harness', 'claude-code', 'kit')
 /** The mods that draw with the kit. */
 const MODS = ['syns-dashboard']
 
 if (!existsSync(SOURCE)) {
-  console.error(`no kit at ${SOURCE}: clone awesome-claude beside syns, or set AWESOME_CLAUDE`)
+  console.error(`no kit at ${SOURCE}: clone satoramoto/zen beside syns, or set ZEN to a zen checkout`)
   process.exit(1)
 }
 
-// The kit's own tests stay in awesome-claude, as its build leaves them out.
+// The kit's own tests stay in zen.
 const files = readdirSync(SOURCE).filter(name => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
 
 for (const mod of MODS) {
