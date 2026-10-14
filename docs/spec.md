@@ -1,7 +1,9 @@
 # syn: the session machine
 
-Status: **draft.** Nothing is built yet beyond the plugin skeleton in
-`plugin/`. Background and vocabulary: [VISION.md](../VISION.md),
+Status: **the written-down future, not the build plan.** Nothing here is
+built beyond the plugin skeleton in `plugin/`. What gets built next is the
+smallest milestone on [VISION.md](../VISION.md)'s Roadmap; parts of this spec
+land only when the workflow needs them, and change as they do. Background and vocabulary: [VISION.md](../VISION.md),
 [lexicon](lexicon.md), [prior art](prior-art.md).
 
 ## Outcomes

@@ -28,6 +28,9 @@ a base context per repo. Until then, by hand:
    `<repo>/.claude/base-context.md` and gitignore it.
 5. Load the plugin: `claude --plugin-dir /path/to/syns/plugin`, then `/syn`.
 
+The templates are a starting point, not a framework. Skills and agents should
+grow out of your own use: change, drop or add them as your workflow develops.
+
 ## Try it against stock Claude Code
 
 A Docker image runs Claude Code exactly as it ships, with nothing from your
@@ -49,7 +52,7 @@ More in [AGENTS.md](AGENTS.md).
 - [docs/spec.md](docs/spec.md): the session machine, with brain state and the
   inbox as its data model.
 - [docs/lexicon.md](docs/lexicon.md): the shared vocabulary.
-- [docs/prior-art.md](docs/prior-art.md): SINS, and what carries over.
+- [docs/prior-art.md](docs/prior-art.md): where the name comes from.
 
 ## License
 

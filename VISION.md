@@ -15,6 +15,14 @@ Interruptions are the biggest anti-pattern. syn never interrupts; it batches.
 - **Each permission prompt is an interruption too**, and a signal that a rule
   or an allowlist entry should exist so it doesn't recur.
 
+## Second principle: grow it, don't build it
+
+Don't build a massive system up front. Think about the future and write it
+down ([docs/spec.md](docs/spec.md) is that written-down future, not the build
+plan), but every iteration is the smallest, simplest, easiest version of the
+next milestone (see the Roadmap). Skills, agents and structure grow out of
+use as the workflow develops. The circuit model is the target, not the start.
+
 ## Flow anti-patterns, ranked
 
 Interruptions are the umbrella. Under it are five ways flow breaks, all of
@@ -253,9 +261,8 @@ AI, which we don't think is one.
 
 Two recursive expansions:
 
-- **SYNS Is Not SINS.** SINS ("SINS Is Not Scrum") was an earlier experiment
-  in autonomous loop drivers that moved a project while its owner was away.
-  syn keeps you in the loop instead. See [prior art](docs/prior-art.md).
+- **SYNS Is Not SINS**, after an earlier experiment, "SINS Is Not Scrum". Only
+  the name carries over. See [prior art](docs/prior-art.md).
 - **SYNS Yields Nirvanic Software.** What it's for.
 
 ## What syn is not
@@ -279,13 +286,16 @@ In:
 - a skeleton `syn` plugin (`plugin/`) with a `/syn` command that reads
   `BRAIN.md` and prints the inbox count, and an `/syn onboard` stub.
 
-Next, not in this POC yet:
-- **the real mod**: the state machine, guards, routing log and the pane
-  (brain state, jobs in flight, and the inbox as a quiz), built out from the
-  plugin skeleton. It stays its own plugin in this repo, so syns installs on
-  its own, and draws its pane with awesome-claude's `kit/` (the inspector
-  tokens and components), copied in at build time the way awesome-claude
-  compiles the kit into each of its mods;
-- onboarding implemented end to end;
-- the machine editor on zen's graph primitives;
-- an installer.
+## Roadmap
+
+Each milestone is the smallest, simplest version that works on its own.
+
+- **M1:** `/syn inbox` runs `BRAIN.md`'s inbox as a quiz and writes the
+  answers back.
+- **M2:** one line of hidden context on each prompt: the mode, the threads,
+  the open inbox count.
+- **M3:** one metric, ask → first reply, measured from transcripts, naked vs
+  syn on one script.
+- **Later, as needed:** the pane, guards, modes, buckets, onboarding, the
+  circuit. When the pane comes, the plugin stays in this repo and draws with
+  awesome-claude's `kit/`, copied in at build time.
