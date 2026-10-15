@@ -138,15 +138,10 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
     )
   }
 
-  // On the desktop, framed as the prompt input below it is: its border (the theme's
-  // `promptBorder`, rounded) and its inset. The terminal draws one plain row.
-  return terminal ? (
+  // No frame of our own on any surface: the desktop already draws the band in its own
+  // rounded container, so a border here drew a box in a box. The terminal draws one plain row.
+  return (
     <Box flexDirection="column" minWidth={0}>
-      {row}
-      {list}
-    </Box>
-  ) : (
-    <Box flexDirection="column" minWidth={0} borderStyle="round" borderColor="promptBorder" paddingX={1}>
       {row}
       {list}
     </Box>
