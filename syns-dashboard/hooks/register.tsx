@@ -4,6 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import { holdButtons } from '../kit/ui'
 import type { AgentRow, PrRow } from '../types'
 import { toView } from './brain'
+import { queueText } from './queue'
 import { render } from './view'
 import type { Els } from './view'
 
@@ -130,11 +131,32 @@ const tick = async ($: EngineInterface, force = false) => {
 
 let worker: { cancel: () => void } | undefined
 
+// ---- the band above the prompt: brain.json's queue depths, re-read every 2 s whatever the pane does ----
+
+let queueLine = ''
+let queueMtime = 0
+let queueWorker: { cancel: () => void } | undefined
+
+const refreshQueue = async ($: EngineInterface) => {
+  const path = await pathOf($)
+  const stat = await $.fs.stat(path).catch(() => null)
+  if (!stat || stat.mtimeMs === queueMtime) return
+  queueMtime = stat.mtimeMs
+  const line = queueText(await $.fs.read(path).catch(() => ''))
+  if (line !== queueLine) {
+    queueLine = line
+    $.ui.invalidate('ui.render')
+  }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
     worker?.cancel()
     worker = $.clock.every(2_000, () => void tick($).catch(() => undefined))
+    queueWorker?.cancel()
+    queueWorker = $.clock.every(2_000, () => void refreshQueue($).catch(() => undefined))
+    void refreshQueue($).catch(() => undefined)
     void $.ui.open({ id: PANE, title: TITLE })
     void tick($, true).catch(() => undefined)
 
@@ -160,6 +182,17 @@ export const register: Register = on => {
     }
     return next(e)
   }).catch(($, e, next) => next(e))
+
+  // The band above the prompt: how many questions and updates wait in brain.json.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey || !queueLine) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row">
+        <Text dimColor>{queueLine}</Text>
+      </Box>
+    )
+  })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const data = {
