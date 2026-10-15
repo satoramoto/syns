@@ -2,9 +2,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { holdButtons } from '../kit/ui'
-import type { AgentRow, PrRow } from '../types'
-import { toView } from './brain'
-import { queueText } from './queue'
+import type { AgentRow, BandOpen, CiRow, PrRow } from '../types'
+import { band } from './band'
+import { toView, updateText } from './brain'
 import { render } from './view'
 import type { Els } from './view'
 
@@ -17,6 +17,8 @@ const agents = atom({ plugin: 'syns-dashboard', key: 'agents' } as const, [])
 const doing = atom({ plugin: 'syns-dashboard', key: 'doing' } as const, {})
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, [])
 const columns = atom({ plugin: 'syns-dashboard', key: 'columns' } as const, true)
+const failing = atom({ plugin: 'syns-dashboard', key: 'failing' } as const, [] as CiRow[])
+const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, null as BandOpen)
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -121,7 +123,8 @@ const tick = async ($: EngineInterface, force = false) => {
   if (busy || (!force && !(await isShown($)))) return
   busy = true
   try {
-    await readBrain($, force).catch(() => undefined)
+    // brain.json itself is read by its own timer (brainWorker), for the band and the pane alike.
+    if (force) await readBrain($, true).catch(() => undefined)
     await readAgents($).catch(() => undefined)
     if (prsStale || Date.now() - prsAt > PR_EVERY) await readPrs($).catch(() => undefined)
   } finally {
@@ -131,22 +134,47 @@ const tick = async ($: EngineInterface, force = false) => {
 
 let worker: { cancel: () => void } | undefined
 
-// ---- the band above the prompt: brain.json's queue depths, re-read every 2 s whatever the pane does ----
+// ---- the band above the prompt: brain.json (one read, shared with the pane) every 2 s, failing CI every few minutes ----
 
-let queueLine = ''
-let queueMtime = 0
-let queueWorker: { cancel: () => void } | undefined
+let brainWorker: { cancel: () => void } | undefined
+let ciWorker: { cancel: () => void } | undefined
 
-const refreshQueue = async ($: EngineInterface) => {
-  const path = await pathOf($)
-  const stat = await $.fs.stat(path).catch(() => null)
-  if (!stat || stat.mtimeMs === queueMtime) return
-  queueMtime = stat.mtimeMs
-  const line = queueText(await $.fs.read(path).catch(() => ''))
-  if (line !== queueLine) {
-    queueLine = line
-    $.ui.invalidate('ui.render')
+const CI_EVERY = 300_000
+
+/** Ryan's open PRs whose checks fail, as gh's search finds them. */
+const readFailing = async ($: EngineInterface) => {
+  const run = await $.process.run(
+    ['gh', 'search', 'prs', '--author', '@me', '--state', 'open', '--checks', 'failure', '--json', 'repository,number,title,url', '--limit', '20'],
+    { timeoutMs: 20_000 },
+  )
+  // gh failed (offline, signed out): show nothing rather than a stale list.
+  if (run.exitCode !== 0) {
+    if ((await read($, failing)).length) await update($, failing, () => [])
+    return
   }
+  const rows: CiRow[] = (JSON.parse(run.stdout) as any[]).map(p => ({
+    ref: `${p.repository?.nameWithOwner ?? ''}#${p.number}`,
+    title: String(p.title ?? ''),
+    url: String(p.url ?? ''),
+  }))
+  if (!same(await read($, failing), rows)) await update($, failing, () => rows)
+}
+
+/**
+ * Removes the first entry of brain.json's `updates` whose content reads as `text`,
+ * then reads the file again for the band and pane. The file is read fresh from disk
+ * right before the write (never the cached view), so edits made since the last
+ * 2 s read survive. Not atomic: `$.fs` has no rename, so no temp-file-and-rename.
+ */
+const dismissUpdate = async ($: EngineInterface, text: string) => {
+  const path = await pathOf($)
+  const d = JSON.parse(await $.fs.read(path))
+  if (!d || !Array.isArray(d.updates)) return
+  const i = d.updates.findIndex((u: unknown) => u != null && updateText(u) === text)
+  if (i < 0) return
+  d.updates.splice(i, 1)
+  await $.fs.write(path, `${JSON.stringify(d, null, 2)}\n`)
+  await readBrain($, true)
 }
 
 export const register: Register = on => {
@@ -154,9 +182,11 @@ export const register: Register = on => {
     await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
     worker?.cancel()
     worker = $.clock.every(2_000, () => void tick($).catch(() => undefined))
-    queueWorker?.cancel()
-    queueWorker = $.clock.every(2_000, () => void refreshQueue($).catch(() => undefined))
-    void refreshQueue($).catch(() => undefined)
+    brainWorker?.cancel()
+    brainWorker = $.clock.every(2_000, () => void readBrain($).catch(() => undefined))
+    ciWorker?.cancel()
+    ciWorker = $.clock.every(CI_EVERY, () => void readFailing($).catch(() => undefined))
+    void readFailing($).catch(() => undefined)
     void $.ui.open({ id: PANE, title: TITLE })
     void tick($, true).catch(() => undefined)
 
@@ -183,15 +213,17 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The band above the prompt: how many questions and updates wait in brain.json.
+  // The band above the prompt: what needs Ryan (approvals, questions, failing CI, updates), each a press.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || !queueLine) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="row">
-        <Text dimColor>{queueLine}</Text>
-      </Box>
-    )
+    if (e.props.hasSurvey) return next(e)
+    const data = { brain: await read($, brain), failing: await read($, failing), open: await read($, bandOpen) }
+    const els = holdButtons($.ui.resolve(e), `AbovePrompt\u0000${e.surface}`) as unknown as Els
+    const tree = band(els, e.surface, e.props.bodyColumns, data, {
+      inbox: () => ask($, 'syn:inbox'),
+      toggle: open => void update($, bandOpen, was => (was === open ? null : open)).catch(() => undefined),
+      dismiss: text => void dismissUpdate($, text).catch(() => $.ui.toast('Could not dismiss that update in brain.json')),
+    })
+    return tree ?? next(e)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

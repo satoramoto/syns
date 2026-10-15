@@ -41,6 +41,8 @@ export type BrainView = {
   questions: number
   /** PRs named anywhere in the file, `owner/repo#n`. */
   prs: string[]
+  /** brain.json's `updates`, each as one line of text, oldest first. */
+  updates: string[]
   /** The single next step. */
   next: string
   /** Why nothing could be read (missing file, bad JSON). */
@@ -54,6 +56,12 @@ export type PrRow = {
   state: string
   title: string
 }
+
+/** One of Ryan's open PRs whose checks fail, from `gh search prs --checks failure`. */
+export type CiRow = { ref: string; title: string; url: string }
+
+/** Which list the band above the prompt has unfolded under its kinds, if any. */
+export type BandOpen = 'updates' | 'ci' | null
 
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
@@ -70,6 +78,10 @@ declare module 'claude-code' {
       collapsed: string[]
       /** Whether a wide app pane flows the sections into columns; on until flipped. */
       columns: boolean
+      /** Ryan's open PRs with failing checks, for the band above the prompt. */
+      failing: CiRow[]
+      /** The band's unfolded list. */
+      bandOpen: BandOpen
     }
   }
 }

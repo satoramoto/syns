@@ -38,9 +38,16 @@ const decisionText = (answer: any) => {
   return choice && choice !== 'Other' ? choice : firstSentence(note) || choice
 }
 
-/** brain.json's text, as the pane draws it. */
+/** One entry of brain.json's `updates` as a line of text: a string as is, an object by its `text` or `title`. */
+export const updateText = (u: unknown): string => {
+  if (typeof u === 'string') return u
+  const o = (u ?? {}) as Record<string, unknown>
+  return str(o.text ?? o.title ?? JSON.stringify(u))
+}
+
+/** brain.json's text, as the pane and the band draw it. */
 export const toView = (text: string, path: string, mtime: number): BrainView => {
-  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decided: [], approvals: [], questions: 0, prs: [], next: '' }
+  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decided: [], approvals: [], questions: 0, prs: [], updates: [], next: '' }
   let d: any
   try {
     d = JSON.parse(text)
@@ -82,6 +89,7 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
     approvals,
     questions: open.length - approvals.length,
     prs: prRefs(text).slice(0, PRS),
+    updates: (Array.isArray(d.updates) ? d.updates : []).filter((u: unknown) => u != null).map(updateText),
     // A `next` of its own wins; otherwise the top thread's.
     next: firstSentence(str(d.next)) || threads[0]?.next || '',
   }
