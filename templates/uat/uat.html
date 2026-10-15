@@ -1,0 +1,195 @@
+<title>Visuals 1.0 UAT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* syns UAT template. Layout: a run header with a segmented progress rail; one step at a time on the left, the whole checklist by area on the right (stacked on phones). The checklist and results live in the artifact's db: items/<id> {order, area, steps, expected, why, status, note, at}, meta/run {title, subtitle}. */
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #16181d; --ink-2: #4b5160; --ink-3: #8a909c; --line: #dfe2e8;
+  --accent: #4b5bdc; --pass: #1f9d63; --fail: #d2453b; --skip: #b5871b; --todo: #c3c7cf;
+  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111317; --panel: #191c22; --ink: #e8eaef; --ink-2: #a9afbb; --ink-3: #6c7280; --line: #2a2e37;
+  --accent: #8b97ff; --pass: #3fc487; --fail: #f06b61; --skip: #e0b04a; --todo: #3a3f4a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111317; --panel: #191c22; --ink: #e8eaef; --ink-2: #a9afbb; --ink-3: #6c7280; --line: #2a2e37;
+  --accent: #8b97ff; --pass: #3fc487; --fail: #f06b61; --skip: #e0b04a; --todo: #3a3f4a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); padding-inline: 16px; padding-block: 20px 40px }
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px }
+header { display: grid; gap: 10px }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; justify-content: space-between }
+h1 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance }
+.sub { color: var(--ink-3); font-size: 13px }
+.counts { display: flex; gap: 14px; font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2) }
+.counts span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--c) }
+.rail { display: flex; gap: 2px; height: 6px }
+.rail i { flex: 1; border-radius: 2px; background: var(--todo); cursor: pointer }
+.rail i.cur { outline: 2px solid var(--accent); outline-offset: 1px }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start }
+@media (max-width: 820px) { main { grid-template-columns: minmax(0, 1fr) } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: grid; gap: 16px; min-width: 0 }
+.meta { display: flex; gap: 10px; align-items: center; font: 500 12px var(--mono); color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase }
+.area { color: var(--accent) }
+.state { margin-left: auto; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c) }
+.label { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px }
+.steps { font-size: 17px; line-height: 1.55; max-width: 65ch }
+.expect { color: var(--ink-2); max-width: 65ch }
+.why { font-size: 13px; color: var(--ink-3); max-width: 65ch }
+textarea { width: 100%; min-height: 64px; resize: vertical; font: 14px/1.45 var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px }
+textarea:focus-visible, button:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+button { font: 500 14px var(--sans); border-radius: 8px; padding: 9px 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer }
+button kbd { font: 500 11px var(--mono); color: var(--ink-3); margin-left: 6px }
+button.mark { border-color: color-mix(in srgb, var(--c) 45%, var(--line)) }
+button.mark.on, button.mark:hover { background: var(--c); border-color: var(--c); color: #fff }
+button.mark.on kbd, button.mark:hover kbd { color: rgba(255,255,255,.75) }
+.nav { margin-left: auto; display: flex; gap: 8px }
+button:disabled { opacity: .4; cursor: default }
+aside { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 0; max-height: 78vh; overflow: auto; min-width: 0 }
+.ahead { display: flex; justify-content: space-between; align-items: center; padding: 0 14px 8px; font-size: 13px; color: var(--ink-2) }
+.ahead label { display: flex; gap: 6px; align-items: center; cursor: pointer }
+.group { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: 10px 14px 4px }
+.row { display: flex; gap: 10px; align-items: baseline; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--ink-2) }
+.row:hover { background: var(--bg) }
+.row.cur { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--ink) }
+.row b { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); transform: translateY(-1px) }
+.row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.row em { margin-left: auto; font: 400 11px var(--mono); color: var(--ink-3); font-style: normal; flex: none }
+.empty { color: var(--ink-2); padding: 32px 20px; text-align: center }
+.done { display: grid; gap: 8px }
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px }
+@media (prefers-reduced-motion: no-preference) { .card { transition: border-color .2s } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="top">
+      <div><h1 id="title">UAT</h1><div class="sub" id="subtitle">Loading the checklist…</div></div>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div class="rail" id="rail" aria-label="Progress"></div>
+  </header>
+  <main>
+    <section class="card" id="card" aria-live="polite">
+      <div class="empty">The checklist appears here once Claude adds it.</div>
+    </section>
+    <aside>
+      <div class="ahead"><span id="listcount"></span><label><input type="checkbox" id="openOnly"> Only open</label></div>
+      <div id="list"></div>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const COLORS = { todo: "var(--todo)", pass: "var(--pass)", fail: "var(--fail)", skip: "var(--skip)" };
+const NAMES = { todo: "To do", pass: "Pass", fail: "Fail", skip: "Skipped" };
+let db = null, items = [], cur = 0, openOnly = false, noteDirty = false;
+try { openOnly = localStorage.getItem("uat-open-only") === "1" } catch {}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const st = it => it.status || "todo";
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 1800) }
+
+function renderHeader() {
+  const n = { pass: 0, fail: 0, skip: 0, todo: 0 };
+  items.forEach(it => n[st(it)]++);
+  $("counts").innerHTML = ["pass", "fail", "skip", "todo"].map(k => `<span style="--c:${COLORS[k]}">${n[k]} ${NAMES[k].toLowerCase()}</span>`).join("");
+  $("rail").innerHTML = items.map((it, i) => `<i title="${esc(it.id)}" data-i="${i}" class="${i === cur ? "cur" : ""}" style="background:${COLORS[st(it)]}"></i>`).join("");
+  $("listcount").textContent = `${items.length - n.todo} of ${items.length} done`;
+}
+
+function renderList() {
+  let html = "", area = null;
+  items.forEach((it, i) => {
+    if (openOnly && st(it) !== "todo" && i !== cur) return;
+    if (it.area !== area) { area = it.area; html += `<div class="group">${esc(area)}</div>` }
+    html += `<div class="row ${i === cur ? "cur" : ""}" tabindex="0" data-i="${i}" style="--c:${COLORS[st(it)]}"><b></b><span>${esc(it.steps)}</span><em>${esc(it.id)}</em></div>`;
+  });
+  $("list").innerHTML = html || `<div class="empty">Nothing open.</div>`;
+  $("list").querySelector(".row.cur")?.scrollIntoView({ block: "nearest" });
+}
+
+function renderCard() {
+  const card = $("card");
+  if (!items.length) { card.innerHTML = `<div class="empty">${db ? "No checklist yet. Claude adds the items to this page's data." : "Sign in to claude.ai to load the checklist."}</div>`; return }
+  const it = items[cur], s = st(it);
+  card.innerHTML = `
+    <div class="meta"><span class="area">${esc(it.area)}</span><span>${esc(it.id)}</span><span>${cur + 1} / ${items.length}</span><span class="state" style="--c:${COLORS[s]}">${NAMES[s]}</span></div>
+    <div><div class="label">Do</div><div class="steps">${esc(it.steps)}</div></div>
+    <div><div class="label">Expect</div><div class="expect">${esc(it.expected)}</div></div>
+    ${it.why ? `<div class="why">${esc(it.why)}</div>` : ""}
+    <div><div class="label"><label for="note">Note</label></div><textarea id="note" placeholder="What you saw, if it's not what was expected">${esc(it.note)}</textarea></div>
+    <div class="actions">
+      ${["pass", "fail", "skip"].map(k => `<button class="mark ${s === k ? "on" : ""}" data-mark="${k}" style="--c:${COLORS[k]}">${NAMES[k] === "Skipped" ? "Skip" : NAMES[k]}<kbd>${k[0].toUpperCase()}</kbd></button>`).join("")}
+      <div class="nav"><button data-go="-1" ${cur === 0 ? "disabled" : ""}>Back<kbd>←</kbd></button><button data-go="1" ${cur === items.length - 1 ? "disabled" : ""}>Next<kbd>→</kbd></button></div>
+    </div>`;
+  noteDirty = false;
+}
+
+function render() { renderHeader(); renderList(); renderCard() }
+
+async function saveNote() {
+  if (!noteDirty || !db || !items[cur]) return;
+  const note = $("note").value; noteDirty = false;
+  try { await db.doc("items/" + items[cur].id).update({ note }) } catch (e) { toast("Couldn't save the note: " + (e.message || e.code)) }
+}
+
+async function mark(status) {
+  if (!db || !items[cur]) return;
+  const it = items[cur], note = $("note")?.value ?? it.note ?? "";
+  const next = it.status === status ? "todo" : status;
+  try {
+    await db.doc("items/" + it.id).update({ status: next, note, at: new Date().toISOString() });
+    noteDirty = false;
+    if (next !== "todo") { const j = items.findIndex((x, i) => i > cur && st(x) === "todo"); if (j >= 0) go(j - cur) }
+  } catch (e) { toast("Couldn't save: " + (e.message || e.code)) }
+}
+
+function go(d) { saveNote(); cur = Math.max(0, Math.min(items.length - 1, cur + d)); render(); $("card").scrollIntoView({ block: "nearest" }) }
+function jump(i) { go(i - cur) }
+
+document.addEventListener("click", e => {
+  const m = e.target.closest("[data-mark]"); if (m) return mark(m.dataset.mark);
+  const g = e.target.closest("[data-go]"); if (g) return go(+g.dataset.go);
+  const r = e.target.closest("[data-i]"); if (r) return jump(+r.dataset.i);
+});
+document.addEventListener("keydown", e => {
+  if (e.target.matches("textarea, input")) { if (e.key === "Escape") e.target.blur(); return }
+  if (e.key === "Enter" && e.target.matches(".row")) return jump(+e.target.dataset.i);
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "p") mark("pass"); else if (k === "f") mark("fail"); else if (k === "s") mark("skip");
+  else if (k === "arrowright" || k === "j") go(1); else if (k === "arrowleft" || k === "k") go(-1);
+  else if (k === "n") $("note")?.focus(); else return;
+  e.preventDefault();
+});
+document.addEventListener("input", e => { if (e.target.id === "note") noteDirty = true });
+document.addEventListener("focusout", e => { if (e.target.id === "note") saveNote() });
+$("openOnly").checked = openOnly;
+$("openOnly").addEventListener("change", e => { openOnly = e.target.checked; try { localStorage.setItem("uat-open-only", openOnly ? "1" : "0") } catch {} renderList() });
+
+render();
+(async () => {
+  db = await window.claude?.use?.("db") ?? null;
+  if (!db) { $("subtitle").textContent = "Couldn't reach this page's data."; renderCard(); return }
+  db.doc("meta/run").onSnapshot(s => {
+    const m = s.exists ? s.data() : {};
+    if (m.title) { $("title").textContent = m.title; document.title = m.title }
+    $("subtitle").textContent = m.subtitle || "P pass · F fail · S skip · ← → move · N note";
+  }, () => {});
+  let first = true;
+  db.collection("items").orderBy("order").onSnapshot(snap => {
+    const id = items[cur]?.id, typing = document.activeElement?.id === "note";
+    items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const k = items.findIndex(x => x.id === id);
+    if (k >= 0) cur = k;
+    else if (first) { const t = items.findIndex(x => st(x) === "todo"); cur = t >= 0 ? t : 0 }
+    first = false;
+    if (typing) { renderHeader(); renderList() } else render();
+  }, e => toast("Lost the connection to this page's data: " + (e.message || e.code)));
+})();
+</script>
