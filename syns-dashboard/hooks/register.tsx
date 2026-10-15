@@ -147,7 +147,11 @@ const readFailing = async ($: EngineInterface) => {
     ['gh', 'search', 'prs', '--author', '@me', '--state', 'open', '--checks', 'failure', '--json', 'repository,number,title,url', '--limit', '20'],
     { timeoutMs: 20_000 },
   )
-  if (run.exitCode !== 0) return
+  // gh failed (offline, signed out): show nothing rather than a stale list.
+  if (run.exitCode !== 0) {
+    if ((await read($, failing)).length) await update($, failing, () => [])
+    return
+  }
   const rows: CiRow[] = (JSON.parse(run.stdout) as any[]).map(p => ({
     ref: `${p.repository?.nameWithOwner ?? ''}#${p.number}`,
     title: String(p.title ?? ''),
@@ -156,7 +160,12 @@ const readFailing = async ($: EngineInterface) => {
   if (!same(await read($, failing), rows)) await update($, failing, () => rows)
 }
 
-/** Removes the first entry of brain.json's `updates` that reads as `text`, and reads the file again. */
+/**
+ * Removes the first entry of brain.json's `updates` whose content reads as `text`,
+ * then reads the file again for the band and pane. The file is read fresh from disk
+ * right before the write (never the cached view), so edits made since the last
+ * 2 s read survive. Not atomic: `$.fs` has no rename, so no temp-file-and-rename.
+ */
 const dismissUpdate = async ($: EngineInterface, text: string) => {
   const path = await pathOf($)
   const d = JSON.parse(await $.fs.read(path))
