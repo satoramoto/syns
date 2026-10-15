@@ -1,3 +1,7 @@
+import type { Skin } from './skin'
+import { DEFAULT_SKIN, SKINS } from './skins'
+import type { SkinId } from './skins'
+
 /**
  * The instrument's colours. Each hue means one thing, everywhere:
  *
@@ -10,26 +14,31 @@
  * - purple: merged
  *
  * Cyan and orchid aren't statuses: they only tint parts within one chart.
+ *
+ * The values come from the skin the kit wears (kit/skin.ts): a zen theme pack's
+ * palette, mapped to what the app surfaces draw. The kit starts in the
+ * `claude-code` skin; `wear()` puts on another. Read them when drawing, never
+ * into a module-level constant, so a skin worn later reaches every drawing.
  */
 export const C = {
-  ok: '#5bc08a',
-  warn: '#e3a33b',
-  bad: '#e5636f',
-  blue: '#6c8ef5',
-  purple: '#9d85e8',
-  cyan: '#4fb3c8',
-  slate: '#8c9bb5',
-  orchid: '#c58ad6',
-} as const
+  ok: '',
+  warn: '',
+  bad: '',
+  blue: '',
+  purple: '',
+  cyan: '',
+  slate: '',
+  orchid: '',
+}
 
 /** Quantity ink: what a bar or gauge is drawn in when it only says how much. */
-export const INK = C.slate
+export let INK = ''
 
 /** Shades within one chart: parts of one thing, told apart without new meanings. */
 export const RAMP = {
-  blue: ['#6c8ef5', '#4c68c9', '#a9bbf9', '#38509e'],
-  slate: ['#8c9bb5', '#6f7c93', '#a7b2c6', '#5b667a'],
-} as const
+  blue: ['', '', '', ''] as [string, string, string, string],
+  slate: ['', '', '', ''] as [string, string, string, string],
+}
 
 /** A bar's empty part and other quiet fills: a grey that reads on light and dark. */
 export const TRACK = 'rgba(128,128,128,0.18)'
@@ -63,13 +72,13 @@ export const tint = (color: string, alpha: number): string | undefined => {
 export const FILL = {
   head: 'rgba(128,128,128,0.09)',
   tile: 'rgba(128,128,128,0.05)',
-  selected: tint(C.blue, 0.13)!,
-  selectedBlurred: tint(C.blue, 0.065)!,
+  selected: '',
+  selectedBlurred: '',
   pill: 0.22,
-} as const
+}
 
 /** Text, icons and marks that should recede. */
-export const MUTED = '#8e8e93'
+export let MUTED = ''
 
 /**
  * Three greys for text below the main text, each a step quieter, so a row can say
@@ -79,7 +88,7 @@ export const MUTED = '#8e8e93'
  * - mid: metadata scanned past (ages, counts, secondary actions);
  * - dark: the quietest marks (an icon beside a count, a heading over a list).
  */
-export const GRAY = { light: '#b9b9b6', mid: '#8a8a87', dark: '#62625f' } as const
+export const GRAY = { light: '', mid: '', dark: '' }
 
 /** A colour with one value for the light desktop theme and one for the dark. */
 export type Duo = { readonly light: string; readonly dark: string }
@@ -156,15 +165,10 @@ export const levelColor = (percent: number): string => (percent >= 90 ? C.bad : 
  * - any other hex → the default foreground: no fixed hex reaches the terminal,
  *   where it can vanish on a light, an ANSI-only or a colour-blind theme.
  */
-export const THEME_KEY: Readonly<Record<string, string>> = {
-  [C.ok]: 'success',
-  [C.bad]: 'error',
-  [C.warn]: 'warning',
-  [C.blue]: 'suggestion',
-  [C.purple]: 'merged',
-}
+const themeKey: Record<string, string> = {}
+export const THEME_KEY: Readonly<Record<string, string>> = themeKey
 
-const QUIET = new Set<string>([MUTED, GRAY.light, GRAY.mid, GRAY.dark, TRACK])
+const QUIET = new Set<string>()
 
 /** Text props on the terminal: a theme key, the terminal's dim, or neither (the default foreground). */
 export type TermInk = { color?: string; dimColor?: boolean }
@@ -176,17 +180,8 @@ export type TermInk = { color?: string; dimColor?: boolean }
  * next to each other in a bar also differ by glyph (`█`, `▓`), so they read
  * without colour too.
  */
-export const TERM_TINT: Readonly<Record<string, TermInk>> = {
-  [RAMP.slate[0]]: {},
-  [RAMP.slate[1]]: { dimColor: true },
-  [RAMP.slate[2]]: {},
-  [RAMP.slate[3]]: { dimColor: true },
-  [RAMP.blue[1]]: { color: 'suggestion', dimColor: true },
-  [RAMP.blue[2]]: { color: 'suggestion' },
-  [RAMP.blue[3]]: { color: 'suggestion', dimColor: true },
-  [C.cyan]: {},
-  [C.orchid]: { dimColor: true },
-}
+const termTint: Record<string, TermInk> = {}
+export const TERM_TINT: Readonly<Record<string, TermInk>> = termTint
 
 /** Whether `color` is one of the kit's tokens (a status, a grey, a chart shade), not data such as a GitHub label's hex. */
 export const isKitColor = (color: string): boolean => QUIET.has(color) || color in THEME_KEY || color in TERM_TINT
@@ -243,17 +238,69 @@ export const GLYPH = {
  * running server and a pending check all read alike.
  */
 export const STATUS = {
-  running: { glyph: GLYPH.running, color: C.blue },
-  pending: { glyph: GLYPH.pending, color: C.blue },
-  done: { glyph: GLYPH.done, color: C.ok },
-  failed: { glyph: GLYPH.failed, color: C.bad },
-  warn: { glyph: '▲', color: C.warn },
-  merged: { glyph: '◆', color: C.purple },
-  stopped: { glyph: GLYPH.stopped, color: MUTED },
-  idle: { glyph: '○', color: MUTED },
-} as const
+  running: { glyph: GLYPH.running, color: '' },
+  pending: { glyph: GLYPH.pending, color: '' },
+  done: { glyph: GLYPH.done, color: '' },
+  failed: { glyph: GLYPH.failed, color: '' },
+  warn: { glyph: '▲', color: '' },
+  merged: { glyph: '◆', color: '' },
+  stopped: { glyph: GLYPH.stopped, color: '' },
+  idle: { glyph: '○', color: '' },
+}
 
 export type StatusKind = keyof typeof STATUS
+
+/** The skin the kit wears now: a key of SKINS, or `custom` for a skin passed in whole. */
+export let SKIN: SkinId | 'custom' = DEFAULT_SKIN
+
+/**
+ * Puts on a skin: a zen theme pack's (a key of SKINS, kit/skins.ts) or one made
+ * in full. Every colour above takes the skin's value, and the terminal's mapping
+ * follows, so each meaning keeps its theme key. Wear one before the first
+ * drawing (at the top of the hooks module); the kit starts in DEFAULT_SKIN.
+ */
+export const wear = (skin: SkinId | Skin): void => {
+  const s = typeof skin === 'string' ? SKINS[skin] : skin
+  if (!s) throw new Error(`no skin '${String(skin)}'`)
+  SKIN = typeof skin === 'string' ? skin : 'custom'
+  Object.assign(C, { ok: s.ok, warn: s.warn, bad: s.bad, blue: s.blue, purple: s.purple, cyan: s.cyan, slate: s.slate, orchid: s.orchid })
+  INK = s.slate
+  RAMP.blue.splice(0, 4, ...s.ramp.blue)
+  RAMP.slate.splice(0, 4, ...s.ramp.slate)
+  FILL.selected = tint(s.blue, 0.13)!
+  FILL.selectedBlurred = tint(s.blue, 0.065)!
+  MUTED = s.muted
+  Object.assign(GRAY, s.gray)
+  const status: Record<StatusKind, string> = {
+    running: s.blue,
+    pending: s.blue,
+    done: s.ok,
+    failed: s.bad,
+    warn: s.warn,
+    merged: s.purple,
+    stopped: s.muted,
+    idle: s.muted,
+  }
+  for (const kind of Object.keys(status) as StatusKind[]) STATUS[kind].color = status[kind]
+  for (const key of Object.keys(themeKey)) delete themeKey[key]
+  Object.assign(themeKey, { [s.ok]: 'success', [s.bad]: 'error', [s.warn]: 'warning', [s.blue]: 'suggestion', [s.purple]: 'merged' })
+  QUIET.clear()
+  for (const grey of [s.muted, s.gray.light, s.gray.mid, s.gray.dark, TRACK]) QUIET.add(grey)
+  for (const key of Object.keys(termTint)) delete termTint[key]
+  Object.assign(termTint, {
+    [s.ramp.slate[0]]: {},
+    [s.ramp.slate[1]]: { dimColor: true },
+    [s.ramp.slate[2]]: {},
+    [s.ramp.slate[3]]: { dimColor: true },
+    [s.ramp.blue[1]]: { color: 'suggestion', dimColor: true },
+    [s.ramp.blue[2]]: { color: 'suggestion' },
+    [s.ramp.blue[3]]: { color: 'suggestion', dimColor: true },
+    [s.cyan]: {},
+    [s.orchid]: { dimColor: true },
+  })
+}
+
+wear(DEFAULT_SKIN)
 
 /**
  * Tree connectors for nested rows (agents under the agent that spawned them,

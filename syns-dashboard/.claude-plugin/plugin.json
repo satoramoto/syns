@@ -1,6 +1,6 @@
 {
   "name": "syns-dashboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Re-entry at a glance: a pane reading ~/.syns/brain.json (or $SYN_BRAIN) live (what we're doing, what you decided, what's running, what needs you, next)",
   "author": { "name": "Ryan Gavin" },
   "license": "MIT",
