@@ -120,18 +120,12 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
       </Box>
     ) : null
 
-  // The terminal draws one plain row. The desktop wraps the band in a lighter rounded
-  // container of its own, which a render hook can't reach (it styles only its own
-  // tree), so the thin grey border goes on our Box, filling that container
-  // (flexGrow, full width, no margin) with no fill of its own: the container's
-  // background shows through, and the two read as one bordered box.
-  return terminal ? (
+  // No frame of our own. The desktop draws the band inside a lighter, padded, rounded
+  // container of its own; the engine gives a hook no way to style it (the tree fills
+  // its slot, AbovePrompt's props carry no frame option, no theme key names it), and
+  // a border on our Box drew a second box inside it.
+  return (
     <Box flexDirection="column" minWidth={0}>
-      {row}
-      {list}
-    </Box>
-  ) : (
-    <Box flexDirection="column" flexGrow={1} width="100%" minWidth={0} borderStyle="round" borderColor="promptBorder" paddingX={1}>
       {row}
       {list}
     </Box>
