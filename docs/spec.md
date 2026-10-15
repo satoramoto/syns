@@ -116,7 +116,7 @@ Proposed terms, awaiting acceptance: **bucket**, **allowance**, **spend**,
 ```ts
 type Bucket = {
   thread: number;
-  allowance: number;          // per period (open question 6), in the unit of open question 7
+  allowance: number;          // no period (open question 6), in the unit of open question 7
   spent: number;              // derived from the log, never typed in
   transfers: Transfer[];
 };
@@ -142,12 +142,12 @@ type Transfer = {
 - **K4.** When a bucket's spend passes its allowance, syn adds one inbox
   question ("X is over its bucket: borrow from Y, raise it, or park X?") with
   a recommendation, and work continues. No turn is stopped or sent back for
-  it, and the same bucket isn't raised again in the period until that item is
-  answered.
+  it, and the same bucket isn't raised again until that item is answered.
 - **K5.** A transfer is explicit (an inbox answer or `/syn bucket`), is
   logged, and is reversible: reverting it restores both allowances.
-- **K6.** Buckets reset at the start of each period. Unspent allowance does
-  not carry over.
+- **K6.** Buckets have no period and never reset, so nothing carries over:
+  the brain reflects the latest state however long it's been. An allowance
+  changes only when it's set or by a transfer.
 - **K7.** The pane shows each thread's bucket as a reading: label, thin flat
   gauge (spent over allowance), value, unit.
 
@@ -305,7 +305,9 @@ update (rule 4), and notable results go to `done`.
 19. `/syn mode <name>` switches the session's mode for new jobs. Jobs in
     flight keep the mode they started with. The switch is logged.
 20. Each repo can name a default mode; a new session starts in it, or in
-    `normal` if none is set.
+    `normal` if none is set. The default mode, and syn's other per-repo
+    state, lives in a `.syns/` folder in that repo (its data model is open
+    question 8).
 21. A new mode is a new record. Adding one needs no new states or hooks.
 
 ## Guards
@@ -441,14 +443,20 @@ registered in brain.json listed and launched from it, and events from
    a count (rule 15).
 2. Settled: production denies commits to the default branch, and the guard
    names the mode (rule 23).
-3. Where do per-repo default modes live: the plugin's settings, or a line in
-   each repo's `AGENTS.md`? (★ `AGENTS.md`, one place per repo.)
-4. Should jobs survive a session restart, rebuilt from the log? (★ yes.)
+3. Settled: per-repo default modes, and syn's other per-repo state, live in a
+   `.syns/` folder in the repo (rule 20).
+4. Settled: there's no separate job state to survive a restart. `brain.json`
+   is always the current state, and anything in flight that matters is
+   written there. Gap to close: this spec still has the plugin hold jobs and
+   rebuild them from the log (Jobs, Log and measurement), and still names
+   `BRAIN.md` rather than `brain.json` as brain state.
 5. Should `BRAIN.md` stay markdown parsed by the plugin, or become JSON with a
    rendered markdown view? (★ markdown: it's edited by hand.)
-6. A bucket's period: a week or a month? (★ a week: a month gives no
-   feedback until it's too late.)
+6. Settled: buckets have no period. The brain reflects the latest state
+   regardless of elapsed time (K6).
 7. The spend formula: how do the main session's active time, agent wall time
    and tokens combine into one number? (★ minutes only, main-session active
    time plus agent wall time, with tokens shown beside it but not counted,
    until the log shows which tracks effort better.)
+8. The `.syns/` per-repo data model (rule 20): what files it holds, their
+   JSON shape, and what's committed versus gitignored. To be designed.
