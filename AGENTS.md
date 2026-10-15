@@ -20,6 +20,10 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
 - Plugin folders sit at the top level: sessions load this repo with
   `CLAUDE_CODE_PLUGIN_DIRS=~/Code/satoramoto/syns`, which finds plugin folders
   one level down only.
+- **Stable or dev.** The repo is also a marketplace (`.claude-plugin/marketplace.json`).
+  - **Stable** sessions install from GitHub: `claude plugin marketplace add satoramoto/syns`, then `claude plugin install syn@syns syns-dashboard@syns`. They update when a merged PR raises a plugin's version (in its `plugin.json` and in `marketplace.json`).
+  - **Dev** sessions load the checkout live instead: `CLAUDE_CODE_PLUGIN_DIRS=~/Code/satoramoto/syns` with `CLAUDE_CODE_PLUGIN_DIR_WATCH=1`, so a saved edit reloads.
+  - Use one or the other in a session, not both.
 - `Dockerfile`: the naked Claude image (`naked`), the syn variant (`syn`), and
   `dogfood`, the long-lived session across all your projects (its start
   command is `docker/dogfood-start.sh`).
