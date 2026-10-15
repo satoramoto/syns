@@ -2,18 +2,19 @@ import type { RenderElement, RenderSurface } from 'claude-code'
 
 import { C, MUTED } from '../kit/tokens'
 import { BLANK, SPACE, kit } from '../kit/ui'
-import type { BandOpen, BrainView, CiRow } from '../types'
+import type { BandOpen, BrainView } from '../types'
 import type { Els } from './view'
 
 /*
  * The band above the prompt: an attention center, one line of what needs Ryan,
  * each kind an icon and its count, each one a press that resolves it. Pure:
- * register.tsx reads brain.json and gh and hands the counts in (the engine
- * follows `$` within one file only).
+ * register.tsx reads brain.json and hands the counts in (the engine follows `$`
+ * within one file only). PR problems are not here: agents fix those; the pane
+ * lists the PRs with their CI.
  */
 
 /** A kind of thing that needs Ryan. */
-export type KindId = 'approvals' | 'questions' | 'updates' | 'ci'
+export type KindId = 'approvals' | 'questions' | 'updates'
 
 export type Kind = {
   id: KindId
@@ -26,7 +27,7 @@ export type Kind = {
   color: () => string
 }
 
-export type BandData = { brain: BrainView | null; failing: CiRow[]; open: BandOpen }
+export type BandData = { brain: BrainView | null; open: BandOpen }
 
 export type BandActions = {
   /** Approvals and questions: runs `/syn:inbox`. */
@@ -40,12 +41,11 @@ export type BandActions = {
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 
 /** The kinds with something in them, in the order they're drawn: blocking first. */
-export const attention = (d: Pick<BandData, 'brain' | 'failing'>): Kind[] => {
+export const attention = (d: Pick<BandData, 'brain'>): Kind[] => {
   const b = d.brain && !d.brain.error ? d.brain : null
   const all: Kind[] = [
     { id: 'approvals', count: b?.approvals.length ?? 0, noun: 'approval', icon: 'alert', color: () => C.warn },
     { id: 'questions', count: b?.questions ?? 0, noun: 'question', icon: 'comment', color: () => MUTED },
-    { id: 'ci', count: d.failing.length, noun: 'failing PR', icon: 'pr-closed', color: () => C.bad },
     { id: 'updates', count: b?.updates.length ?? 0, noun: 'update', icon: 'events', color: () => MUTED },
   ]
   return all.filter(k => k.count > 0)
@@ -57,14 +57,12 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
   if (!kinds.length) return null
   const { Box, Text } = els
   const Button = els.Button!
-  const Link = (els as unknown as { Link: (props: any, ...children: any[]) => RenderElement }).Link
   const terminal = surface === 'terminal'
   const k = kit(els as any, surface, columns)
-  const w = Math.max(10, Math.floor(columns))
 
   const press = (kind: Kind) => () => {
-    if (kind.id === 'approvals' || kind.id === 'questions') act.inbox()
-    else act.toggle(kind.id)
+    if (kind.id === 'updates') act.toggle('updates')
+    else act.inbox()
   }
 
   /** One kind: its icon and count, the whole of it one press. */
@@ -107,11 +105,9 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
     </Box>
   )
 
-  // The unfolded list, when its kind still has entries.
-  const shown = kinds.find(x => x.id === d.open)
-  let list: RenderElement | null = null
-  if (shown?.id === 'updates') {
-    list = (
+  // The unfolded updates, while there are any.
+  const list =
+    d.open === 'updates' && kinds.some(x => x.id === 'updates') ? (
       <Box key="list" flexDirection="column" minWidth={0} marginTop={terminal ? 0 : SPACE.pair}>
         {(d.brain?.updates ?? []).map((text, i) => (
           <Box key={`u${i}`} flexDirection="row" alignItems="center" gap={terminal ? 2 : SPACE.item} minWidth={0}>
@@ -122,26 +118,20 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
           </Box>
         ))}
       </Box>
-    )
-  } else if (shown?.id === 'ci') {
-    list = (
-      <Box key="list" flexDirection="column" minWidth={0} marginTop={terminal ? 0 : SPACE.pair}>
-        {d.failing.map(pr => {
-          const text = `${pr.ref}  ${pr.title}`
-          return (
-            <Box key={pr.ref} flexDirection="row" minWidth={0}>
-              <Link href={pr.url} label={[...text].length > w ? `${[...text].slice(0, w - 1).join('')}…` : text} />
-            </Box>
-          )
-        })}
-      </Box>
-    )
-  }
+    ) : null
 
-  // No frame of our own on any surface: the desktop already draws the band in its own
-  // rounded container, so a border here drew a box in a box. The terminal draws one plain row.
-  return (
+  // The terminal draws one plain row. The desktop wraps the band in a lighter rounded
+  // container of its own, which a render hook can't reach (it styles only its own
+  // tree), so the thin grey border goes on our Box, filling that container
+  // (flexGrow, full width, no margin) with no fill of its own: the container's
+  // background shows through, and the two read as one bordered box.
+  return terminal ? (
     <Box flexDirection="column" minWidth={0}>
+      {row}
+      {list}
+    </Box>
+  ) : (
+    <Box flexDirection="column" flexGrow={1} width="100%" minWidth={0} borderStyle="round" borderColor="promptBorder" paddingX={1}>
       {row}
       {list}
     </Box>

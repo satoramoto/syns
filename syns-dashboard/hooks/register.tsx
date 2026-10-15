@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { holdButtons } from '../kit/ui'
-import type { AgentRow, BandOpen, CiRow, PrRow } from '../types'
+import type { AgentRow, BandOpen, PrCi, PrRow } from '../types'
 import { band } from './band'
 import { toView, updateText } from './brain'
 import { render } from './view'
@@ -17,7 +17,6 @@ const agents = atom({ plugin: 'syns-dashboard', key: 'agents' } as const, [])
 const doing = atom({ plugin: 'syns-dashboard', key: 'doing' } as const, {})
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, [])
 const columns = atom({ plugin: 'syns-dashboard', key: 'columns' } as const, true)
-const failing = atom({ plugin: 'syns-dashboard', key: 'failing' } as const, [] as CiRow[])
 const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, null as BandOpen)
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -63,29 +62,73 @@ const readBrain = async ($: EngineInterface, force = false) => {
   if (!same(old?.prs, fresh.prs)) prsStale = true
 }
 
-// ---- the PRs brain.json names: their state from gh, read when the list changes, else every few minutes ----
+// ---- PRs: all of Ryan's open ones, plus any brain.json names, with CI; read when brain's list changes, else every few minutes ----
 
 const PR_EVERY = 300_000
 let prsStale = true
 let prsAt = 0
 
+/** A PR's CI from the checks' rollup state (`SUCCESS`, `FAILURE`, ...) and mergeability; a conflict wins. */
+const ciOf = (rollup: string, mergeable: string): PrCi =>
+  mergeable === 'CONFLICTING'
+    ? 'conflicting'
+    : rollup === 'SUCCESS'
+      ? 'passing'
+      : rollup === 'FAILURE' || rollup === 'ERROR'
+        ? 'failing'
+        : rollup === 'PENDING' || rollup === 'EXPECTED'
+          ? 'pending'
+          : ''
+
+/** The rollup state of `gh pr view`'s `statusCheckRollup` list (check runs and statuses). */
+const rollupOf = (checks: any[]): string => {
+  if (!Array.isArray(checks) || !checks.length) return ''
+  const bad = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE'])
+  if (checks.some(c => bad.has(String(c.conclusion ?? c.state ?? '')))) return 'FAILURE'
+  if (checks.some(c => (c.status && c.status !== 'COMPLETED') || c.state === 'PENDING' || c.state === 'EXPECTED')) return 'PENDING'
+  return 'SUCCESS'
+}
+
+const MINE_QUERY =
+  'query($q:String!){search(query:$q,type:ISSUE,first:50){nodes{... on PullRequest{number title url state mergeable repository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}'
+
+/** Ryan's open PRs, in one GraphQL search: title, link, CI and mergeability. */
+const readMine = async ($: EngineInterface): Promise<PrRow[]> => {
+  const run = await $.process.run(['gh', 'api', 'graphql', '-f', 'q=is:pr is:open author:@me archived:false', '-f', `query=${MINE_QUERY}`], { timeoutMs: 20_000 })
+  if (run.exitCode !== 0) return []
+  const nodes: any[] = JSON.parse(run.stdout)?.data?.search?.nodes ?? []
+  return nodes
+    .filter(p => p && p.number)
+    .map(p => ({
+      ref: `${p.repository?.nameWithOwner ?? ''}#${p.number}`,
+      state: String(p.state ?? ''),
+      title: String(p.title ?? ''),
+      url: String(p.url ?? ''),
+      ci: ciOf(String(p.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? ''), String(p.mergeable ?? '')),
+    }))
+}
+
+/** One PR brain.json names that the search didn't find (someone else's, or closed). */
+const readOne = async ($: EngineInterface, ref: string): Promise<PrRow> => {
+  const [repo, n] = ref.split('#')
+  const none: PrRow = { ref, state: '', title: '', url: '', ci: '' }
+  try {
+    const run = await $.process.run(['gh', 'pr', 'view', n!, '--repo', repo!, '--json', 'state,title,url,mergeable,statusCheckRollup'], { timeoutMs: 15_000 })
+    if (run.exitCode !== 0) return none
+    const j = JSON.parse(run.stdout)
+    return { ref, state: String(j.state ?? ''), title: String(j.title ?? ''), url: String(j.url ?? ''), ci: ciOf(rollupOf(j.statusCheckRollup), String(j.mergeable ?? '')) }
+  } catch {
+    return none
+  }
+}
+
 const readPrs = async ($: EngineInterface) => {
   const refs = (await read($, brain))?.prs ?? []
   prsStale = false
   prsAt = Date.now()
-  const rows: PrRow[] = await Promise.all(
-    refs.map(async ref => {
-      const [repo, n] = ref.split('#')
-      try {
-        const run = await $.process.run(['gh', 'pr', 'view', n!, '--repo', repo!, '--json', 'state,title'], { timeoutMs: 15_000 })
-        if (run.exitCode !== 0) return { ref, state: '', title: '' }
-        const j = JSON.parse(run.stdout)
-        return { ref, state: String(j.state ?? ''), title: String(j.title ?? '') }
-      } catch {
-        return { ref, state: '', title: '' }
-      }
-    }),
-  )
+  const mine = await readMine($).catch(() => [] as PrRow[])
+  const extra = await Promise.all(refs.filter(r => !mine.some(m => m.ref === r)).map(r => readOne($, r)))
+  const rows = [...mine, ...extra]
   if (!same(await read($, prs), rows)) await update($, prs, () => rows)
 }
 
@@ -134,31 +177,9 @@ const tick = async ($: EngineInterface, force = false) => {
 
 let worker: { cancel: () => void } | undefined
 
-// ---- the band above the prompt: brain.json (one read, shared with the pane) every 2 s, failing CI every few minutes ----
+// ---- the band above the prompt: brain.json (one read, shared with the pane) every 2 s ----
 
 let brainWorker: { cancel: () => void } | undefined
-let ciWorker: { cancel: () => void } | undefined
-
-const CI_EVERY = 300_000
-
-/** Ryan's open PRs whose checks fail, as gh's search finds them. */
-const readFailing = async ($: EngineInterface) => {
-  const run = await $.process.run(
-    ['gh', 'search', 'prs', '--author', '@me', '--state', 'open', '--checks', 'failure', '--json', 'repository,number,title,url', '--limit', '20'],
-    { timeoutMs: 20_000 },
-  )
-  // gh failed (offline, signed out): show nothing rather than a stale list.
-  if (run.exitCode !== 0) {
-    if ((await read($, failing)).length) await update($, failing, () => [])
-    return
-  }
-  const rows: CiRow[] = (JSON.parse(run.stdout) as any[]).map(p => ({
-    ref: `${p.repository?.nameWithOwner ?? ''}#${p.number}`,
-    title: String(p.title ?? ''),
-    url: String(p.url ?? ''),
-  }))
-  if (!same(await read($, failing), rows)) await update($, failing, () => rows)
-}
 
 /**
  * Removes the first entry of brain.json's `updates` whose content reads as `text`,
@@ -184,9 +205,6 @@ export const register: Register = on => {
     worker = $.clock.every(2_000, () => void tick($).catch(() => undefined))
     brainWorker?.cancel()
     brainWorker = $.clock.every(2_000, () => void readBrain($).catch(() => undefined))
-    ciWorker?.cancel()
-    ciWorker = $.clock.every(CI_EVERY, () => void readFailing($).catch(() => undefined))
-    void readFailing($).catch(() => undefined)
     void $.ui.open({ id: PANE, title: TITLE })
     void tick($, true).catch(() => undefined)
 
@@ -213,10 +231,10 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The band above the prompt: what needs Ryan (approvals, questions, failing CI, updates), each a press.
+  // The band above the prompt: what needs Ryan (approvals, questions, updates), each a press.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
-    const data = { brain: await read($, brain), failing: await read($, failing), open: await read($, bandOpen) }
+    const data = { brain: await read($, brain), open: await read($, bandOpen) }
     const els = holdButtons($.ui.resolve(e), `AbovePrompt\u0000${e.surface}`) as unknown as Els
     const tree = band(els, e.surface, e.props.bodyColumns, data, {
       inbox: () => ask($, 'syn:inbox'),

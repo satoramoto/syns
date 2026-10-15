@@ -49,19 +49,23 @@ export type BrainView = {
   error?: string
 }
 
-/** A PR named in brain.json, with its state from gh when it could be read. */
+/** How a PR's checks stand: conflicting (won't merge) over the checks' rollup; empty when unknown or none. */
+export type PrCi = 'passing' | 'failing' | 'pending' | 'conflicting' | ''
+
+/** One of Ryan's open PRs, or a PR brain.json names, with its state from gh when it could be read. */
 export type PrRow = {
+  /** `owner/repo#n`. */
   ref: string
   /** `OPEN`, `MERGED`, `CLOSED`, or empty when gh couldn't tell. */
   state: string
   title: string
+  /** The PR's page; empty when gh couldn't tell. */
+  url: string
+  ci: PrCi
 }
 
-/** One of Ryan's open PRs whose checks fail, from `gh search prs --checks failure`. */
-export type CiRow = { ref: string; title: string; url: string }
-
 /** Which list the band above the prompt has unfolded under its kinds, if any. */
-export type BandOpen = 'updates' | 'ci' | null
+export type BandOpen = 'updates' | null
 
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
@@ -78,8 +82,6 @@ declare module 'claude-code' {
       collapsed: string[]
       /** Whether a wide app pane flows the sections into columns; on until flipped. */
       columns: boolean
-      /** Ryan's open PRs with failing checks, for the band above the prompt. */
-      failing: CiRow[]
       /** The band's unfolded list. */
       bandOpen: BandOpen
     }

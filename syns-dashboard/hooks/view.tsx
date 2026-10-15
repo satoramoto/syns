@@ -3,10 +3,20 @@ import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 import { C, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
-import type { AgentRow, BrainView, PrRow } from '../types'
+import type { StatusKind } from '../kit/tokens'
+import type { AgentRow, BrainView, PrCi, PrRow } from '../types'
 import { daysAgo } from './brain'
 
-export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button'>>
+export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button' | 'Link'>>
+
+/** A PR's CI as the row's lead (a status kind) and the word after it. */
+const CI_MARK: Record<PrCi, { lead: StatusKind | null; word: string }> = {
+  passing: { lead: 'done', word: 'passing' },
+  failing: { lead: 'failed', word: 'failing' },
+  pending: { lead: 'pending', word: 'pending' },
+  conflicting: { lead: 'warn', word: 'conflicting' },
+  '': { lead: null, word: '' },
+}
 
 export type DashData = {
   brain: BrainView | null
@@ -105,7 +115,8 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         })
       : null
 
-  // ---- What's running: live agents (and what each is doing), then the open PRs brain.json names ----
+  // ---- What's running: live agents (and what each is doing), then Ryan's open PRs and any brain.json names, with CI ----
+  const { Link } = els
   const live = d.agents.filter(a => LIVE.has(a.status))
   const prs = d.prs.filter(p => p.state === 'OPEN' || p.state === '')
   const running = k.section({
@@ -126,15 +137,17 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           {d.doing[a.id] ? under(`agent-${a.id}-doing`, d.doing[a.id]!) : null}
         </Box>
       )),
-      ...prs.map(p =>
-        k.item(`pr-${p.ref}`, {
-          lead: 'pr-open',
-          leadColor: p.state === 'OPEN' ? C.ok : MUTED,
+      ...prs.map(p => {
+        const ci = CI_MARK[p.ci] ?? CI_MARK['']
+        // The ref is the row's link to the PR (where gh gave its address).
+        const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={p.ref} /> : p.ref
+        return k.item(`pr-${p.ref}`, {
+          lead: ci.lead ?? 'pr-open',
+          leadColor: ci.lead ? undefined : MUTED,
           text: p.title || p.ref,
-          note: p.title ? p.ref : undefined,
-          right: p.state ? [] : [{ part: 'state unknown', drop: 1 }],
-        }),
-      ),
+          right: [ci.word ? { part: ci.word, drop: 1 } : p.state ? null : { part: 'state unknown', drop: 1 }, link],
+        })
+      }),
       live.length || prs.length ? null : k.note('running-none', 'No agents running, no open PRs.'),
     ],
   })
