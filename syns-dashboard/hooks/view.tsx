@@ -49,7 +49,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * next), then a footer with the full brief (`/syn:back`).
  */
 export const render = (els: Els, surface: RenderSurface, columns: number, rows: number | undefined, d: DashData, act: DashActions, focused?: boolean): RenderElement => {
-  const { Box } = els
+  const { Box, Text } = els
   const terminal = surface === 'terminal'
   const k = kit(els as any, surface, columns, { focused, flow: act.flow, ...(terminal ? { measure: MEASURE } : {}) })
   const b = d.brain
@@ -68,7 +68,13 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'doing',
     icon: 'tasklist',
     title: 'Doing',
-    right: b && !failed ? k.summary([[String(b.threads.length + b.moreThreads), 'active']]) : undefined,
+    right:
+      b && !failed
+        ? k.summary([
+            [String(b.threads.filter(t => t.tier === 'priority').length), 'prioritised'],
+            [String(b.threads.filter(t => t.tier === 'next').length + b.moreThreads), 'next'],
+          ])
+        : undefined,
     loading,
     ...fold('doing'),
     children: !b
@@ -77,19 +83,31 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         ? [k.note('doing-error', `${failed} · run /syn:onboard to make one`, 'error', { lines: 2 })]
         : [
             b.outcome ? k.note('outcome', b.outcome) : null,
-            ...b.threads.map(t => (
-              <Box key={`thread-${t.id}`} flexDirection="column" marginTop={terminal ? 0 : SPACE.pair / 2}>
-                {k.item(`thread-${t.id}-head`, {
-                  lead: 'running',
-                  text: t.title,
-                  note: t.about,
-                  right: [{ part: `P${t.priority}`, drop: 1 }],
-                })}
-                {t.next ? under(`thread-${t.id}-next`, `next: ${t.next}`) : null}
-              </Box>
-            )),
-            b.moreThreads ? k.note('more-threads', `and ${plural(b.moreThreads, 'more thread')}`) : null,
-            b.threads.length ? null : k.note('no-threads', 'No active threads.'),
+            // Prioritised threads, in priority order, their priority as the lead (P1, P2) and their next step under them.
+            ...b.threads
+              .filter(t => t.tier === 'priority')
+              .map(t => (
+                <Box key={`thread-${t.id}`} flexDirection="column" marginTop={terminal ? 0 : SPACE.pair / 2}>
+                  {k.item(`thread-${t.id}-head`, {
+                    lead: (
+                      <Text key="p" bold {...k.ink(t.priority === 1 ? C.blue : undefined)}>
+                        {`P${t.priority}`}
+                      </Text>
+                    ),
+                    text: t.title,
+                    note: t.about,
+                    bold: t.priority === 1,
+                  })}
+                  {t.next ? under(`thread-${t.id}-next`, `next: ${t.next}`) : null}
+                </Box>
+              )),
+            // Then the ones waiting their turn, one dim row each.
+            ...b.threads
+              .filter(t => t.tier === 'next')
+              .map(t => k.item(`thread-${t.id}-head`, { lead: 'pending', text: t.title, note: t.about, dim: true })),
+            b.moreThreads ? k.note('more-threads', `and ${plural(b.moreThreads, 'more next thread')}`) : null,
+            b.decidedThreads ? k.note('decided-threads', `${plural(b.decidedThreads, 'decided thread')} not shown`) : null,
+            b.threads.length ? null : k.note('no-threads', 'No prioritised or next threads.'),
           ],
   })
 

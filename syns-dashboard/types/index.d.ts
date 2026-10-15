@@ -4,8 +4,11 @@ export type ThreadRow = {
   /** The title up to its first colon (the rest is `about`). */
   title: string
   about: string
+  /** The thread's priority (1 first); 0 for none. */
   priority: number
   status: string
+  /** `priority`: worked on now, in priority order; `next`: waiting its turn, drawn dimmer. */
+  tier: 'priority' | 'next'
   /** The first sentence of the thread's `next`. */
   next: string
 }
@@ -30,10 +33,12 @@ export type BrainView = {
   /** The file's mtime when read (ms since epoch). */
   mtime: number
   outcome: string
-  /** Active threads, by priority, the top few. */
+  /** Prioritised threads in priority order, then the few `next` ones. */
   threads: ThreadRow[]
-  /** Active threads past the ones listed. */
+  /** `next` threads past the ones listed. */
   moreThreads: number
+  /** Threads marked `decided`: counted, not listed. */
+  decidedThreads: number
   /** Answered inbox items, newest first, the last few. */
   decided: Decision[]
   approvals: Approval[]

@@ -1,7 +1,7 @@
 import type { Approval, BrainView, Decision, ThreadRow } from '../types'
 
-/** How many threads, decisions and PRs the pane lists. */
-export const THREADS = 3
+/** How many `next` threads (every prioritised one is listed), decisions and PRs the pane lists. */
+export const NEXT_THREADS = 5
 export const DECIDED = 8
 export const PRS = 8
 
@@ -47,7 +47,7 @@ export const updateText = (u: unknown): string => {
 
 /** brain.json's text, as the pane and the band draw it. */
 export const toView = (text: string, path: string, mtime: number): BrainView => {
-  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decided: [], approvals: [], questions: 0, prs: [], updates: [], next: '' }
+  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decidedThreads: 0, decided: [], approvals: [], questions: 0, prs: [], updates: [], next: '' }
   let d: any
   try {
     d = JSON.parse(text)
@@ -56,16 +56,26 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
   }
   if (!d || typeof d !== 'object') return { ...empty, error: "brain.json isn't an object" }
 
-  const active = (Array.isArray(d.threads) ? d.threads : [])
-    .filter((t: any) => t && (t.status ?? 'active') === 'active')
-    .sort((a: any, b: any) => (Number(a.priority) || 99) - (Number(b.priority) || 99))
-  const threads: ThreadRow[] = active.slice(0, THREADS).map((t: any) => ({
+  // A thread's place: `next` or `decided` (in `status`, or as the whole of `state`), else
+  // prioritised while it's active with a priority; active without one waits as `next`.
+  const all: any[] = (Array.isArray(d.threads) ? d.threads : []).filter(Boolean)
+  const placeOf = (t: any): 'priority' | 'next' | 'decided' | 'other' => {
+    const word = [t.status, t.state].map(v => str(v).trim().toLowerCase()).find(v => v === 'next' || v === 'decided')
+    if (word) return word as 'next' | 'decided'
+    if ((t.status ?? 'active') !== 'active') return 'other'
+    return Number(t.priority) > 0 ? 'priority' : 'next'
+  }
+  const row = (t: any, tier: ThreadRow['tier']): ThreadRow => ({
     id: str(t.id),
     ...splitTitle(str(t.title || t.id)),
     priority: Number(t.priority) || 0,
     status: str(t.status || 'active'),
+    tier,
     next: firstSentence(str(t.next)),
-  }))
+  })
+  const prioritised = all.filter(t => placeOf(t) === 'priority').sort((a, b) => Number(a.priority) - Number(b.priority))
+  const waiting = all.filter(t => placeOf(t) === 'next')
+  const threads: ThreadRow[] = [...prioritised.map(t => row(t, 'priority')), ...waiting.slice(0, NEXT_THREADS).map(t => row(t, 'next'))]
 
   // Answered items live in `answered`, or stay in `inbox` marked answered; both count.
   const items: any[] = [...(Array.isArray(d.inbox) ? d.inbox : []), ...(Array.isArray(d.answered) ? d.answered : [])].filter(Boolean)
@@ -84,7 +94,8 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
     mtime,
     outcome: str(d.outcome),
     threads,
-    moreThreads: Math.max(0, active.length - THREADS),
+    moreThreads: Math.max(0, waiting.length - NEXT_THREADS),
+    decidedThreads: all.filter(t => placeOf(t) === 'decided').length,
     decided,
     approvals,
     questions: open.length - approvals.length,
