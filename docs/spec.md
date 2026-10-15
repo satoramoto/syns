@@ -437,11 +437,10 @@ registered in brain.json listed and launched from it, and events from
 
 ## Open questions
 
-1. Is "more than `self_limit` tool calls → send back" the right routing
-   signal, or should it count wall time in the main turn? (★ tool calls:
-   observable and deterministic.)
-2. Should production deny commits to the default branch, or only warn?
-   (★ deny.)
+1. Settled: the routing signal is tool calls, not wall time; `self_limit` is
+   a count (rule 15).
+2. Settled: production denies commits to the default branch, and the guard
+   names the mode (rule 23).
 3. Where do per-repo default modes live: the plugin's settings, or a line in
    each repo's `AGENTS.md`? (★ `AGENTS.md`, one place per repo.)
 4. Should jobs survive a session restart, rebuilt from the log? (★ yes.)
