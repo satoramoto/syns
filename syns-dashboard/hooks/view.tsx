@@ -188,5 +188,12 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       {toggle}
     </Box>
   )
-  return k.pinned(k.flow('sections', [doing, decided, running, needs, next]), footer, rows)
+  const body = k.pinned(k.flow('sections', [doing, decided, running, needs, next]), footer, rows)
+  if (terminal) return body
+  // The desktop pane takes the main window's background.
+  return (
+    <Box flexDirection="column" flexGrow={1} backgroundColor="#151515">
+      {body}
+    </Box>
+  )
 }
