@@ -5,6 +5,7 @@ import { holdButtons } from '../kit/ui'
 import type { AgentRow, BandOpen, PrCi, PrRow } from '../types'
 import { band } from './band'
 import { toView, updateText } from './brain'
+import { toSnap } from './context'
 import { render } from './view'
 import type { Els } from './view'
 
@@ -18,8 +19,17 @@ const doing = atom({ plugin: 'syns-dashboard', key: 'doing' } as const, {})
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, [])
 const columns = atom({ plugin: 'syns-dashboard', key: 'columns' } as const, true)
 const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, null as BandOpen)
+const context = atom({ plugin: 'syns-dashboard', key: 'context' } as const, null)
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+/** The context window's categories, for the band's bar; read at start and whenever the fill moves. */
+const readContext = async ($: EngineInterface) => {
+  const b = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
+  if (!b) return
+  const fresh = toSnap(b)
+  if (!same(await read($, context), fresh)) await update($, context, () => fresh)
+}
 
 /**
  * Runs one of syn's slash commands (`syn:inbox`) as if the person typed it, once
@@ -207,8 +217,16 @@ export const register: Register = on => {
     brainWorker = $.clock.every(2_000, () => void readBrain($).catch(() => undefined))
     void $.ui.open({ id: PANE, title: TITLE })
     void tick($, true).catch(() => undefined)
+    void readContext($).catch(() => undefined)
 
     return next(e)
+  })
+
+  // The band's context bar: pushed after each turn, no polling.
+  on('session.measure', async ($, e, next) => {
+    const result = await next(e)
+    if (e.changed.includes('context')) await readContext($).catch(() => undefined)
+    return result
   })
 
   on('command.run', { command: 'dashboard' }, async $ => {
@@ -234,7 +252,7 @@ export const register: Register = on => {
   // The band above the prompt: what needs Ryan (approvals, questions, updates), each a press.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
-    const data = { brain: await read($, brain), open: await read($, bandOpen) }
+    const data = { brain: await read($, brain), open: await read($, bandOpen), context: await read($, context) }
     const els = holdButtons($.ui.resolve(e), `AbovePrompt\u0000${e.surface}`) as unknown as Els
     const tree = band(els, e.surface, e.props.bodyColumns, data, {
       inbox: () => ask($, 'syn:inbox'),

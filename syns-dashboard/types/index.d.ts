@@ -72,6 +72,17 @@ export type PrRow = {
 /** Which list the band above the prompt has unfolded under its kinds, if any. */
 export type BandOpen = 'updates' | null
 
+/** The context window as the band's bar draws it, from `$.session.usage({ breakdown })`. */
+export type ContextSnap = {
+  total: number
+  max: number
+  percent: number
+  /** Where auto-compaction starts, when it's on. */
+  compactAt?: number
+  /** The used categories, as `/context` names them. */
+  used: { name: string; tokens: number }[]
+}
+
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
 
@@ -89,6 +100,8 @@ declare module 'claude-code' {
       columns: boolean
       /** The band's unfolded list. */
       bandOpen: BandOpen
+      /** The context window, for the band's bar; null before the first measurement. */
+      context: ContextSnap | null
     }
   }
 }
