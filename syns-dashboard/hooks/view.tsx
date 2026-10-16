@@ -394,9 +394,9 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     rows,
   )
   if (terminal) return body
-  // The desktop pane takes the main window's background.
+  // The sections sit on the pane's own background (a fill here stopped short of the pane's edges).
   return (
-    <Box flexDirection="column" flexGrow={1} backgroundColor="#151515">
+    <Box flexDirection="column" flexGrow={1}>
       {body}
     </Box>
   )
