@@ -176,9 +176,9 @@ export type TermInk = { color?: string; dimColor?: boolean }
 /**
  * The chart shades on the terminal, which has no colours to spare for them: the
  * slate ramp (quantity) is the default foreground and dim in turn, the blue ramp
- * `suggestion` and dimmed `suggestion` in turn, cyan plain and orchid dim. Parts
- * next to each other in a bar also differ by glyph (`█`, `▓`), so they read
- * without colour too.
+ * `suggestion` and dimmed `suggestion` in turn, cyan plain and orchid dim. A
+ * bar's parts are all runs of the same heavy line (METER), told apart by these
+ * inks alone: no shade or dither glyphs, which render as a checkerboard.
  */
 const termTint: Record<string, TermInk> = {}
 export const TERM_TINT: Readonly<Record<string, TermInk>> = termTint

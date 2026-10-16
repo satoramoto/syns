@@ -86,6 +86,72 @@ export type ContextSnap = {
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
 
+/** The pane's tabs: Overview (the sections above) and Files (filetree's tree of the session's cwd). */
+export type DashTab = 'overview' | 'files'
+
+// ---- filetree types (bun build.ts writes these, from awesome-claude mods/filetree/types/index.d.ts) ----
+
+export type FileNode = {
+  id: string
+  parent: string
+  name: string
+  kind: 'dir' | 'file' | 'link'
+  hidden: boolean
+  mtime: number
+  size: number
+  loaded: boolean
+}
+
+export type Branch = {
+  head: string
+  upstream: string
+  /** The upstream remote's host (`github.com`), for its icon; empty when untracked or unknown. */
+  host: string
+  ahead: number
+  behind: number
+}
+
+export type Activity = {
+  id: number
+  kind: string
+  label: string
+  state: 'running' | 'done' | 'failed'
+  detail: string
+  at: number
+  tone: string
+  nerd: string
+  plain: string
+}
+
+export type FileTree = {
+  root: string
+  nodes: FileNode[]
+  expanded: string[]
+  cursor: string
+  selected: string
+  query: string
+  showHidden: boolean
+  showSize: boolean
+  dirSizes: Record<string, number>
+  git: Record<string, string>
+  diff: Record<string, [number, number]>
+  ignored: string[]
+  untrackedDirs: string[]
+  top: string
+  prefix: string
+  branch: Branch | null
+  counts: Record<string, [number, number, number]>
+  flash: string[]
+  flashDim: string[]
+  flashOn: boolean
+  flashTones: Record<string, string>
+  scroll: number | null
+  preview: string
+  previewTop: number
+}
+
+// ---- end filetree types ----
+
 declare module 'claude-code' {
   interface PluginState {
     'syns-dashboard': {
@@ -102,6 +168,12 @@ declare module 'claude-code' {
       bandOpen: BandOpen
       /** The context window, for the band's bar; null before the first measurement. */
       context: ContextSnap | null
+      /** The pane's tab shown; Overview until another is chosen. */
+      tab: DashTab
+      /** The Files tab's tree: filetree's `tree`, kept under the dashboard's name (see build.ts). */
+      filesTree: FileTree
+      /** Claude's git steps the Files tab's footer shows: filetree's `activity`. */
+      filesActivity: Activity[]
     }
   }
 }

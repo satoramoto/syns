@@ -1,11 +1,12 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
-import { holdButtons } from '../kit/ui'
-import type { AgentRow, BandOpen, PrCi, PrRow } from '../types'
+import { holdButtons, kit } from '../kit/ui'
+import type { AgentRow, BandOpen, DashTab, PrCi, PrRow } from '../types'
 import { band } from './band'
 import { toView, updateText } from './brain'
 import { toSnap } from './context'
+import { attach, hideTree } from './filetree/register'
 import { render } from './view'
 import type { Els } from './view'
 
@@ -20,6 +21,15 @@ const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, 
 const columns = atom({ plugin: 'syns-dashboard', key: 'columns' } as const, true)
 const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, null as BandOpen)
 const context = atom({ plugin: 'syns-dashboard', key: 'context' } as const, null)
+const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
+
+/** The pane's tabs, in order. */
+const TABS: { id: DashTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'files', label: 'Files' },
+]
+/** The rows the tab row takes above a tab's body (its row and the room under it). */
+const TAB_ROWS = 2
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -171,9 +181,30 @@ const isShown = async ($: EngineInterface) => {
   return shown
 }
 
+// ---- the Files tab: filetree's tree, read and watched only while it's on screen ----
+
+/*
+ * filetree's hooks (`attach`, in register below) draw the tree under this pane's
+ * render and read nothing until it first draws there; drawing it is what puts it
+ * on screen. The dashboard tells it only when it goes off screen (another tab
+ * chosen, the pane hidden), and then its hooks pass through. A folder pushed
+ * later (breadcrumbs) is filetree's `pinTree(path)`: the tree shows it from its
+ * next draw.
+ */
+let filesDrawn = false
+const filesOff = () => {
+  if (!filesDrawn) return
+  filesDrawn = false
+  hideTree()
+}
+
 let busy = false
 const tick = async ($: EngineInterface, force = false) => {
-  if (busy || (!force && !(await isShown($)))) return
+  if (busy) return
+  if (!force && !(await isShown($))) {
+    filesOff()
+    return
+  }
   busy = true
   try {
     // brain.json itself is read by its own timer (brainWorker), for the band and the pane alike.
@@ -208,7 +239,7 @@ const dismissUpdate = async ($: EngineInterface, text: string) => {
   await readBrain($, true)
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
     worker?.cancel()
@@ -263,7 +294,42 @@ export const register: Register = on => {
     return tree
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+  // The pane: the tab row, then the tab shown. Registered before filetree's hooks
+  // (`attach`, below), so this render is the outer one and `next` draws the tree.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
+    const shown = await read($, tab)
+    const select = (id: string) => {
+      const chosen: DashTab = id === 'files' ? 'files' : 'overview'
+      if (chosen !== 'files') filesOff()
+      void update($, tab, () => chosen).catch(() => undefined)
+    }
+    // The rows under the tab row, for the tab's body.
+    const scroll = e.props.scroll
+    const rows = scroll ? Math.max(1, scroll.bodyRows - TAB_ROWS) : undefined
+    /** The tab row over a tab's body. */
+    const tabbed = (els: Els, body: RenderElement) => {
+      const { Box } = els
+      const k = kit(els as any, e.surface, e.props.bodyColumns, { focused: e.props.isFocused })
+      return (
+        <Box flexDirection="column" flexGrow={1} minWidth={0}>
+          {k.tabs('tabs', TABS, shown, select)}
+          {body}
+        </Box>
+      )
+    }
+
+    if (shown === 'files') {
+      if (e.surface !== 'terminal' && e.surface !== 'desktop') {
+        const els = holdButtons($.ui.resolve(e), e) as unknown as Els
+        const k = kit(els as any, e.surface, e.props.bodyColumns)
+        return tabbed(els, k.note('files-surface', 'Files shows on the desktop and the terminal.'))
+      }
+      // filetree draws the tree in the rows under the tab row.
+      filesDrawn = true
+      const tree = await next(scroll && rows !== undefined ? { ...e, props: { ...e.props, scroll: { ...scroll, bodyRows: rows } } } : e)
+      return tabbed(holdButtons($.ui.resolve(e), e) as unknown as Els, tree)
+    }
+
     const data = {
       brain: await read($, brain),
       prs: await read($, prs),
@@ -275,12 +341,18 @@ export const register: Register = on => {
     const flowOn = await read($, columns)
     // Buttons keep their press handles across redraws, so a click made just before one still lands.
     const els = holdButtons($.ui.resolve(e), e) as unknown as Els
-    return render(els, e.surface, e.props.bodyColumns, e.props.scroll?.bodyRows, data, {
-      toggle: id => void update($, collapsed, c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id])).catch(() => undefined),
-      inbox: () => ask($, 'syn:inbox'),
-      back: () => ask($, 'syn:back'),
-      standup: () => ask($, 'syn:standup'),
-      flow: { on: flowOn, toggle: () => void update($, columns, was => !was).catch(() => undefined) },
-    }, e.props.isFocused)
+    return tabbed(
+      els,
+      render(els, e.surface, e.props.bodyColumns, rows, data, {
+        toggle: id => void update($, collapsed, c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id])).catch(() => undefined),
+        inbox: () => ask($, 'syn:inbox'),
+        back: () => ask($, 'syn:back'),
+        standup: () => ask($, 'syn:standup'),
+        flow: { on: flowOn, toggle: () => void update($, columns, was => !was).catch(() => undefined) },
+      }, e.props.isFocused),
+    )
   })
+
+  // The Files tab: filetree's hooks (see build.ts), drawing under the render above and reading only while the tab is on screen.
+  attach(on, options, PANE)
 }

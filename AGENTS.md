@@ -16,7 +16,10 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
   `syns-dashboard/kit/` by `bun build.ts` (committed; never edit it here,
   change it in zen and run the build again). Built the way awesome-claude's
   mods are: zen's `docs/harness-claude-code.md` holds the look and the engine's
-  limits.
+  limits. Its pane has two tabs: Overview, and Files, awesome-claude's
+  `filetree` mod drawn in the pane; `bun build.ts` copies filetree's `hooks/`
+  into `syns-dashboard/hooks/filetree/` and its value types into
+  `types/index.d.ts` (both committed; change them in awesome-claude).
 - Plugin folders sit at the top level: sessions load this repo with
   `CLAUDE_CODE_PLUGIN_DIRS=~/Code/satoramoto/syns`, which finds plugin folders
   one level down only.
@@ -41,7 +44,7 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
 | Command | What it checks | When to run |
 | --- | --- | --- |
 | `claude plugin validate plugin` | the engine accepts the `syn` plugin's manifest and commands | any change under `plugin/` |
-| `bun build.ts` | copies zen's `src/harness/claude-code/kit/` (a zen checkout beside this repo, or `$ZEN`) into `syns-dashboard/kit/` | to take a newer kit |
+| `bun build.ts` | copies zen's `src/harness/claude-code/kit/` (a zen checkout beside this repo, or `$ZEN`) into `syns-dashboard/kit/`, and awesome-claude's `mods/filetree/` (beside it, or `$AWESOME`) into the dashboard's Files tab | to take a newer kit or filetree |
 | `claude plugin validate syns-dashboard` | the engine accepts the dashboard: its hooks, calls, and state reads and writes against `types/index.d.ts` | any change under `syns-dashboard/` |
 | `bunx tsc -p syns-dashboard` | the dashboard type-checks (needs the engine's types in `syns-dashboard/.claude-plugin/types/`, laid when a session loads it, or copied from an awesome-claude mod that has them) | any `.ts`/`.tsx` change there |
 | `docker build --target naked -t syns-naked .` | the naked image builds with the pinned Claude Code | a change to `Dockerfile` |

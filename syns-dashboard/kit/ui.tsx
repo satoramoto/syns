@@ -239,6 +239,9 @@ export const BLANK = '⠀'
 /** A tile's padding above and below its lines, and the room between its lines: enough to breathe. */
 const TILE_PAD_Y = 0.6
 const TILE_ROW_GAP = 0.2
+/** The bar under the active tab on the app surfaces, in rows of size (about 2px), and the hairline under the tabs (about 1px). */
+const TAB_MARK = 0.12
+const HAIRLINE = 0.06
 
 /**
  * The desktop's fold arrow: full-size triangles, since text can't be sized.
@@ -306,10 +309,10 @@ export const TERM_ROLES: Readonly<Record<'title' | 'label' | 'value' | 'strong' 
 }
 
 /**
- * The header icon's colour on the terminal: dim, as the fold arrow. Orange is kept
- * to the bold title word: a one-cell orange glyph reads too close to an amber
- * status glyph (warn `▲`, ahead `↑`) in the row under it. Read when drawing, so
- * a skin worn later is the one drawn.
+ * The header icon's colour on the terminal: dim (MUTED), as the fold arrow, since
+ * grey is what icons mean. The title beside it is bold in the default foreground,
+ * so a header carries no hue that could be read as a status in the rows under
+ * it. Read when drawing, so a skin worn later is the one drawn.
  */
 const termHeaderIcon = () => MUTED
 
@@ -350,6 +353,9 @@ export type RightPart = { part: RenderElement | string; drop?: number; cells?: n
 
 /** One key hint: the key as the person types it, and what it does. */
 export type Hint = { key: string; label: string }
+
+/** One of a pane's tabs (`k.tabs`): its id (what `onSelect` is called with), its label, and an optional hotkey (a digit). */
+export type Tab = { id: string; label: string; hotkey?: string }
 
 const isRightPart = (x: RenderElement | string | RightPart): x is RightPart => typeof x === 'object' && x !== null && 'part' in x && !('type' in x)
 
@@ -1861,6 +1867,69 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
   )
 
   /**
+   * A pane's tabs: one row of plain buttons, the `active` one marked; a press
+   * calls `onSelect` with that tab's id. The caller holds which tab is active (in
+   * its own state, so it survives redraws) and draws that tab's body under the
+   * row; the kit holds nothing. Draw it with the table `holdButtons` returned (each
+   * tab's Button is keyed `<key>-<id>`), so a press made just before a redraw
+   * still lands.
+   *
+   * On the terminal it reads as a section header does: the labels `space.group`
+   * apart, the active one bold and the rest dim, then a dim rule out to the edge,
+   * and a blank row under it. It spans the pane, not the measure: it belongs to
+   * the pane, above every section. A tab's `hotkey` (a digit) presses it and
+   * shows before its label (`1: Overview`).
+   *
+   * On the app surfaces, a band as tall as a header, its labels on the band's
+   * inset: the active one plain, the rest dim (the desktop draws a Button's label
+   * alone, so weight can't mark it), a short bar in the light grey under the
+   * active one, and a hairline in the track's grey under them all.
+   */
+  const tabs = (key: string, list: Tab[], active: string, onSelect: (id: string) => void): RenderElement => {
+    const button = (t: Tab) => {
+      const on = t.id === active
+      const hot = t.hotkey ? { hotkey: t.hotkey } : {}
+      if (!Button) return <Text key={`${key}-${t.id}`} {...(on ? (terminal ? R.title : {}) : tone('mid'))}>{t.label}</Text>
+      // The terminal draws a Button's child in its label's place, so the active label can be bold there.
+      if (on && terminal) {
+        return (
+          <Button key={`${key}-${t.id}`} plain label={t.label} {...hot} onPress={() => onSelect(t.id)}>
+            <Text {...R.title}>{t.label}</Text>
+          </Button>
+        )
+      }
+      return <Button key={`${key}-${t.id}`} plain label={t.label} {...(on ? {} : { dimColor: true })} {...hot} onPress={() => onSelect(t.id)} />
+    }
+    if (terminal) {
+      return (
+        <Box key={key} flexDirection="row" width={Math.max(1, Math.floor(columns))} paddingRight={RIGHT} marginBottom={1} gap={CELLS.item} overflow="hidden">
+          <Box key="labels" flexDirection="row" flexShrink={0} gap={CELLS.group}>
+            {list.map(button)}
+          </Box>
+          <Box key="rule" flexGrow={1} flexShrink={1} width={0} minWidth={0} height={1} overflow="hidden">
+            <Text dimColor>{METER.rail.repeat(Math.max(1, Math.floor(columns)))}</Text>
+          </Box>
+        </Box>
+      )
+    }
+    return (
+      <Box key={key} flexDirection="column" width="100%" flexShrink={0}>
+        <Box key="labels" flexDirection="row" gap={SPACE.group} paddingX={INSET} overflow="hidden">
+          {list.map(t => (
+            <Box key={t.id} flexDirection="column" flexShrink={0}>
+              <Box height={BAND_ROWS} flexDirection="row" alignItems="center">
+                {button(t)}
+              </Box>
+              <Box height={TAB_MARK} {...(t.id === active ? { backgroundColor: GRAY.light } : {})} />
+            </Box>
+          ))}
+        </Box>
+        <Box key="line" height={HAIRLINE} backgroundColor={TRACK} />
+      </Box>
+    )
+  }
+
+  /**
    * A key-hint footer: `key what` pairs (keys plain, what they do dim), ` · `
    * apart, on one line `width` cells wide (a section body's by default). Pairs
    * that don't fit are dropped from the end and the line ends in a dim `…`, so
@@ -2004,6 +2073,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     note,
     action,
     actions,
+    tabs,
     hints,
     spark,
     /** Whether the pane has the keyboard, as the kit was told (unknown counts as yes). */
