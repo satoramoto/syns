@@ -1,13 +1,16 @@
 import type { RenderElement, RenderSurface } from 'claude-code'
 
-import { C, MUTED } from '../kit/tokens'
+import { tokens } from '../kit/format'
+import { C, MUTED, levelColor } from '../kit/tokens'
 import { BLANK, SPACE, kit } from '../kit/ui'
-import type { BandOpen, BrainView } from '../types'
+import type { BandOpen, BrainView, ContextSnap } from '../types'
+import { contextBar } from './context'
 import type { Els } from './view'
 
 /*
- * The band above the prompt: an attention center, one line of what needs Ryan,
- * each kind an icon and its count, each one a press that resolves it. Pure:
+ * The band above the prompt, syn's statusline: the context bar (overview's) and
+ * its fill, then an attention center, what needs Ryan, each kind an icon and its
+ * count, each one a press that resolves it. Pure:
  * register.tsx reads brain.json and hands the counts in (the engine follows `$`
  * within one file only). PR problems are not here: agents fix those; the pane
  * lists the PRs with their CI.
@@ -27,7 +30,7 @@ export type Kind = {
   color: () => string
 }
 
-export type BandData = { brain: BrainView | null; open: BandOpen }
+export type BandData = { brain: BrainView | null; open: BandOpen; context: ContextSnap | null }
 
 export type BandActions = {
   /** Approvals and questions: runs `/syn:inbox`. */
@@ -51,10 +54,11 @@ export const attention = (d: Pick<BandData, 'brain'>): Kind[] => {
   return all.filter(k => k.count > 0)
 }
 
-/** The band's tree, or null when nothing needs Ryan (the hook then passes). */
+/** The band's tree, or null before the first context reading with nothing needing Ryan (the hook then passes). */
 export const band = (els: Els, surface: RenderSurface, columns: number, d: BandData, act: BandActions): RenderElement | null => {
   const kinds = attention(d)
-  if (!kinds.length) return null
+  const ctx = d.context
+  if (!kinds.length && !ctx) return null
   const { Box, Text } = els
   const Button = els.Button!
   const terminal = surface === 'terminal'
@@ -90,8 +94,8 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
     )
   }
 
-  const row = (
-    <Box key="kinds" flexDirection="row" alignItems="center" gap={terminal ? 0 : SPACE.group} minWidth={0}>
+  const chips = (
+    <Box key="kinds" flexDirection="row" alignItems="center" gap={terminal ? 0 : SPACE.group} flexShrink={0}>
       {kinds.map((kind, i) =>
         terminal ? (
           <Box key={`${kind.id}-cell`} flexDirection="row" flexShrink={0}>
@@ -102,6 +106,31 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
           chip(kind)
         ),
       )}
+    </Box>
+  )
+
+  // The context bar takes what the line leaves: its fill after it, the chips at the end.
+  const fill = ctx ? `${ctx.percent}%` : ''
+  const of = ctx ? ` of ${tokens(ctx.max)}` : ''
+  const chipsCols = kinds.reduce((n, kind, i) => n + (i ? 3 : 0) + 2 + String(kind.count).length, 0)
+  const barCols = Math.max(8, columns - fill.length - of.length - 1 - (kinds.length ? chipsCols + 3 : 0))
+  const meter = ctx ? (
+    <Box key="ctx" flexDirection="row" alignItems="center" gap={terminal ? 1 : SPACE.item} flexGrow={1} flexShrink={1} minWidth={0}>
+      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+        {k.bar(contextBar(ctx, terminal), ctx.max, { width: barCols })}
+      </Box>
+      <Text>
+        <Text bold color={levelColor(ctx.percent)}>{fill}</Text>
+        <Text color={MUTED}>{of}</Text>
+      </Text>
+    </Box>
+  ) : null
+
+  const row = (
+    <Box key="line" flexDirection="row" alignItems="center" gap={terminal ? 0 : SPACE.group} minWidth={0}>
+      {meter}
+      {meter && kinds.length && terminal ? <Text dimColor>{' · '}</Text> : null}
+      {kinds.length ? chips : null}
     </Box>
   )
 
