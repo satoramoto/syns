@@ -177,7 +177,8 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
   // its slot, AbovePrompt's props carry no frame option, no theme key names it), and
   // a border on our Box drew a second box inside it.
   return (
-    <Box flexDirection="column" minWidth={0}>
+    // On the desktop, inset to the prompt box's own padding below it (~30px across, ~3px more up and down than the container gives).
+    <Box flexDirection="column" minWidth={0} {...(terminal ? {} : { paddingX: 2, paddingY: 0.3 })}>
       {row}
       {list}
     </Box>
