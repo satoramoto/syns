@@ -1,6 +1,6 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
-import { C, MUTED } from '../kit/tokens'
+import { C, GRAY, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
@@ -43,6 +43,32 @@ const LIVE = new Set(['running', 'pending', 'waiting'])
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
+/*
+ * The desktop's list grid, on the kit's scale (the kit's `item` keeps its lead in a
+ * fixed 2-column box, too tight for a `P1` badge, so the pane draws its own):
+ * - LEAD: the lead column (a status glyph or a priority badge) and the room after it;
+ * - INSET: every row's inset from the body edge, a tile's own padding, so a plain
+ *   row's lead and a tile's lead sit on one column;
+ * - ROW_GAP between rows of a list, TILE_GAP between tiles, SECTION_GAP above a section,
+ *   HEAD_GAP between a section's header and its first row.
+ */
+const LEAD = 2 + SPACE.pair
+const INSET = SPACE.item
+const ROW_GAP = SPACE.pair
+const TILE_GAP = SPACE.block
+const SECTION_GAP = SPACE.group
+const HEAD_GAP = SPACE.pair
+/** The most columns a PR's ref takes in Running; a longer repo name is cut in the middle. */
+const REF_MAX = 24
+
+/** `owner/repo#n` cut to `max` characters, the repo name giving way and the number kept. */
+const shortRef = (ref: string, max: number) => {
+  if (ref.length <= max) return ref
+  const hash = ref.lastIndexOf('#')
+  const num = hash >= 0 ? ref.slice(hash) : ''
+  return `${ref.slice(0, Math.max(1, max - num.length - 1))}…${num}`
+}
+
 /**
  * The re-entry pane, on every surface: five sections in the kit's inspector
  * look (what we're doing, what you decided, what's running, what needs you,
@@ -63,6 +89,41 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const loading = !b
   const failed = b?.error
 
+  // ---- The desktop's list pieces (the terminal keeps the kit's rows as they are) ----
+  /**
+   * A row with its lead in the LEAD column and its lines beside it, top-aligned, so a
+   * lead sits on the first line and every following line starts under the text.
+   * Outside a tile it takes the INSET a tile pads by.
+   */
+  const led = (key: string, lead: RenderElement | null, lines: (RenderElement | null)[], inTile = false) => (
+    <Box key={key} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingX={inTile ? 0 : INSET}>
+      <Box width={LEAD} flexShrink={0} flexDirection="row">
+        {lead}
+      </Box>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0} minWidth={0} rowGap={TILE_GAP / 2}>
+        {lines}
+      </Box>
+    </Box>
+  )
+  /** A dim line that wraps inside its column (a thread's next step, a decision's question). */
+  const wrapped = (key: string, text: string) => (
+    <Text key={key} wrap="wrap" color={GRAY.mid}>
+      {text}
+    </Text>
+  )
+  /** A plain, full-width row at the inset: a note or an item with no lead. */
+  const inset = (key: string, el: RenderElement) => (
+    <Box key={key} flexDirection="column" width="100%" minWidth={0} paddingX={INSET}>
+      {el}
+    </Box>
+  )
+  /** A section body: its rows (or tiles) `gap` apart, a step below the header. */
+  const list = (key: string, rows: (RenderElement | null)[], gap: number = ROW_GAP) => (
+    <Box key={key} flexDirection="column" width="100%" minWidth={0} rowGap={gap} paddingTop={HEAD_GAP}>
+      {rows}
+    </Box>
+  )
+
   // ---- What we're doing: the outcome, then the top threads, each its title and status, then its next step ----
   const doing = k.section({
     id: 'doing',
@@ -81,7 +142,35 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       ? [k.note('doing-loading', 'Reading brain.json…', 'loading')]
       : failed
         ? [k.note('doing-error', `${failed} · run /syn:onboard to make one`, 'error', { lines: 2 })]
-        : [
+        : !terminal
+          ? [
+              list('doing-list', [
+                b.outcome ? inset('outcome', k.note('outcome', b.outcome)) : null,
+                // Prioritised threads, each a tile: its priority badge (P1, P2 alike, in blue) and title, its next step wrapping under the title.
+                ...b.threads
+                  .filter(t => t.tier === 'priority')
+                  .map(t =>
+                    k.tile(`thread-${t.id}`, [
+                      led(
+                        `thread-${t.id}-row`,
+                        <Text key="p" bold {...k.ink(C.blue)}>
+                          {`P${t.priority}`}
+                        </Text>,
+                        [k.item(`thread-${t.id}-head`, { text: t.title, note: t.about, bold: t.priority === 1 }), t.next ? wrapped(`thread-${t.id}-next`, `next: ${t.next}`) : null],
+                        true,
+                      ),
+                    ]),
+                  ),
+                // Then the ones waiting their turn, one dim row each, their lead on the tiles' lead column.
+                ...b.threads
+                  .filter(t => t.tier === 'next')
+                  .map(t => led(`thread-${t.id}`, k.status('pending'), [k.item(`thread-${t.id}-head`, { text: t.title, note: t.about, dim: true })])),
+                b.moreThreads ? inset('more-threads', k.note('more-threads', `and ${plural(b.moreThreads, 'more next thread')}`)) : null,
+                b.decidedThreads ? inset('decided-threads', k.note('decided-threads', `${plural(b.decidedThreads, 'decided thread')} not shown`)) : null,
+                b.threads.length ? null : inset('no-threads', k.note('no-threads', 'No prioritised or next threads.')),
+              ]),
+            ]
+          : [
             b.outcome ? k.note('outcome', b.outcome) : null,
             // Prioritised threads, in priority order, their priority as the lead (P1, P2) and their next step under them.
             ...b.threads
@@ -120,7 +209,27 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           title: 'Decided',
           right: k.summary([[String(b.decided.length), 'recent']]),
           ...fold('decided'),
-          children: b.decided.length
+          children: !terminal
+            ? [
+                list(
+                  'decided-list',
+                  b.decided.length
+                    ? // Each decision a tile: ✓, the answer and its age on the first line, the question wrapping under it.
+                      b.decided.map(x =>
+                        k.tile(`decided-${x.id}`, [
+                          led(
+                            `decided-${x.id}-row`,
+                            k.status('done'),
+                            [k.item(`decided-${x.id}-head`, { text: x.text, right: [daysAgo(x.at, d.now)] }), x.topic ? wrapped(`decided-${x.id}-q`, x.topic) : null],
+                            true,
+                          ),
+                        ]),
+                      )
+                    : [inset('decided-none', k.note('decided-none', 'Nothing answered yet.'))],
+                  TILE_GAP,
+                ),
+              ]
+            : b.decided.length
             ? b.decided.map(x =>
                 k.item(`decided-${x.id}`, {
                   lead: 'done',
@@ -137,13 +246,50 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const { Link } = els
   const live = d.agents.filter(a => LIVE.has(a.status))
   const prs = d.prs.filter(p => p.state === 'OPEN' || p.state === '')
+  // Running's right side on the desktop: the status word and the ref, each in a column as wide as its longest, so they line up row to row.
+  const words = [...live.map(a => (a.status === 'running' ? '' : a.status)), ...prs.map(p => (CI_MARK[p.ci] ?? CI_MARK['']).word || (p.state ? '' : 'state unknown'))]
+  const wordW = Math.max(0, ...words.map(w => w.length))
+  const refW = Math.max(0, ...prs.map(p => shortRef(p.ref, REF_MAX).length))
+  const cols = (key: string, word: string, ref: RenderElement | null): RenderElement[] => [
+    ...(wordW
+      ? [
+          <Box key={`${key}-word`} width={wordW} flexShrink={0} flexDirection="row">
+            <Text wrap="truncate" color={GRAY.mid}>
+              {word}
+            </Text>
+          </Box>,
+        ]
+      : []),
+    ...(refW
+      ? [
+          <Box key={`${key}-ref`} width={refW} flexShrink={0} flexDirection="row" overflow="hidden">
+            {ref}
+          </Box>,
+        ]
+      : []),
+  ]
   const running = k.section({
     id: 'running',
     icon: 'zap',
     title: 'Running',
     right: k.summary([[String(live.length), live.length === 1 ? 'agent' : 'agents', live.length ? C.blue : undefined], [String(prs.length), prs.length === 1 ? 'PR' : 'PRs']]),
     ...fold('running'),
-    children: [
+    children: !terminal
+      ? [list('running-list', [...live.map(a => {
+          const word = a.status === 'running' ? '' : a.status
+          return led(`agent-${a.id}`, k.status(a.status === 'running' ? 'running' : 'pending'), [
+            k.item(`agent-${a.id}-head`, { text: a.description || a.type, note: a.description ? a.type : undefined, right: cols(`agent-${a.id}`, word, null) }),
+            d.doing[a.id] ? wrapped(`agent-${a.id}-doing`, d.doing[a.id]!) : null,
+          ])
+        }), ...prs.map(p => {
+          const ci = CI_MARK[p.ci] ?? CI_MARK['']
+          const label = shortRef(p.ref, REF_MAX)
+          const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={label} /> : <Text key={`pr-${p.ref}-ref`} wrap="truncate">{label}</Text>
+          return led(`pr-${p.ref}`, ci.lead ? k.status(ci.lead) : k.icon('pr-open', MUTED), [
+            k.item(`pr-${p.ref}-head`, { text: p.title || p.ref, right: cols(`pr-${p.ref}`, ci.word || (p.state ? '' : 'state unknown'), link) }),
+          ])
+        }), live.length || prs.length ? null : inset('running-none', k.note('running-none', 'No agents running, no open PRs.'))])]
+      : [
       ...live.map(a => (
         <Box key={`agent-${a.id}`} flexDirection="column">
           {k.item(`agent-${a.id}-head`, {
@@ -182,7 +328,23 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
             [String(b.questions), b.questions === 1 ? 'question' : 'questions'],
           ]),
           ...fold('needs'),
-          children: [
+          children: !terminal
+            ? [
+                list('needs-list', [
+                  ...b.approvals.map(x => led(`approval-${x.id}`, k.status('pending'), [k.item(`approval-${x.id}-head`, { text: x.question, right: [`#${x.id}`] })])),
+                  inset(
+                    'inbox-row',
+                    b.approvals.length || b.questions
+                      ? k.item('inbox', {
+                          text: b.questions ? `${plural(b.questions, 'open question')}, on recommendations till answered` : 'Approvals wait for you',
+                          dim: true,
+                          after: k.actions('inbox-actions', [{ key: 'inbox', label: 'Answer /syn:inbox', onPress: act.inbox }]),
+                        })
+                      : k.note('needs-none', 'Nothing needs you.'),
+                  ),
+                ]),
+              ]
+            : [
             ...b.approvals.map(x => k.item(`approval-${x.id}`, { lead: 'pending', text: x.question, right: [{ part: `#${x.id}`, drop: 1 }] })),
             b.approvals.length || b.questions
               ? k.item('inbox', {
@@ -203,7 +365,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           icon: 'arrow-up',
           title: 'Next',
           ...fold('next'),
-          children: [k.item('next-step', { text: b.next })],
+          children: terminal ? [k.item('next-step', { text: b.next })] : [list('next-list', [inset('next-row', k.item('next-step', { text: b.next }))])],
         })
       : null
 
@@ -219,7 +381,18 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       {toggle}
     </Box>
   )
-  const body = k.pinned(k.flow('sections', [doing, decided, running, needs, next]), footer, rows)
+  // On the desktop each section takes SECTION_GAP more above it than the kit's one row, so sections read apart.
+  const spaced = (id: string, s: RenderElement | null) =>
+    s && !terminal ? (
+      <Box key={`spaced-${id}`} flexDirection="column" width="100%" minWidth={0} marginTop={SECTION_GAP}>
+        {s}
+      </Box>
+    ) : s
+  const body = k.pinned(
+    k.flow('sections', [spaced('doing', doing), spaced('decided', decided), spaced('running', running), spaced('needs', needs), spaced('next', next)]),
+    footer,
+    rows,
+  )
   if (terminal) return body
   // The desktop pane takes the main window's background.
   return (
