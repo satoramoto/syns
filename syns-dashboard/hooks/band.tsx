@@ -111,9 +111,23 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
   )
 
   // Standup leads the line, plain like the pane's: the one thing to press any time.
-  const standup = k.actions('band-acts', [{ key: 'standup', label: 'Standup', onPress: act.standup }])
-  /** The button's cells on the terminal, with the gap after it (an estimate: the kit draws its frame). */
-  const STANDUP_COLS = 12
+  // An icon and its word, the whole of it one press, drawn as the chips are (the kit's actions take no icon).
+  const standup = terminal ? (
+    <Button key="standup" plain label="Standup" onPress={act.standup}>
+      {k.icon('checklist', MUTED)}
+      {' Standup'}
+    </Button>
+  ) : (
+    <Box key="standup" position="relative" flexDirection="row" alignItems="center" gap={SPACE.pair} flexShrink={0}>
+      {k.icon('checklist', MUTED, undefined, { alt: 'Standup' })}
+      <Text>Standup</Text>
+      <Box position="absolute" top={0} left={0}>
+        <Button key="standup-press" plain label={BLANK.repeat(10)} onPress={act.standup} />
+      </Box>
+    </Box>
+  )
+  /** The button's cells on the terminal (icon, space, word) and the gap after it. */
+  const STANDUP_COLS = 11
 
   // The context bar takes what the line leaves: its fill after it, the chips at the end.
   const fill = ctx ? `${ctx.percent}%` : ''
