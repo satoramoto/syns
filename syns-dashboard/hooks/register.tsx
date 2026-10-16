@@ -258,8 +258,9 @@ export const register: Register = on => {
       inbox: () => ask($, 'syn:inbox'),
       toggle: open => void update($, bandOpen, was => (was === open ? null : open)).catch(() => undefined),
       dismiss: text => void dismissUpdate($, text).catch(() => $.ui.toast('Could not dismiss that update in brain.json')),
+      standup: () => ask($, 'syn:standup'),
     })
-    return tree ?? next(e)
+    return tree
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

@@ -39,6 +39,8 @@ export type BandActions = {
   toggle: (open: Exclude<BandOpen, null>) => void
   /** Removes one entry from brain.json's `updates`. */
   dismiss: (text: string) => void
+  /** Runs `/syn:standup`. */
+  standup: () => void
 }
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
@@ -54,11 +56,10 @@ export const attention = (d: Pick<BandData, 'brain'>): Kind[] => {
   return all.filter(k => k.count > 0)
 }
 
-/** The band's tree, or null before the first context reading with nothing needing Ryan (the hook then passes). */
-export const band = (els: Els, surface: RenderSurface, columns: number, d: BandData, act: BandActions): RenderElement | null => {
+/** The band's tree: always drawn, the Standup button holding its place before anything else is read. */
+export const band = (els: Els, surface: RenderSurface, columns: number, d: BandData, act: BandActions): RenderElement => {
   const kinds = attention(d)
   const ctx = d.context
-  if (!kinds.length && !ctx) return null
   const { Box, Text } = els
   const Button = els.Button!
   const terminal = surface === 'terminal'
@@ -109,11 +110,16 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
     </Box>
   )
 
+  // Standup leads the line, plain like the pane's: the one thing to press any time.
+  const standup = k.actions('band-acts', [{ key: 'standup', label: 'Standup', onPress: act.standup }])
+  /** The button's cells on the terminal, with the gap after it (an estimate: the kit draws its frame). */
+  const STANDUP_COLS = 12
+
   // The context bar takes what the line leaves: its fill after it, the chips at the end.
   const fill = ctx ? `${ctx.percent}%` : ''
   const of = ctx ? ` of ${tokens(ctx.max)}` : ''
   const chipsCols = kinds.reduce((n, kind, i) => n + (i ? 3 : 0) + 2 + String(kind.count).length, 0)
-  const barCols = Math.max(8, columns - fill.length - of.length - 1 - (kinds.length ? chipsCols + 3 : 0))
+  const barCols = Math.max(8, columns - STANDUP_COLS - fill.length - of.length - 1 - (kinds.length ? chipsCols + 3 : 0))
   const meter = ctx ? (
     <Box key="ctx" flexDirection="row" alignItems="center" gap={terminal ? 1 : SPACE.item} flexGrow={1} flexShrink={1} minWidth={0}>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
@@ -128,6 +134,9 @@ export const band = (els: Els, surface: RenderSurface, columns: number, d: BandD
 
   const row = (
     <Box key="line" flexDirection="row" alignItems="center" gap={terminal ? 0 : SPACE.group} minWidth={0}>
+      <Box key="standup" flexShrink={0} marginRight={terminal ? 2 : 0}>
+        {standup}
+      </Box>
       {meter}
       {meter && kinds.length && terminal ? <Text dimColor>{' · '}</Text> : null}
       {kinds.length ? chips : null}
