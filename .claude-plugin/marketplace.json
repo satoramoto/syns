@@ -1,0 +1,18 @@
+{
+  "name": "syns",
+  "owner": { "name": "Ryan Gavin" },
+  "plugins": [
+    {
+      "name": "syn",
+      "source": "./plugin",
+      "description": "The syn plugin: session machine commands",
+      "version": "0.0.1"
+    },
+    {
+      "name": "syns-dashboard",
+      "source": "./syns-dashboard",
+      "description": "Re-entry at a glance: a pane reading ~/.syns/brain.json live",
+      "version": "0.1.1"
+    }
+  ]
+}
