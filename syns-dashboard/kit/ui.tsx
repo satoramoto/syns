@@ -1045,10 +1045,11 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    * `note` when there are none). On the app surfaces the header (icon, title,
    * figures, the fold arrow last) is the list's one fill: a band with rounded
    * corners (`card`, FILL.head), its title one step up the type scale (`heading`).
-   * The items sit on the pane under it at the band's inset, SPACE.item apart, with
-   * no fill, rule or coloured line of their own: space and the header's fill give
-   * the structure. Text follows the ladder (TEXT_ROLES): the title primary, the
-   * figures meta, the icon and the fold arrow marks.
+   * The items sit on the pane under it at the band's inset, each padded alike, a
+   * TRACK hairline (HAIRLINE tall, as the tabs' rule) under the header and between
+   * items: grey structure, never a hue. Text follows the ladder (TEXT_ROLES): the
+   * title primary, the figures meta (a count coloured when the caller marks it), the
+   * fold arrow a mark; `iconColor` gives the header icon the section's identity hue.
    *
    * Folded, only the header shows. `section` stays for bodies that aren't a list
    * (readings, bars, props); this is a list's section.
@@ -1063,11 +1064,16 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     collapsed?: boolean
     onToggle?: () => void
     loading?: boolean
+    /**
+     * The header icon's colour: the section's identity at a glance, the icon only (never a stripe
+     * or the title). A muted hue from the skin (`C.*`); GRAY.dark, a plain mark, by default.
+     */
+    iconColor?: string
     items: (RenderElement | null | false)[]
   }) => {
     const items = s.items.filter((x): x is RenderElement => Boolean(x))
     if (terminal) {
-      return section({ id: s.id, title: s.title, icon: s.icon, right: s.right, collapsed: s.collapsed, onToggle: s.onToggle, loading: s.loading, children: items })
+      return section({ id: s.id, title: s.title, icon: s.icon, iconColor: s.iconColor, right: s.right, collapsed: s.collapsed, onToggle: s.onToggle, loading: s.loading, children: items })
     }
     const right = s.right ?? (s.loading ? summary([], { loading: true }) : null)
     const arrow = fold(Boolean(s.collapsed))
@@ -1082,7 +1088,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         <Box key="title" flexDirection="row" alignItems="center" flexShrink={0}>
           {s.icon ? (
             <Box width={2} flexShrink={0} flexDirection="row" alignItems="center">
-              {icon(s.icon, GRAY.dark)}
+              {icon(s.icon, s.iconColor ?? GRAY.dark)}
             </Box>
           ) : null}
           <Text wrap="truncate" bold size="heading">
@@ -1101,18 +1107,19 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         </Box>,
       ],
     )
+    // A TRACK hairline under the header and between items (grey structure, never a hue), each item padded alike.
+    const rule = (key: string) => <Box key={key} height={HAIRLINE} flexShrink={0} backgroundColor={TRACK} />
     return (
       <Box key={`list-${s.id}`} flexDirection="column" marginTop={1}>
         {header}
-        {s.collapsed || !items.length ? null : (
-          <Box key="items" flexDirection="column" width="100%" minWidth={0} paddingX={INSET} paddingTop={SPACE.item} rowGap={SPACE.item}>
-            {items.map((x, i) => (
-              <Box key={`item-${i}`} flexDirection="column" width="100%" minWidth={0}>
+        {s.collapsed || !items.length
+          ? null
+          : items.flatMap((x, i) => [
+              rule(`rule-${i}`),
+              <Box key={`item-${i}`} flexDirection="column" width="100%" minWidth={0} paddingX={INSET} paddingY={TILE_PAD_Y}>
                 {x}
-              </Box>
-            ))}
-          </Box>
-        )}
+              </Box>,
+            ])}
       </Box>
     )
   }
@@ -1470,6 +1477,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
      * the narrow floor, so an open section doesn't say it twice.
      */
     restated?: boolean
+    /** The header icon's colour: the section's identity hue at a glance, the icon only. Default: a plain mark (GRAY.dark; dim on the terminal). */
+    iconColor?: string
     children: RenderElement | (RenderElement | null)[] | null
   }) => {
     if (s.loading && !s.right) s = { ...s, right: summary([], { loading: true }) }
@@ -1503,7 +1512,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       const head = [
         s.icon ? (
           <Box key="icon" width={GUTTER} flexShrink={0}>
-            {icon(s.icon, termHeaderIcon())}
+            {icon(s.icon, s.iconColor ?? termHeaderIcon())}
           </Box>
         ) : null,
         <Box key="name" flexShrink={1} minWidth={0}>
@@ -1590,7 +1599,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
             <Box key="title" flexDirection="row" alignItems="center" flexShrink={0}>
               {s.icon ? (
                 <Box width={2} flexShrink={0} flexDirection="row" alignItems="center">
-                  {icon(s.icon, GRAY.dark)}
+                  {icon(s.icon, s.iconColor ?? GRAY.dark)}
                 </Box>
               ) : null}
               <Text wrap="truncate" bold size="heading">

@@ -1,6 +1,6 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
-import { C, GRAY, GLYPH, MUTED, STATUS, TRACK } from '../kit/tokens'
+import { C, GRAY, GLYPH, MUTED, STATUS, TRACK, WAYFINDING } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch, Part } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
@@ -78,6 +78,9 @@ export type DashActions = {
 
 const LIVE = new Set(['running', 'pending', 'waiting'])
 
+/** An agent's status as its lead: the kit's status mark, in that status's colour. */
+const AGENT_MARK: Record<string, StatusKind> = { running: 'running', pending: 'pending', waiting: 'pending', completed: 'done', done: 'done', failed: 'failed', killed: 'stopped' }
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /**
@@ -96,19 +99,27 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const fold = (id: string) => ({ collapsed: d.collapsed.includes(id), onToggle: () => act.toggle(id) })
   /** An item's own fold: open while its id is unfolded. */
   const itemFold = (id: string) => ({ open: d.unfolded.includes(id), onToggle: () => act.unfold(id) })
-  /** A dim line that wraps, for what an item's fold holds. */
+  /** A secondary (L1) line that wraps, for what an item's fold holds: read, not scanned past. */
   const wrapped = (key: string, text: string) => (
-    <Text key={key} wrap="wrap" {...(terminal ? { dimColor: true } : { color: GRAY.mid })}>
+    <Text key={key} wrap="wrap" {...k.role('secondary')}>
       {text}
     </Text>
   )
   const quiet = (key: string, label: string, onPress: () => void) => k.actions(key, [{ key, label, onPress, quiet: true }])
-  /** A waiting item's lead: ◌ as a mark (L3), not a status blue. */
+  /** A waiting thread's lead: ◌ in grey (a mark), so the prioritised ones' coloured badges stand out. */
   const waiting = (
     <Text key="waiting" {...k.role('mark')}>
       {GLYPH.pending}
     </Text>
   )
+  /**
+   * Each section's wayfinding colour, on its header icon only: the kit's WAYFINDING (the skin's hues clear of
+   * the state colours), one per section, none twice, the sections that matter most first. A skin with fewer
+   * gives the rest a plain icon; Next falls back to slate, as its arrow carries it.
+   */
+  const WAY = { doing: WAYFINDING[0], needs: WAYFINDING[1], prs: WAYFINDING[2], agents: WAYFINDING[3], decided: WAYFINDING[4], next: WAYFINDING[5] ?? C.slate }
+  /** A priority badge's colour: P1 amber (act on it first), P2 blue, the rest the default foreground. */
+  const badge = (p: number) => (p === 1 ? C.warn : p === 2 ? C.blue : undefined)
   const loading = !b
   const failed = b?.error
 
@@ -116,6 +127,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const doing = k.collapsibleList({
     id: 'doing',
     icon: 'tasklist',
+    iconColor: WAY.doing,
     title: 'Doing',
     right:
       b && !failed
@@ -133,11 +145,11 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         : [
             ...b.threads.map(t =>
               k.listItem(`thread-${t.id}`, {
-                // The badge is primary text (no hue: colour is for status), bold for P1; a waiting thread's ◌ is a mark,
-                // its title secondary and its next step meta, a step quieter than the prioritised ones.
+                // The badge in its priority's colour, bold; a waiting thread's ◌ grey and its title a step quieter.
+                // Every next step is secondary (L1): readable.
                 lead:
                   t.tier === 'priority' ? (
-                    <Text key="p" bold={t.priority === 1}>
+                    <Text key="p" bold {...k.ink(badge(t.priority))}>
                       {`P${t.priority}`}
                     </Text>
                   ) : (
@@ -146,7 +158,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                 title: t.title,
                 bold: t.tier === 'priority' && t.priority === 1,
                 dim: t.tier === 'next',
-                subtitleRole: t.tier === 'next' ? 'meta' : 'secondary',
                 subtitle: t.next ? `next: ${t.next}` : undefined,
                 subtitleWrap: true,
                 ...(t.about ? { ...itemFold(`thread-${t.id}`), children: [wrapped(`thread-${t.id}-about`, t.about)] } : {}),
@@ -164,6 +175,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       ? k.collapsibleList({
           id: 'decided',
           icon: 'checklist',
+          iconColor: WAY.decided,
           title: 'Decided',
           right: k.summary([[String(b.decided.length), 'recent']]),
           ...fold('decided'),
@@ -188,13 +200,15 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const agents = k.collapsibleList({
     id: 'agents',
     icon: 'hubot',
+    iconColor: WAY.agents,
     title: 'Agents',
     right: k.summary([[String(live.length), 'running', live.length ? C.blue : undefined]]),
     ...fold('agents'),
     items: live.length
       ? live.map(a =>
           k.listItem(`agent-${a.id}`, {
-            lead: a.status === 'running' ? 'running' : 'pending',
+            // The status's own mark and colour: running ◐ blue, waiting ◌ blue, done ✓ green, failed ✕ red.
+            lead: AGENT_MARK[a.status] ?? 'pending',
             title: a.description || a.type,
             right: a.status === 'running' ? [] : [a.status],
             subtitle: d.doing[a.id] || (a.description ? a.type : undefined),
@@ -212,6 +226,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const open = d.prs.filter(p => p.state === 'OPEN' || p.state === '')
   // An ignored repo covers its PRs, the ones opened later too.
   const prs = open.filter(p => !ignored.prs.includes(p.ref) && !ignored.repos.includes(repoOf(p.ref)))
+  const failing = prs.filter(p => p.ci === 'failing').length
   const ignoredCount = ignored.repos.length + ignored.prs.length
   /** What the PR is: the kit's PR icon for its state, the colour carrying it (open blue, in progress; draft grey; merged purple; closed red). */
   const stateIcon = (p: PrRow): [string, string] =>
@@ -286,8 +301,10 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const pulls = k.collapsibleList({
     id: 'prs',
     icon: 'pr-open',
+    iconColor: WAY.prs,
     title: 'Pull requests',
-    right: k.summary([[String(prs.length), 'open'], ignoredCount ? [String(ignoredCount), 'ignored'] : null]),
+    // Failing PRs counted in red when there are any; the rest of the figures grey.
+    right: k.summary([[String(prs.length), 'open'], failing ? [String(failing), 'failing', C.bad] : null, ignoredCount ? [String(ignoredCount), 'ignored'] : null]),
     ...fold('prs'),
     items: [
       ...prs.map(prItem),
@@ -303,18 +320,23 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       ? k.collapsibleList({
           id: 'needs',
           icon: 'comment',
+          iconColor: WAY.needs,
           title: 'Needs you',
+          // Approvals waiting amber, open questions blue; zero stays grey.
           right: k.summary([
-            [String(b.approvals.length), b.approvals.length === 1 ? 'approval' : 'approvals'],
-            [String(b.questions), b.questions === 1 ? 'question' : 'questions'],
+            [String(b.approvals.length), b.approvals.length === 1 ? 'approval' : 'approvals', b.approvals.length ? C.warn : undefined],
+            [String(b.questions), b.questions === 1 ? 'question' : 'questions', b.questions ? C.blue : undefined],
           ]),
           ...fold('needs'),
           items: [
-            ...b.approvals.map(x => k.listItem(`approval-${x.id}`, { lead: waiting, title: x.question, right: [`#${x.id}`] })),
+            // An approval leads with the alert in amber: it blocks until answered.
+            ...b.approvals.map(x => k.listItem(`approval-${x.id}`, { lead: 'alert', leadColor: C.warn, title: x.question, right: [`#${x.id}`] })),
             b.approvals.length || b.questions
               ? k.listItem('inbox', {
+                  // Questions lead with the comment icon in blue: open, on recommendations meanwhile.
+                  lead: b.questions ? 'comment' : null,
+                  leadColor: C.blue,
                   title: b.questions ? `${plural(b.questions, 'open question')}, on recommendations till answered` : 'Approvals wait for you',
-                  dim: true,
                   right: [k.actions('inbox-actions', [{ key: 'inbox', label: 'Answer /syn:inbox', onPress: act.inbox }])],
                 })
               : k.note('needs-none', 'Nothing needs you.'),
@@ -405,9 +427,11 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       ? k.collapsibleList({
           id: 'next',
           icon: 'arrow-up',
+          iconColor: WAY.next,
           title: 'Next',
           ...fold('next'),
-          items: [k.listItem('next-step', { title: b.next })],
+          // The step leads with the arrow in the section's colour.
+          items: [k.listItem('next-step', { lead: 'arrow-up', leadColor: WAY.next, title: b.next })],
         })
       : null
 

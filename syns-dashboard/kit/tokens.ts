@@ -91,6 +91,23 @@ export let MUTED = ''
  */
 export const GRAY = { light: '', mid: '', dark: '' }
 
+/**
+ * Wayfinding: colours that say which section a thing is, never a state. The skin's
+ * palette hue slots and role hues, less any within reach of a state colour (ok, warn,
+ * bad, blue, purple), so one never reads as "failing" or "done". Drawn only on a
+ * section's header icon (`iconColor`): one per section, none twice.
+ */
+export const WAYFINDING: string[] = []
+
+/** How far apart two #rrggbb colours are (RGB distance, 0 to ~441). */
+const rgbDistance = (a: string, b: string) => {
+  const ch = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
+  const [x, y] = [ch(a), ch(b)]
+  return Math.hypot(x[0]! - y[0]!, x[1]! - y[1]!, x[2]! - y[2]!)
+}
+/** Nearer a state colour than this, a palette hue isn't offered for wayfinding. */
+const WAYFINDING_CLEAR = 60
+
 
 /** A colour with one value for the light desktop theme and one for the dark. */
 export type Duo = { readonly light: string; readonly dark: string }
@@ -276,6 +293,15 @@ export const wear = (skin: SkinId | Skin): void => {
   MUTED = s.muted
   Object.assign(GRAY, s.gray)
   WORN = s
+  const states = [s.ok, s.warn, s.bad, s.blue, s.purple]
+  WAYFINDING.splice(
+    0,
+    WAYFINDING.length,
+    ...[...new Set([...s.hues, ...s.roles, s.cyan, s.orchid])]
+      .filter(c => states.every(st => rgbDistance(c, st) >= WAYFINDING_CLEAR))
+      // And clear of one another, so no two sections look alike.
+      .reduce<string[]>((kept, c) => (kept.every(k => rgbDistance(c, k) >= WAYFINDING_CLEAR) ? [...kept, c] : kept), []),
+  )
   const status: Record<StatusKind, string> = {
     running: s.blue,
     pending: s.blue,
