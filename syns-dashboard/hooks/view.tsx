@@ -237,7 +237,10 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                           led(`decided-${x.id}-row`, null, [k.item(`decided-${x.id}-head`, { text: x.title, right: [daysAgo(x.at, d.now), arrow] })], true),
                           led(
                             `decided-${x.id}-choice`,
-                            k.status('done'),
+                            // The ✓ sat low against the bold line in the one-row slot: nudged up a quarter of a vertical unit (~2px).
+                            <Box key="tick" marginTop={-0.25} flexDirection="row">
+                              {k.status('done')}
+                            </Box>,
                             [
                               <Text key={`decided-${x.id}-text`} bold wrap="truncate">
                                 {x.text}
@@ -363,7 +366,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       </Text>
     )
     return (
-      <Box key={`pr-${p.ref}`} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingLeft={INSET} gap={SPACE.item}>
+      <Box key={`pr-${p.ref}`} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingX={INSET} gap={SPACE.item}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0} minWidth={0}>
           {led(
             `pr-${p.ref}-body`,
@@ -389,14 +392,20 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
             true,
           )}
         </Box>
-        {/* On the title line, centred on it, flush with the section body's right edge (EDGE.right in from the pane's). */}
+        {/* On the title line, centred on it, on the right edge every row of a section ends on. */}
         <Box height={1} flexShrink={0} flexDirection="row" alignItems="center" justifyContent="flex-end">
           {dots}
         </Box>
       </Box>
     )
   }
-  /** The ignored repos and PRs, each with Stop ignoring, while the header's "N ignored" is pressed. */
+  /** The quiet press that folds or unfolds the ignored list, as the body's last row. */
+  const ignoredToggle = () => {
+    if (!ignoredCount) return null
+    const el = quiet('ignored-toggle', d.ignoredOpen ? `Fold ${ignoredCount} ignored` : `Show ${ignoredCount} ignored`, act.showIgnored)
+    return terminal ? el : inset('ignored-toggle-row', el)
+  }
+  /** The ignored repos and PRs, each with Stop ignoring, while the ignored list is unfolded. */
   const ignoredRows = (): RenderElement[] => {
     if (!d.ignoredOpen || !ignoredCount) return []
     const row = (key: string, text: string, note: string | undefined, stop: () => void) => {
@@ -412,13 +421,8 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'prs',
     icon: 'pr-open',
     title: 'Pull requests',
-    right: (
-      <Box key="prs-right" flexDirection="row" alignItems="center" gap={k.space.item}>
-        {k.summary([[String(prs.length), 'open']])}
-        {ignoredCount ? quiet('ignored-toggle', `${ignoredCount} ignored`, act.showIgnored) : null}
-      </Box>
-    ),
-    keepRight: true,
+    // A standard section: figures in the header as every section's; the ignored list's fold is the body's last row.
+    right: k.summary([[String(prs.length), 'open'], ignoredCount ? [String(ignoredCount), 'ignored'] : null]),
     ...fold('prs'),
     children: !terminal
       ? [
@@ -427,6 +431,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
             [
               ...prs.map(prRow),
               prs.length ? null : inset('prs-none', k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.')),
+              ignoredToggle(),
               ...ignoredRows(),
             ],
             PR_GAP,
@@ -435,6 +440,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       : [
           ...prs.map(prRow),
           prs.length ? null : k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.'),
+          ignoredToggle(),
           ...ignoredRows(),
         ],
   })

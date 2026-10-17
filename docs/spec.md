@@ -405,7 +405,7 @@ in awesome-claude's inspector look on the desktop and the terminal:
   and a small coloured CI mark. A ⋮ on the right unfolds **Ignore** and
   **Ignore repo** inline: an ignored repo or PR drops out of the list
   and the counts for good (an ignored repo's future PRs too), kept in
-  brain.json's `ignored` (below). The header's **N ignored** unfolds the
+  brain.json's `ignored` (below). The header counts them (**N ignored**); a quiet **Show N ignored** at the end of the body unfolds the
   ignored ones, each with **Stop ignoring**.
 - **brain.json's `ignored`** holds what the user doesn't want to hear about
   again: `"ignored": { "repos": ["owner/name"], "prs": ["owner/repo#n"] }`,
