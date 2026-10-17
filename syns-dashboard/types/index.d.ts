@@ -103,21 +103,35 @@ export type ContextSnap = {
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
 
-/** One `~/.syns/proposals/<id>/proposal.json` under Proposals: its status, claims and open questions. */
-export type ProposalRow = {
+/** One of an epic's `promises`: what it says, how it's settled and the first proof that settles it. */
+export type PromiseRow = {
+  id: string
+  text: string
+  /** How it's settled: `review`, `test`, `measurement`, … */
+  by: string
+  /** `proven`, `refuted`, `open` or `dropped`; anything else reads as open. */
+  status: 'proven' | 'refuted' | 'open' | 'dropped'
+  /** Its `proof`: the plan for the proof that will settle it; empty when none. */
+  plan: string
+  /** What its first proof opens: a page's or PR's URL, or a file's path (may start with `~`); empty when it has no proofs. */
+  proof: string
+}
+
+/** One `~/.syns/epics/<id>/epic.json` under Epics: its status, phase, promises and open questions. */
+export type EpicRow = {
   id: string
   rev: number
   /** `draft`, `review`, `approved`, `active`, `done`, `rejected` or `dropped`, lower-cased; empty when unset. */
   status: string
+  /** `proposal` (draft, review), `delivery` (approved, active), else the status itself. */
+  phase: string
   /** The goal's first sentence. */
   goal: string
-  /** Claims in all, and how many are verified and refuted (the rest are open). */
-  claims: number
-  verified: number
-  refuted: number
+  /** Its promises, in order. */
+  promises: PromiseRow[]
   /** Its `questions` still open in brain.json's inbox. */
   questions: number
-  /** The first `evidence` entry of kind `page`: the proposal's page; empty when none. */
+  /** The first `evidence` entry of kind `page`: the epic's page; empty when none. */
   page: string
   /** Why the file couldn't be read (bad JSON). */
   error?: string
@@ -194,8 +208,8 @@ declare module 'claude-code' {
     'syns-dashboard': {
       brain: BrainView | null
       prs: PrRow[]
-      /** Every `~/.syns/proposals/<id>/proposal.json`, review first; null before the first read. */
-      proposals: ProposalRow[] | null
+      /** Every `~/.syns/epics/<id>/epic.json`, review first; null before the first read. */
+      epics: EpicRow[] | null
       agents: AgentRow[]
       /** Each running agent's latest tool call, in words, by agent id. */
       doing: Record<string, string>

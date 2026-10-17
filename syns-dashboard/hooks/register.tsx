@@ -2,11 +2,11 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { holdButtons, kit } from '../kit/ui'
-import type { AgentRow, BandOpen, DashTab, PrCi, PrRow, ProposalRow } from '../types'
+import type { AgentRow, BandOpen, DashTab, EpicRow, PrCi, PrRow } from '../types'
 import { band } from './band'
 import { ignoredOf, toView, updateText } from './brain'
 import { toSnap } from './context'
-import { openInbox, sortProposals, toProposal } from './proposals'
+import { openInbox, sortEpics, toEpic } from './epics'
 import { attach, hideTree } from './filetree/register'
 import { render } from './view'
 import type { Els } from './view'
@@ -16,7 +16,7 @@ const TITLE = 'syn'
 
 const brain = atom({ plugin: 'syns-dashboard', key: 'brain' } as const, null)
 const prs = atom({ plugin: 'syns-dashboard', key: 'prs' } as const, [])
-const proposals = atom({ plugin: 'syns-dashboard', key: 'proposals' } as const, null as ProposalRow[] | null)
+const epics = atom({ plugin: 'syns-dashboard', key: 'epics' } as const, null as EpicRow[] | null)
 const agents = atom({ plugin: 'syns-dashboard', key: 'agents' } as const, [])
 const doing = atom({ plugin: 'syns-dashboard', key: 'doing' } as const, {})
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, [])
@@ -93,20 +93,20 @@ const readBrain = async ($: EngineInterface, force = false) => {
   if (!same(old?.prs, fresh.prs)) prsStale = true
 }
 
-// ---- proposals: <brain.json's folder>/proposals/*/proposal.json, read again when any of them (or brain.json, for open questions) moves ----
+// ---- epics: <brain.json's folder>/epics/*/epic.json, read again when any of them (or brain.json, for open questions) moves ----
 
-/** The mtimes the proposals were last read at (brain.json's, then each folder's proposal.json), as one string. */
-let proposalsStamp = ''
+/** The mtimes the epics were last read at (brain.json's, then each folder's epic.json), as one string. */
+let epicsStamp = ''
 
-const readProposals = async ($: EngineInterface) => {
+const readEpics = async ($: EngineInterface) => {
   const brainFile = await pathOf($)
-  const dir = `${brainFile.slice(0, brainFile.lastIndexOf('/'))}/proposals`
-  // A folder, or a link to one: the file under it says whether it's a proposal.
+  const dir = `${brainFile.slice(0, brainFile.lastIndexOf('/'))}/epics`
+  // A folder, or a link to one: the file under it says whether it's an epic.
   const entries = (await $.fs.list(dir).catch(() => [])).filter(x => x.kind === 'dir' || x.isLink).map(x => x.name).sort()
   const files = (
     await Promise.all(
       entries.map(async name => {
-        const path = `${dir}/${name}/proposal.json`
+        const path = `${dir}/${name}/epic.json`
         const stat = await $.fs.stat(path).catch(() => null)
         return stat && stat.kind === 'file' ? { name, path, mtime: stat.mtimeMs } : null
       }),
@@ -114,21 +114,25 @@ const readProposals = async ($: EngineInterface) => {
   ).filter(f => f !== null)
   const brainStat = await $.fs.stat(brainFile).catch(() => null)
   const stamp = JSON.stringify([brainStat?.mtimeMs ?? 0, files.map(f => [f.name, f.mtime])])
-  const old = await read($, proposals)
-  if (old && stamp === proposalsStamp) return
-  proposalsStamp = stamp
+  const old = await read($, epics)
+  if (old && stamp === epicsStamp) return
+  epicsStamp = stamp
   const open = brainStat ? openInbox(await $.fs.read(brainFile).catch(() => '')) : null
-  const rows = sortProposals(
-    await Promise.all(files.map(async f => toProposal(await $.fs.read(f.path).catch(() => ''), f.name, open))),
-  )
-  if (!same(old, rows)) await update($, proposals, () => rows)
+  const rows = sortEpics(await Promise.all(files.map(async f => toEpic(await $.fs.read(f.path).catch(() => ''), f.name, open))))
+  if (!same(old, rows)) await update($, epics, () => rows)
 }
 
-/** Opens a proposal's page in the browser, with macOS's `open`. */
-const openPage = async ($: EngineInterface, p: ProposalRow) => {
-  if (!p.page) return
-  const run = await $.process.run(['open', p.page], { timeoutMs: 10_000 })
-  if (run.exitCode !== 0) await $.ui.toast(`${p.id}: could not open its page (${(run.stderr || '').trim().split('\n').pop() || `open exited ${run.exitCode}`})`)
+/**
+ * Opens a URL in the browser or a file in its app, with macOS's `open`; a path
+ * starting with `~` is taken from the home folder. `what` names it in the toast
+ * should it fail.
+ */
+const openTarget = async ($: EngineInterface, target: string, what: string) => {
+  if (!target) return
+  const home = target === '~' || target.startsWith('~/') ? await $.env.get('HOME') : undefined
+  const path = home ? `${home}${target.slice(1)}` : target
+  const run = await $.process.run(['open', path], { timeoutMs: 10_000 })
+  if (run.exitCode !== 0) await $.ui.toast(`${what}: could not open it (${(run.stderr || '').trim().split('\n').pop() || `open exited ${run.exitCode}`})`)
 }
 
 // ---- PRs: Ryan's open ones updated this week, plus any brain.json names, with CI; read when brain's list changes, else every few minutes ----
@@ -289,7 +293,7 @@ const tick = async ($: EngineInterface, force = false) => {
     // brain.json itself is read by its own timer (brainWorker), for the band and the pane alike.
     if (force) await readBrain($, true).catch(() => undefined)
     await readAgents($).catch(() => undefined)
-    await readProposals($).catch(() => undefined)
+    await readEpics($).catch(() => undefined)
     if (prsStale || Date.now() - prsAt > PR_EVERY) await readPrs($).catch(() => undefined)
   } finally {
     busy = false
@@ -434,7 +438,7 @@ export const register: Register = (on, options) => {
     const data = {
       brain: await read($, brain),
       prs: await read($, prs),
-      proposals: await read($, proposals),
+      epics: await read($, epics),
       agents: await read($, agents),
       doing: await read($, doing),
       collapsed: await read($, collapsed),
@@ -454,7 +458,8 @@ export const register: Register = (on, options) => {
         inbox: () => ask($, 'syn:inbox'),
         back: () => ask($, 'syn:back'),
         standup: () => ask($, 'syn:standup'),
-        openProposal: p => void openPage($, p).catch(() => $.ui.toast(`${p.id}: could not open its page`)),
+        openEpic: p => void openTarget($, p.page, `${p.id}'s page`).catch(() => $.ui.toast(`${p.id}: could not open its page`)),
+        openProof: (p, promise) => void openTarget($, promise.proof, `${p.id} ${promise.id}'s proof`).catch(() => $.ui.toast(`${p.id} ${promise.id}: could not open its proof`)),
         review: p => ask($, 'syn:review', p.id),
         ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),
         showIgnored: () => void update($, ignoredOpen, was => !was).catch(() => undefined),
