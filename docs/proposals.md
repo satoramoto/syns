@@ -28,7 +28,8 @@ it until a second proposal disagrees.
 | `approach` | `chosen`, plus `alternatives` as `{ what, whyNot }` |
 | `assumptions`, `dependencies` | plain strings |
 | `risks` | `{ what, then }`: the risk and what we do if it lands |
-| `questions` | inbox item ids raised for it (questions and its approval) |
+| `approval` | the inbox item id of its approval |
+| `questions` | inbox item ids of its questions (never the approval) |
 | `decisions` | inbox item ids answered for it |
 | `claims` | `{ id, text, verifier, status }`, the acceptance |
 | `jobs` | `{ id, what, owner, mode, state, claims, repo?, files?, at }` |
@@ -39,6 +40,11 @@ it until a second proposal disagrees.
 A claim's `verifier` is how it gets settled: `test`, `proof`, `measurement`
 or `review`. Its `status` is `open`, `verified` or `refuted`. Every job names
 at least one claim it serves.
+
+Every inbox item raised for a proposal (its questions and its approval)
+carries `"proposal": "<id>"`. That field is how `/syn:inbox` knows an
+approval belongs to a proposal; an `applies` naming its `proposal.json` is
+only the fallback.
 
 ## Lifecycle
 
@@ -66,8 +72,8 @@ change is one ledger line.
  "event":"proposal.status","from":"review","to":"approved","by":"Ryan","via":"inbox 29","note":"..."}
 ```
 
-`id` is the proposal id and a four-digit count of that proposal's lines;
-`parent` is the proposal id (the first lines, `ps-0001`…, predate this);
-`at` is UTC. `via` names the inbox item when
+`id` is `<proposal id>-NNNN`, a four-digit count of that proposal's lines
+(the first seven lines, `ps-0001`…`ps-0007`, predate this); `parent` is the
+proposal id; `at` is UTC. `via` names the inbox item when
 one caused it; `note` is optional. Other events (`proposal.revised`,
 `job.state`) add their own fields (`rev`, `job`, `claims`, `owner`).

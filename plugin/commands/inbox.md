@@ -21,8 +21,8 @@ syn: the smallest version of the approval loop.
      `{ choice, note?, at }`, then move it from `inbox` to `answered`;
    - an approval (`reversible: false`) means the action may now happen, so do
      it, or hand it to an assistant.
-   - an approval whose `applies` names a proposal's `proposal.json` also
-     sets that proposal's `status`: Approve → `"approved"`, Reject →
+   - an approval with a `proposal` field (or, failing that, whose `applies`
+     names a proposal's `proposal.json`) also sets that proposal's `status`: Approve → `"approved"`, Reject →
      `"rejected"`, Revise → stays `"review"` with `rev` raised by one and a
      `revisions` entry `{ rev, at, note }` carrying the answer's note. Add
      the item's id to the proposal's `decisions`, and append one line to

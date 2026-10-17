@@ -33,8 +33,9 @@ through the inbox. The shape is `docs/proposals.md`; the example is
      `blocks: ["<id> M1"]`, options Approve, Revise, Reject (in that order,
      Approve recommended), and `applies:
      "~/.syns/proposals/<id>/proposal.json status"`.
-   Every item gets `thread`, `raisedBy`, `raisedAt` and `status: "open"`.
-   Put all their ids in the proposal's `questions`.
+   Every item gets `"proposal": "<id>"`, `thread`, `raisedBy`, `raisedAt`
+   and `status: "open"`. Put the question ids in the proposal's `questions`
+   and the approval's id in its `approval`.
 5. Set the proposal's `status` to `"review"` and append the ledger line
    `from: "draft"`, `to: "review"`. If the Artifact tool is available,
    publish the proposal as a private page and record its url under
