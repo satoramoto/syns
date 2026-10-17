@@ -96,6 +96,10 @@ is an inbox **term** until it is.
 - **Reading:** label, thin flat gauge, value, unit.
 - **Figures:** the summary numbers on a section's heading.
 - **Flow:** a wide pane splitting its sections into columns.
+- **CollapsibleList:** a section drawn as one surface: its heading and its
+  list items, hairlines between them.
+- **ListItem:** one item in a CollapsibleList: a lead (icon or badge), a title,
+  a dim subtitle, controls on the title line, and an optional fold.
 - **Statusline:** the band above the prompt: Standup, the context bar, and what
   needs you.
 - **Ignore:** never show this PR (or every PR of this repo) again; kept in
