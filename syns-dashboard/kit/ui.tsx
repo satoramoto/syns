@@ -242,6 +242,14 @@ const TILE_ROW_GAP = 0.2
 /** The bar under the active tab on the app surfaces, in rows of size (about 2px), and the hairline under the tabs (about 1px). */
 const TAB_MARK = 0.12
 const HAIRLINE = 0.06
+/**
+ * A container's corner radius on the app surfaces, in pixels (a section's band, a
+ * list's surface, a tile): the Claude Code pack's card radius (zen's `linear`
+ * materials, `radiusCard`).
+ */
+const RADIUS_PX = 6
+/** An accent's stripe along a container's top edge, in pixels: as thick as the active tab's bar. */
+const ACCENT_PX = 2
 
 /**
  * The desktop's fold arrow: full-size triangles, since text can't be sized.
@@ -663,7 +671,12 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    *
    * - `capped`: anything thin (bars, gauges). SVG end caps drawn at an exact pixel
    *   size, so they stay crisp; the middle takes no height and stretches to the caps.
-   * - Nothing else: `rounded` boxes (bands, tiles) are square-cornered fills.
+   * - `card`: containers (a section's band, a list's surface, a tile). Their fill is
+   *   a ground placed behind the content (`position: absolute`, all four offsets 0):
+   *   an edge row of two SVG quarter discs (RADIUS_PX square) and a stretched middle
+   *   at the top and at the bottom, a plain fill between. An accent is the top edge's
+   *   first ACCENT_PX, the corners' share of it drawn in the same SVGs.
+   * - Nothing else: `rounded` boxes (pills) are square-cornered fills.
    *
    * What doesn't work, so nobody tries again: a `round` border in `transparent` to
    * round a fill (the desktop doesn't know `transparent` as a border colour and draws
@@ -734,10 +747,70 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
   }
 
   /**
-   * A filled box, a row or more tall: a band or a tile. Square-cornered and with no
-   * border on the app surfaces, as the design has no outlines and the desktop has no
-   * transparent border to round a fill with (see "Rounding on the desktop" above).
-   * In the terminal, the box without fill.
+   * One corner of a card's ground, RADIUS_PX square: a quarter disc in `fill`, and
+   * on a top corner with an `accent`, the disc's top ACCENT_PX in the accent. The
+   * two parts meet without overlapping, so a see-through fill isn't painted twice.
+   */
+  const corner = (fill: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', accent?: string): RenderElement | null => {
+    if (!Svg) return null
+    const r = RADIUS_PX
+    const s = Math.min(ACCENT_PX, r)
+    // Drawn as the top-left (centre r,r), then mirrored into place.
+    const x = r - Math.sqrt(r * r - (r - s) * (r - s))
+    const top = at.startsWith('top') && accent
+    const paths = top
+      ? `<path d="M0 ${r}A${r} ${r} 0 0 1 ${x} ${s}H${r}V${r}Z" fill="${fill}"/><path d="M${x} ${s}A${r} ${r} 0 0 1 ${r} 0V${s}Z" fill="${accent}"/>`
+      : `<path d="M0 ${r}A${r} ${r} 0 0 1 ${r} 0V${r}Z" fill="${fill}"/>`
+    const flip = `scale(${at.endsWith('right') ? -1 : 1} ${at.startsWith('bottom') ? -1 : 1})`
+    const move = `translate(${at.endsWith('right') ? r : 0} ${at.startsWith('bottom') ? r : 0})`
+    const source =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${r}" height="${r}" viewBox="0 0 ${r} ${r}">` +
+      `<g transform="${move} ${flip}">${paths}</g></svg>`
+    return (
+      <Box flexShrink={0}>
+        <Svg source={source} alt="rounded corner" width={r} height={r} />
+      </Box>
+    )
+  }
+
+  /** A card's top or bottom edge, RADIUS_PX tall: a corner, the stretched middle (the accent's stripe over the fill, on top), a corner. */
+  const cardEdge = (key: string, fill: string, side: 'top' | 'bottom', accent?: string): RenderElement => (
+    <Box key={key} flexDirection="row" height={RADIUS_PX / ROW_PX} flexShrink={0} alignItems="stretch">
+      {corner(fill, `${side}-left`, accent)}
+      <Box flexGrow={1} flexDirection="column">
+        {side === 'top' && accent ? <Box key="accent" height={ACCENT_PX / ROW_PX} flexShrink={0} backgroundColor={accent} /> : null}
+        <Box key="fill" flexGrow={1} backgroundColor={fill} />
+      </Box>
+      {corner(fill, `${side}-right`, accent)}
+    </Box>
+  )
+
+  /**
+   * A container with rounded corners on the app surfaces: `props` and `children`
+   * laid out as a Box, over a ground in `fill` whose corners are rounded
+   * (RADIUS_PX), with an optional `accent` (one of ACCENT) as a thin stripe along
+   * its top edge. The ground sits behind the content, so the content keeps its
+   * own size, padding and centring. In the terminal, the box without fill or
+   * accent. See "Rounding on the desktop" above.
+   */
+  const card = (fill: string, accent: string | undefined, props: Record<string, unknown>, children: RenderElement | (RenderElement | null)[] | null) =>
+    terminal ? (
+      <Box {...props}>{children}</Box>
+    ) : (
+      <Box {...props}>
+        <Box key="card-ground" position="absolute" top={0} left={0} right={0} bottom={0} flexDirection="column">
+          {cardEdge('card-top', fill, 'top', accent)}
+          <Box key="card-fill" flexGrow={1} backgroundColor={fill} />
+          {cardEdge('card-bottom', fill, 'bottom')}
+        </Box>
+        {children}
+      </Box>
+    )
+
+  /**
+   * A filled box with square corners and no border: a pill's chip. Containers
+   * (bands, lists, tiles) are `card`s, rounded. In the terminal, the box
+   * without fill.
    */
   const rounded = (color: string, props: Record<string, unknown>, children: RenderElement | (RenderElement | null)[] | null) =>
     terminal ? (
@@ -750,7 +823,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
 
   /**
    * A tile: one item of a list that has several lines (a branch and its PR), in its
-   * own rounded fill a step lighter than the pane, so items read as units. A
+   * own fill a step lighter than the pane, its corners rounded (`card`), so items read as units. A
    * `selected` tile takes a blue-tinted fill: picked, without an outline; half
    * as tinted while the pane isn't `focused` (the kit's `focused` by default).
    * On the terminal, a blank row above and no fill, selected or not: a terminal
@@ -762,8 +835,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         {children}
       </Box>
     ) : (
-      rounded(
+      card(
         opts.selected ? ((opts.focused ?? paneFocused) ? FILL.selected : FILL.selectedBlurred) : FILL.tile,
+        undefined,
         { key, flexDirection: 'column', paddingX: SPACE.item, paddingY: TILE_PAD_Y, rowGap: TILE_ROW_GAP, width: '100%' },
         children,
       )
@@ -947,7 +1021,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    * figures, the fold arrow last) and the items share one quiet fill (FILL.tile),
    * a hairline (TRACK, HAIRLINE tall, as the tabs' rule) under the header and
    * between items, each item padded alike. No band on the pane with tiles under
-   * it: one thing, one fill.
+   * it: one thing, one fill. On the app surfaces the surface's corners are rounded
+   * (`card`), its title one step up the type scale (`heading`), and an `accent`
+   * draws a thin stripe along its top edge.
    *
    * Folded, only the header shows. `section` stays for bodies that aren't a list
    * (readings, bars, props); this is a list's section.
@@ -962,6 +1038,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     collapsed?: boolean
     onToggle?: () => void
     loading?: boolean
+    /** A colour from ACCENT, drawn as a thin stripe along the surface's top edge on the app surfaces; the terminal draws none. */
+    accent?: string
     items: (RenderElement | null | false)[]
   }) => {
     const items = s.items.filter((x): x is RenderElement => Boolean(x))
@@ -985,7 +1063,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
               {icon(s.icon, MUTED)}
             </Box>
           ) : null}
-          <Text wrap="truncate" bold>
+          <Text wrap="truncate" bold size="heading">
             {s.title}
           </Text>
         </Box>
@@ -1011,7 +1089,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         ])
     return (
       <Box key={`list-${s.id}`} flexDirection="column" marginTop={1}>
-        {rounded(FILL.tile, { flexDirection: 'column', width: '100%', minWidth: 0 }, [header, ...body])}
+        {card(FILL.tile, s.accent, { flexDirection: 'column', width: '100%', minWidth: 0 }, [header, ...body])}
       </Box>
     )
   }
@@ -1338,9 +1416,12 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    * A section as a properties inspector draws one (Premiere's Effect Controls):
    * a collapsible header row (icon, title, figures, then the fold arrow last at
    * the right end) and its properties indented under it, the terminal's under the
-   * title. The arrow (a Button, key `toggle-<id>`) folds it. No panel, outline or tint: rows and indentation do
-   * the grouping. Collapsible when given `onToggle` (the mod keeps which are
-   * folded in its state); folded, only the header row shows.
+   * title. The arrow (a Button, key `toggle-<id>`) folds it. On the app surfaces
+   * the header is a band with rounded corners (`card`), its title one step up the
+   * type scale (`heading`), and an `accent` draws a thin stripe along the band's
+   * top edge; the body has no fill or outline, rows and indentation group it.
+   * Collapsible when given `onToggle` (the mod keeps which are folded in its
+   * state); folded, only the header row shows.
    */
   const section = (s: {
     id: string
@@ -1366,6 +1447,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
      * the narrow floor, so an open section doesn't say it twice.
      */
     restated?: boolean
+    /** A colour from ACCENT, drawn as a thin stripe along the band's top edge on the app surfaces; the terminal draws none. */
+    accent?: string
     children: RenderElement | (RenderElement | null)[] | null
   }) => {
     if (s.loading && !s.right) s = { ...s, right: summary([], { loading: true }) }
@@ -1475,8 +1558,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     // One standard row above each section, and no other margin: sections sit one row apart.
     return (
       <Box key={`section-${s.id}`} flexDirection="column" marginTop={1}>
-        {rounded(
+        {card(
           FILL.head,
+          s.accent,
           {
             flexDirection: 'row',
             justifyContent: 'space-between',
@@ -1493,7 +1577,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
                   {icon(s.icon, MUTED)}
                 </Box>
               ) : null}
-              <Text wrap="truncate" bold>
+              <Text wrap="truncate" bold size="heading">
                 {s.title}
               </Text>
             </Box>,
@@ -1759,8 +1843,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         {row}
       </Box>
     ) : (
-      rounded(
+      card(
         FILL.head,
+        undefined,
         { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: justify, alignItems: 'center', columnGap: SPACE.item, paddingX: INSET, height: BAND_ROWS, flexShrink: 0, marginTop: SPACE.block, overflow: 'hidden' },
         row,
       )
@@ -2295,6 +2380,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     collapsibleList,
     bar,
     capped,
+    card,
     rounded,
     scale,
     axis,

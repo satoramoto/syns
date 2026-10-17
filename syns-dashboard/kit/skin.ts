@@ -8,7 +8,9 @@
  * follows the person's terminal theme.
  *
  * Every value is #rrggbb, and every value is its meaning's own: no two meanings share a value,
- * as the terminal finds a meaning by its value. Greys may share one another's.
+ * as the terminal finds a meaning by its value. Greys may share one another's. The accents
+ * (`hues`, `roles`) stand outside that rule: only the app surfaces draw them, and nothing looks
+ * a meaning up by them.
  */
 export type Skin = {
   /** The pack's name, as zen's toolbar shows it. */
@@ -35,4 +37,8 @@ export type Skin = {
   readonly muted: string
   /** Text below the main text, each a step quieter. */
   readonly gray: { readonly light: string; readonly mid: string; readonly dark: string }
+  /** The palette's five categorical hue slots: accents that tell groups apart (ACCENT), never a status. */
+  readonly hues: readonly [string, string, string, string, string]
+  /** The palette's two role hues: the accents after the five. */
+  readonly roles: readonly [string, string]
 }

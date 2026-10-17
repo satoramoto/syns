@@ -1,6 +1,6 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
-import { C, GRAY, MUTED } from '../kit/tokens'
+import { ACCENT, C, GRAY, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
@@ -64,7 +64,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /**
  * The re-entry pane, on every surface: its sections as the kit's collapsible lists
  * (what we're doing, what you decided, agents, pull requests, what needs you, next),
- * each item a list item, then a footer with the standup and the full brief.
+ * each item a list item and each list its own accent (ACCENT, in that order), then a
+ * footer with the standup and the full brief.
  */
 export const render = (els: Els, surface: RenderSurface, columns: number, rows: number | undefined, d: DashData, act: DashActions, focused?: boolean): RenderElement => {
   const { Box, Text, Button, Link } = els
@@ -89,6 +90,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'doing',
     icon: 'tasklist',
     title: 'Doing',
+    accent: ACCENT[0],
     right:
       b && !failed
         ? k.summary([
@@ -134,6 +136,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'decided',
           icon: 'checklist',
           title: 'Decided',
+          accent: ACCENT[1],
           right: k.summary([[String(b.decided.length), 'recent']]),
           ...fold('decided'),
           items: b.decided.length
@@ -158,6 +161,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'agents',
     icon: 'hubot',
     title: 'Agents',
+    accent: ACCENT[2],
     right: k.summary([[String(live.length), 'running', live.length ? C.blue : undefined]]),
     ...fold('agents'),
     items: live.length
@@ -247,6 +251,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'prs',
     icon: 'pr-open',
     title: 'Pull requests',
+    accent: ACCENT[3],
     right: k.summary([[String(prs.length), 'open'], ignoredCount ? [String(ignoredCount), 'ignored'] : null]),
     ...fold('prs'),
     items: [
@@ -264,6 +269,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'needs',
           icon: 'comment',
           title: 'Needs you',
+          accent: ACCENT[4],
           right: k.summary([
             [String(b.approvals.length), b.approvals.length === 1 ? 'approval' : 'approvals'],
             [String(b.questions), b.questions === 1 ? 'question' : 'questions'],
@@ -289,6 +295,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'next',
           icon: 'arrow-up',
           title: 'Next',
+          accent: ACCENT[5],
           ...fold('next'),
           items: [k.listItem('next-step', { title: b.next })],
         })

@@ -32,7 +32,18 @@ export const SKINS = {
       light: "#d6d6d6",
       mid: "#8c8c8c",
       dark: "#4d4d4d"
-    }
+    },
+    hues: [
+      "#3b8eff",
+      "#ff4f9e",
+      "#ff9a2e",
+      "#16c7a6",
+      "#bd39ec"
+    ],
+    roles: [
+      "#f57aff",
+      "#3ff4ff"
+    ]
   },
   "yahaha-classic": {
     label: "yahaha classic",
@@ -63,7 +74,18 @@ export const SKINS = {
       light: "#9aa2ad",
       mid: "#8a929d",
       dark: "#555c66"
-    }
+    },
+    hues: [
+      "#4cc2ff",
+      "#b98cff",
+      "#5fdc92",
+      "#fd7d00",
+      "#4b8efe"
+    ],
+    roles: [
+      "#ff6bd0",
+      "#08b7aa"
+    ]
   },
   "yahaha-push": {
     label: "yahaha Push (as designed)",
@@ -94,7 +116,18 @@ export const SKINS = {
       light: "#d6d6d6",
       mid: "#8c8c8c",
       dark: "#4d4d4d"
-    }
+    },
+    hues: [
+      "#3b8eff",
+      "#ff4f9e",
+      "#ff9a2e",
+      "#16c7a6",
+      "#bd39ec"
+    ],
+    roles: [
+      "#f57aff",
+      "#3ff4ff"
+    ]
   },
   visuals: {
     label: "visual[flow] (glass)",
@@ -125,7 +158,18 @@ export const SKINS = {
       light: "#b7b7be",
       mid: "#a4a4ac",
       dark: "#5e5e66"
-    }
+    },
+    hues: [
+      "#36b8ec",
+      "#7c86ff",
+      "#c86ef0",
+      "#f2659f",
+      "#d900af"
+    ],
+    roles: [
+      "#c6e34a",
+      "#3ff4ff"
+    ]
   },
   elektron: {
     label: "Elektron",
@@ -156,7 +200,18 @@ export const SKINS = {
       light: "#eeeef2",
       mid: "#b4b4b8",
       dark: "#6a6a6a"
-    }
+    },
+    hues: [
+      "#00d1ff",
+      "#3d6bff",
+      "#ff3dbb",
+      "#aaff1b",
+      "#c645f7"
+    ],
+    roles: [
+      "#b48cff",
+      "#0a9e9e"
+    ]
   },
   ableton: {
     label: "Ableton",
@@ -187,7 +242,18 @@ export const SKINS = {
       light: "#ffffff",
       mid: "#aaaaaa",
       dark: "#666666"
-    }
+    },
+    hues: [
+      "#ff8389",
+      "#00d2be",
+      "#8a8aff",
+      "#ffb347",
+      "#f529b5"
+    ],
+    roles: [
+      "#db77ff",
+      "#018fd2"
+    ]
   },
   linear: {
     label: "Linear",
@@ -218,7 +284,18 @@ export const SKINS = {
       light: "#d0d6e0",
       mid: "#8a8f98",
       dark: "#62666d"
-    }
+    },
+    hues: [
+      "#99bfff",
+      "#27a644",
+      "#02b8cc",
+      "#bb87fc",
+      "#d427cd"
+    ],
+    roles: [
+      "#ff7ad9",
+      "#ff8a3d"
+    ]
   },
   "claude-code": {
     label: "Claude Code",
@@ -249,7 +326,18 @@ export const SKINS = {
       light: "#b9b9b6",
       mid: "#8a8a87",
       dark: "#62625f"
-    }
+    },
+    hues: [
+      "#c58ad6",
+      "#2fd0f0",
+      "#d6d65c",
+      "#b0613a",
+      "#ee2dc1"
+    ],
+    roles: [
+      "#a35ff0",
+      "#3a5fd0"
+    ]
   }
 } as const satisfies Record<string, Skin>
 

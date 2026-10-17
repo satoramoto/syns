@@ -13,7 +13,8 @@ import type { SkinId } from './skins'
  * - green: finished well — checks passed, an agent done
  * - purple: merged
  *
- * Cyan and orchid aren't statuses: they only tint parts within one chart.
+ * Cyan and orchid aren't statuses: they only tint parts within one chart. The
+ * accents (ACCENT) aren't either: they only tell sections apart.
  *
  * The values come from the skin the kit wears (kit/skin.ts): a zen theme pack's
  * palette, mapped to what the app surfaces draw. The kit starts in the
@@ -89,6 +90,16 @@ export let MUTED = ''
  * - dark: the quietest marks (an icon beside a count, a heading over a list).
  */
 export const GRAY = { light: '', mid: '', dark: '' }
+
+/**
+ * Accents: seven colours that only tell groups apart, such as the stripe along
+ * the top of a section or a list (`accent` on `section` and `collapsibleList`).
+ * They're the skin's palette's five categorical hue slots, then its two role
+ * hues. An accent is never a status or a quantity, and only the app surfaces
+ * draw one: the terminal has no theme key that means "this group", so it draws
+ * no accent.
+ */
+export const ACCENT: string[] = []
 
 /** A colour with one value for the light desktop theme and one for the dark. */
 export type Duo = { readonly light: string; readonly dark: string }
@@ -271,6 +282,7 @@ export const wear = (skin: SkinId | Skin): void => {
   FILL.selectedBlurred = tint(s.blue, 0.065)!
   MUTED = s.muted
   Object.assign(GRAY, s.gray)
+  ACCENT.splice(0, ACCENT.length, ...s.hues, ...s.roles)
   const status: Record<StatusKind, string> = {
     running: s.blue,
     pending: s.blue,
