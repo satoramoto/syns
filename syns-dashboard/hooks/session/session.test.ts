@@ -529,7 +529,12 @@ test('the desktop draws the inspector without outlines: every section header a f
   const boxes = every(tree).filter(d => d.type === 'Box')
   // The real desktop draws a `transparent` border in the text's colour: headers and tiles came out as outlined bubbles.
   expect(boxes.filter(b => b.props?.borderStyle !== undefined)).toEqual([])
-  const bands = boxes.filter(b => b.props?.backgroundColor === FILL.head)
+  // A header is a card: a container over an absolute ground (rounded edges round a fill).
+  const cardFill = (b: Drawn) => {
+    const ground = kids(b).find(d => keyOf(d) === 'card-ground')
+    return ground && kids(ground).find(d => keyOf(d) === 'card-fill')?.props?.backgroundColor
+  }
+  const bands = boxes.filter(b => cardFill(b) === FILL.head)
   expect(bands.length).toBeGreaterThanOrEqual(5)
   for (const b of bands) {
     expect(b.props?.height).toBe(BAND_ROWS)
@@ -597,13 +602,15 @@ test("the footer's columns switch turns a wide pane to one stack, and the settin
   await session($, on, 'lane')
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...pane(120) })
   expect(flowed((await ui.drawn()) as Drawn).length).toBe(2)
-  expect((await ui.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'columns' })
+  // The desktop draws the switch's label as a Text under a blank Button keyed `flow-toggle`
+  // (its label Braille blanks, U+2800, so they trail the text).
+  expect((await ui.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^columns⠀*$/)
   await ui.press({ key: 'flow-toggle' })
   expect(writes).toEqual([false])
   await ui.unmount()
   // Drawn again (a reload keeps the mod's state): one stack, the switch dim.
   const again = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...pane(120) })
   expect(flowed((await again.drawn()) as Drawn)).toEqual([])
-  expect((await again.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'single column', dimColor: true })
+  expect((await again.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^single column⠀*$/)
   await again.unmount()
 })

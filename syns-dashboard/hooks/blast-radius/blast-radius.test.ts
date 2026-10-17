@@ -279,14 +279,16 @@ test("the footer's columns switch turns a wide pane's paths to one stack, and th
   const mount = () => drive(clock, $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...PANE, props: { ...PANE.props, bodyColumns: 120 } } as any))
   const wide: any = await mount()
   expect(await flowed(wide)).toBe(2)
-  expect((await wide.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'columns' })
+  // The desktop draws the switch's label as a Text under a blank Button keyed `flow-toggle`
+  // (its label Braille blanks, U+2800, so they trail the text).
+  expect((await wide.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^columns⠀*$/)
   await drive(clock, wide.press({ key: 'flow-toggle' }))
   expect(writes).toEqual([false])
   await wide.unmount()
   // Drawn again (a reload keeps the mod's state): one stack, the switch dim.
   const again: any = await mount()
   expect(await flowed(again)).toBe(0)
-  expect((await again.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'single column', dimColor: true })
+  expect((await again.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^single column⠀*$/)
   await drive(clock, again.press({ key: 'cancel' }))
   await drive(clock, call)
   await again.unmount()

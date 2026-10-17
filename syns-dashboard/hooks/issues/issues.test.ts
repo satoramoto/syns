@@ -2,8 +2,8 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { BLANK } from '../../kit/ui'
-import { C } from '../../kit/tokens'
+import { BLANK, TEXT_ROLES } from '../../kit/ui'
+import { C, GRAY } from '../../kit/tokens'
 
 // The dashboard's Issues tab drawn by the engine's test kit on each surface.
 // The test's own hooks sit beneath the dashboard and stand for the engine:
@@ -291,12 +291,16 @@ test('on the desktop, every Button is drawn by its label: quiet ones dim, Select
   }
   await check()
 
-  // Refine and Select are secondary: their labels, dim at rest.
-  for (const key of ['refine-24', 'pick-24', 'pick-23']) {
-    const b = await ui.find({ type: 'Button', key })
-    expect(b?.props.dimColor).toBe(true)
-    expect(b?.props.label).toMatch(/^(Refine|Select)$/)
+  // Refine and Select are secondary: their labels a grey Text (the meta role) under a
+  // blank Button that still answers to the key, as the kit draws a quiet action.
+  const quiet = async (key: string, word: string) => {
+    const press = await ui.find({ key: `${key}-press` })
+    const label = (press?.children as { type?: string; props?: Record<string, unknown> }[] | undefined)?.find(c => c?.type === 'Text')
+    expect(press?.text.replaceAll(BLANK, ''), key).toBe(word)
+    expect(label?.props?.color, `${key} grey`).toBe(GRAY[TEXT_ROLES.meta])
+    expect((await ui.find({ type: 'Button', key }))?.props.label, `${key} blank`).toBe(BLANK.repeat(word.length))
   }
+  for (const [key, word] of [['refine-24', 'Refine'], ['pick-24', 'Select'], ['pick-23', 'Select']] as const) await quiet(key, word)
   expect((await ui.find({ type: 'Button', key: 'start-24' }))?.props.dimColor).toBeFalsy()
 
   // Pressing Select by its key picks the issue: the word turns blue, a Text the
@@ -307,14 +311,13 @@ test('on the desktop, every Button is drawn by its label: quiet ones dim, Select
   expect(tint?.props.position).toBe('relative')
   expect((await ui.find({ type: 'Text', text: /^Selected$/ }))?.props.color).toBe(C.blue)
   expect((await ui.find({ type: 'Button', key: 'pick-24' }))?.props.label).toBe(BLANK.repeat('Selected'.length))
-  expect(await ui.find({ type: 'Button', key: 'clear' })).toBeDefined()
-  expect((await ui.find({ type: 'Button', key: 'clear' }))?.props.dimColor).toBe(true)
+  await quiet('clear', 'Clear')
   await check()
 
   // Pressed again, it's put back.
   await ui.press({ key: 'pick-24' })
   await ui.redraw()
-  expect((await ui.find({ type: 'Button', key: 'pick-24' }))?.props.label).toBe('Select')
+  await quiet('pick-24', 'Select')
   // Each tile still draws its icons (the issue's mark, the linked PR's) as Svgs.
   expect((await ui.findAll({ type: 'Svg' })).length).toBeGreaterThanOrEqual(3)
   await ui.unmount()
@@ -472,13 +475,15 @@ test("the footer's columns switch turns a wide pane to one list, and the setting
   const mount = () => $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...PANE, props: { ...PANE.props, bodyColumns: 120 } })
   const ui = await mount()
   expect(flowed((await ui.drawn()) as Drawn)).toBe(2)
-  expect((await ui.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'columns' })
+  // The desktop draws the switch's label as a Text under a blank Button keyed `flow-toggle`
+  // (its label Braille blanks, U+2800, so they trail the text).
+  expect((await ui.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^columns⠀*$/)
   await ui.press({ key: 'flow-toggle' })
   expect(writes).toEqual([false])
   await ui.unmount()
   // Drawn again (a reload keeps the mod's state): one list, the switch dim.
   const again = await mount()
   expect(flowed((await again.drawn()) as Drawn)).toBe(0)
-  expect((await again.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'single column', dimColor: true })
+  expect((await again.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^single column⠀*$/)
   await again.unmount()
 })

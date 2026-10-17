@@ -533,7 +533,12 @@ test('on the desktop every header band is as tall, whatever its row holds, and n
     expect(await ui.find({ key: 'stop-app' })).toBeDefined()
     expect(await ui.find({ key: 'start-storybook' })).toBeDefined()
     expect(await ui.find({ key: 'adopt-storybook-wt' })).toBeDefined()
-    const bands = (await ui.findAll({ type: 'Box' })).filter(b => b.props.backgroundColor === FILL.head)
+    // A band is a card: a container over an absolute ground (rounded edges round a fill).
+    const cardFill = (b: Drawn) => {
+      const ground = kidsOf(b).find(d => keyOf(d) === 'card-ground')
+      return ground && kidsOf(ground).find(d => keyOf(d) === 'card-fill')?.props?.backgroundColor
+    }
+    const bands = (await ui.findAll({ type: 'Box' })).filter(b => cardFill(b as Drawn) === FILL.head)
     expect(bands, `one band a row at ${columns}`).toHaveLength(3)
     for (const b of bands) {
       expect(b.props.height, `band height at ${columns}`).toBe(BAND_ROWS)
@@ -627,7 +632,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     // No second press: it lapses back to Kill.
     await world.clock.advance(CONFIRM_MS + 1)
     expect(await ui.find({ text: /Kill PID/ }), 'reverted').toBeUndefined()
-    expect(await ui.find({ key: 'kill-storybook', text: 'Kill' })).toBeDefined()
+    // The desktop draws an action's label as a Text under a blank Button (keyed `<key>-press`).
+    expect(await ui.find({ key: surface === 'desktop' ? 'kill-storybook-press' : 'kill-storybook', text: 'Kill' })).toBeDefined()
     expect(world.signals).toEqual([])
     // Pressed twice in time: SIGTERM, then the row is stopped and Start works.
     await ui.press({ key: 'kill-storybook' })
@@ -857,13 +863,15 @@ test("the footer's columns switch turns a wide pane to one stack, and the settin
   const flowed = (tree: Drawn) => everyOf(tree).filter(d => d.type === 'Box' && /^sections-col-\d+$/.test(keyOf(d))).length
   const ui = await mountAt($, 'desktop', 120)
   expect(flowed((await ui.drawn()) as Drawn)).toBe(2)
-  expect((await ui.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'columns' })
+  // The desktop draws the switch's label as a Text under a blank Button keyed `flow-toggle`
+  // (its label Braille blanks, U+2800, so they trail the text).
+  expect((await ui.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^columns⠀*$/)
   await ui.press({ key: 'flow-toggle' })
   expect(writes).toEqual([false])
   await ui.unmount()
   // Drawn again (a reload keeps the mod's state): one stack, the switch dim.
   const again = await mountAt($, 'desktop', 120)
   expect(flowed((await again.drawn()) as Drawn)).toBe(0)
-  expect((await again.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'single column', dimColor: true })
+  expect((await again.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^single column⠀*$/)
   await again.unmount()
 })

@@ -319,13 +319,15 @@ test("the footer's columns switch turns a wide index to one stack, and the setti
   const flowed = (tree: Drawn) => everyOf(tree).filter(d => d.type === 'Box' && /^groups-col-\d+$/.test(keyOf(d))).length
   const ui = await mount()
   expect(flowed((await ui.drawn()) as Drawn)).toBe(2)
-  expect((await ui.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'columns' })
+  // The desktop draws the switch's label as a Text under a blank Button keyed `flow-toggle`
+  // (its label Braille blanks, U+2800, so they trail the text).
+  expect((await ui.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^columns⠀*$/)
   await ui.press({ key: 'flow-toggle' })
   expect(writes).toEqual([false])
   await ui.unmount()
   // Drawn again (a reload keeps the mod's state): one stack, the switch dim.
   const again = await mount()
   expect(flowed((await again.drawn()) as Drawn)).toBe(0)
-  expect((await again.find({ key: 'flow-toggle' }))?.props).toMatchObject({ label: 'single column', dimColor: true })
+  expect((await again.find({ key: 'flow-toggle-press' }))?.text).toMatch(/^single column⠀*$/)
   await again.unmount()
 })
