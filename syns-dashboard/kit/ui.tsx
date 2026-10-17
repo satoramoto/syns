@@ -786,8 +786,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    *   for one waiting its turn.
    * - `right`: figures (strings, dim) and controls (a ⋮ Button) on the title's
    *   line, centred on it, at the right edge.
-   * - `subtitle`: the second line, dim; `subtitleWrap` lets it wrap rather than
-   *   cut. `subtitleLead` takes the lead's slot on that line (a ✓ before a
+   * - `subtitle`: the second line, dim; `subtitleWrap` lets it wrap on the
+   *   desktop rather than cut (the terminal breaks it between words into two
+   *   lines, the second cut). `subtitleLead` takes the lead's slot on that line (a ✓ before a
    *   decision); `strong` draws the subtitle in the text's own colour, bold where
    *   the surface has it (a decision called out rather than a detail).
    *   `meta` follows it on the line (strings dim, elements such as a Link as
@@ -841,23 +842,38 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         </Box>
       )
       const subLead = glyph(e.subtitleLead)
+      const lead = glyph(e.lead, e.leadColor)
+      // Terminal text never wraps: a wrapping subtitle breaks between words into two lines (as `note({ lines: 2 })`), the second cut.
+      const subRoom = Math.max(1, Math.floor(body) - GUTTER - (subLead ? 1 + CELLS.pair : 0))
+      const [first, rest] = e.subtitle && e.subtitleWrap ? breakLine(e.subtitle, subRoom) : [e.subtitle ?? '', '']
       return (
         <Box key={key} flexDirection="column" minWidth={0}>
-          {item(`${key}-title`, { lead: glyph(e.lead, e.leadColor) ?? undefined, text: e.title, bold: e.bold, dim: e.dim, right })}
+          {/* Without a lead, the title takes the lead column's indent, so it lines up with the subtitle under it. */}
+          {item(`${key}-title`, { lead: lead ?? undefined, text: e.title, bold: e.bold, dim: e.dim, right, ...(lead ? {} : { indent: GUTTER }) })}
           {e.subtitle || meta.length || mark
             ? under(
                 `${key}-sub`,
                 <Box flexDirection="row" gap={CELLS.pair} minWidth={0}>
                   {subLead ? <Box flexShrink={0}>{subLead}</Box> : null}
-                  {e.subtitle ? (
+                  {first ? (
                     <Box flexShrink={1} minWidth={0}>
-                      <Text wrap={e.subtitleWrap ? 'wrap' : 'truncate'} {...subLook}>
-                        {e.subtitle}
+                      <Text wrap="truncate" {...subLook}>
+                        {first}
                       </Text>
                     </Box>
                   ) : null}
                   {meta.map((m, i) => (typeof m === 'string' ? <Text key={`m${i}`} {...tone('mid')}>{m}</Text> : m))}
                   {mark}
+                </Box>,
+              )
+            : null}
+          {rest
+            ? under(
+                `${key}-sub2`,
+                <Box flexShrink={1} minWidth={0} paddingLeft={subLead ? 1 + CELLS.pair : 0}>
+                  <Text wrap="truncate" {...subLook}>
+                    {rest}
+                  </Text>
                 </Box>,
               )
             : null}
