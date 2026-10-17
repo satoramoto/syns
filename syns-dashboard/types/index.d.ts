@@ -27,6 +27,9 @@ export type Decision = {
 /** One open approval under "What needs you". */
 export type Approval = { id: number; question: string }
 
+/** brain.json's `ignored`: the repos (`owner/name`, their future PRs too) and PRs (`owner/repo#n`) Pull requests leaves out. */
+export type Ignored = { repos: string[]; prs: string[] }
+
 /** What the pane draws from brain.json, read again whenever the file changes. */
 export type BrainView = {
   path: string
@@ -44,8 +47,10 @@ export type BrainView = {
   approvals: Approval[]
   /** Open inbox items that aren't approvals (questions, terms). */
   questions: number
-  /** PRs named anywhere in the file, `owner/repo#n`. */
+  /** PRs named anywhere in the file but `ignored`, `owner/repo#n`. */
   prs: string[]
+  /** brain.json's `ignored`: what Pull requests leaves out. */
+  ignored: Ignored
   /** brain.json's `updates`, each as one line of text, oldest first. */
   updates: string[]
   /** The single next step. */
@@ -164,6 +169,8 @@ declare module 'claude-code' {
       collapsed: string[]
       /** Whether a wide app pane flows the sections into columns; on until flipped. */
       columns: boolean
+      /** Whether Pull requests lists its ignored repos and PRs (the header's "N ignored" pressed). */
+      ignoredOpen: boolean
       /** The band's unfolded list. */
       bandOpen: BandOpen
       /** The context window, for the band's bar; null before the first measurement. */

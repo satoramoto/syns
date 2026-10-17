@@ -391,9 +391,23 @@ in awesome-claude's inspector look on the desktop and the terminal:
 - **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
   newest `answer.at` first: the choice, or the note when the choice was Other,
   with the question dim after it.
-- **Running:** live agents (`$.agent.list()`) with each one's latest tool call,
-  then the PRs brain.json names (`owner/repo#n` or a pull URL) that gh says are
-  open, read when the list changes and every 5 minutes.
+- **Agents:** live agents (`$.agent.list()`) with each one's latest tool call.
+- **Pull requests:** the PRs brain.json names (`owner/repo#n` or a pull URL)
+  that gh says are open, plus the user's open PRs updated in the last 7 days
+  (a gh search, `updated:>=<date>`), so old ones fall off on their own; read
+  when the list changes and every 5 minutes, with CI. Grouped by repo, each
+  group under its repo's name. Each group has a quiet **Ignore repo** action
+  and each row a quiet **Ignore**: an ignored repo or PR drops out of the list
+  and the counts for good (an ignored repo's future PRs too), kept in
+  brain.json's `ignored` (below). The header's **N ignored** unfolds the
+  ignored ones, each with **Stop ignoring**.
+- **brain.json's `ignored`** holds what the user doesn't want to hear about
+  again: `"ignored": { "repos": ["owner/name"], "prs": ["owner/repo#n"] }`,
+  both lists optional. The dashboard writes it as it writes `updates`: it reads
+  the file fresh, changes only this key, writes the file back and reads it
+  again. On each write it drops from `prs` the refs the PR data already read
+  shows merged or closed, and those an ignored repo covers (no extra gh
+  calls). Refs under `ignored` don't count as PRs brain.json names.
 - **Needs you:** open approvals, then the count of open questions and a button
   that runs `/syn:inbox`.
 - **Next:** brain.json's own `next` if it has one, else the top thread's.

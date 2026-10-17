@@ -4,7 +4,7 @@ import { C, GRAY, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
-import type { AgentRow, BrainView, PrCi, PrRow } from '../types'
+import type { AgentRow, BrainView, Ignored, PrCi, PrRow } from '../types'
 import { daysAgo } from './brain'
 
 export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button' | 'Link'>>
@@ -24,6 +24,8 @@ export type DashData = {
   agents: AgentRow[]
   doing: Record<string, string>
   collapsed: string[]
+  /** Whether Pull requests lists what's ignored (its header's "N ignored" pressed). */
+  ignoredOpen: boolean
   /** The engine's clock (ms since epoch). */
   now: number
 }
@@ -36,6 +38,10 @@ export type DashActions = {
   back: () => void
   /** Runs `/syn:standup`. */
   standup: () => void
+  /** Ignores (`ignore`) or stops ignoring a repo (`owner/name`) or PR (`owner/repo#n`): brain.json's `ignored`. */
+  ignore: (list: 'repos' | 'prs', value: string, ignore: boolean) => void
+  /** Folds or unfolds Pull requests' list of what's ignored. */
+  showIgnored: () => void
   flow?: FlowSwitch
 }
 
@@ -58,16 +64,6 @@ const ROW_GAP = SPACE.pair
 const TILE_GAP = SPACE.block
 const SECTION_GAP = SPACE.group
 const HEAD_GAP = SPACE.pair
-/** The most columns a PR's ref takes in Running; a longer repo name is cut in the middle. */
-const REF_MAX = 24
-
-/** `owner/repo#n` cut to `max` characters, the repo name giving way and the number kept. */
-const shortRef = (ref: string, max: number) => {
-  if (ref.length <= max) return ref
-  const hash = ref.lastIndexOf('#')
-  const num = hash >= 0 ? ref.slice(hash) : ''
-  return `${ref.slice(0, Math.max(1, max - num.length - 1))}…${num}`
-}
 
 /**
  * The re-entry pane, on every surface: five sections in the kit's inspector
@@ -242,78 +238,149 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         })
       : null
 
-  // ---- What's running: live agents (and what each is doing), then Ryan's open PRs and any brain.json names, with CI ----
+  // ---- Agents: the live agents, and what each is doing ----
   const { Link } = els
   const live = d.agents.filter(a => LIVE.has(a.status))
-  const prs = d.prs.filter(p => p.state === 'OPEN' || p.state === '')
-  // Running's right side on the desktop: the status word and the ref, each in a column as wide as its longest, so they line up row to row.
-  const words = [...live.map(a => (a.status === 'running' ? '' : a.status)), ...prs.map(p => (CI_MARK[p.ci] ?? CI_MARK['']).word || (p.state ? '' : 'state unknown'))]
-  const wordW = Math.max(0, ...words.map(w => w.length))
-  const refW = Math.max(0, ...prs.map(p => shortRef(p.ref, REF_MAX).length))
-  const cols = (key: string, word: string, ref: RenderElement | null): RenderElement[] => [
-    ...(wordW
-      ? [
-          <Box key={`${key}-word`} width={wordW} flexShrink={0} flexDirection="row">
-            <Text wrap="truncate" color={GRAY.mid}>
-              {word}
-            </Text>
-          </Box>,
-        ]
-      : []),
-    ...(refW
-      ? [
-          <Box key={`${key}-ref`} width={refW} flexShrink={0} flexDirection="row" overflow="hidden">
-            {ref}
-          </Box>,
-        ]
-      : []),
-  ]
-  const running = k.section({
-    id: 'running',
-    icon: 'zap',
-    title: 'Running',
-    right: k.summary([[String(live.length), live.length === 1 ? 'agent' : 'agents', live.length ? C.blue : undefined], [String(prs.length), prs.length === 1 ? 'PR' : 'PRs']]),
-    ...fold('running'),
+  const agents = k.section({
+    id: 'agents',
+    icon: 'hubot',
+    title: 'Agents',
+    right: k.summary([[String(live.length), 'running', live.length ? C.blue : undefined]]),
+    ...fold('agents'),
     children: !terminal
-      ? [list('running-list', [...live.map(a => {
-          const word = a.status === 'running' ? '' : a.status
-          return led(`agent-${a.id}`, k.status(a.status === 'running' ? 'running' : 'pending'), [
-            k.item(`agent-${a.id}-head`, { text: a.description || a.type, note: a.description ? a.type : undefined, right: cols(`agent-${a.id}`, word, null) }),
-            d.doing[a.id] ? wrapped(`agent-${a.id}-doing`, d.doing[a.id]!) : null,
-          ])
-        }), ...prs.map(p => {
-          const ci = CI_MARK[p.ci] ?? CI_MARK['']
-          const label = shortRef(p.ref, REF_MAX)
-          const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={label} /> : <Text key={`pr-${p.ref}-ref`} wrap="truncate">{label}</Text>
-          return led(`pr-${p.ref}`, ci.lead ? k.status(ci.lead) : k.icon('pr-open', MUTED), [
-            k.item(`pr-${p.ref}-head`, { text: p.title || p.ref, right: cols(`pr-${p.ref}`, ci.word || (p.state ? '' : 'state unknown'), link) }),
-          ])
-        }), live.length || prs.length ? null : inset('running-none', k.note('running-none', 'No agents running, no open PRs.'))])]
+      ? [
+          list('agents-list', [
+            ...live.map(a =>
+              led(`agent-${a.id}`, k.status(a.status === 'running' ? 'running' : 'pending'), [
+                k.item(`agent-${a.id}-head`, { text: a.description || a.type, note: a.description ? a.type : undefined, right: a.status === 'running' ? [] : [a.status] }),
+                d.doing[a.id] ? wrapped(`agent-${a.id}-doing`, d.doing[a.id]!) : null,
+              ]),
+            ),
+            live.length ? null : inset('agents-none', k.note('agents-none', 'No agents running.')),
+          ]),
+        ]
       : [
-      ...live.map(a => (
-        <Box key={`agent-${a.id}`} flexDirection="column">
-          {k.item(`agent-${a.id}-head`, {
-            lead: a.status === 'running' ? 'running' : 'pending',
-            text: a.description || a.type,
-            note: a.description ? a.type : undefined,
-            right: a.status === 'running' ? [] : [{ part: a.status, drop: 1 }],
-          })}
-          {d.doing[a.id] ? under(`agent-${a.id}-doing`, d.doing[a.id]!) : null}
-        </Box>
-      )),
-      ...prs.map(p => {
-        const ci = CI_MARK[p.ci] ?? CI_MARK['']
-        // The ref is the row's link to the PR (where gh gave its address).
-        const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={p.ref} /> : p.ref
-        return k.item(`pr-${p.ref}`, {
-          lead: ci.lead ?? 'pr-open',
-          leadColor: ci.lead ? undefined : MUTED,
-          text: p.title || p.ref,
-          right: [ci.word ? { part: ci.word, drop: 1 } : p.state ? null : { part: 'state unknown', drop: 1 }, link],
-        })
+          ...live.map(a => (
+            <Box key={`agent-${a.id}`} flexDirection="column">
+              {k.item(`agent-${a.id}-head`, {
+                lead: a.status === 'running' ? 'running' : 'pending',
+                text: a.description || a.type,
+                note: a.description ? a.type : undefined,
+                right: a.status === 'running' ? [] : [{ part: a.status, drop: 1 }],
+              })}
+              {d.doing[a.id] ? under(`agent-${a.id}-doing`, d.doing[a.id]!) : null}
+            </Box>
+          )),
+          live.length ? null : k.note('agents-none', 'No agents running.'),
+        ],
+  })
+
+  // ---- Pull requests: Ryan's recent open PRs and any brain.json names, with CI, grouped by repo, less what brain.json's `ignored` names ----
+  const repoOf = (ref: string) => ref.split('#')[0] ?? ref
+  const numOf = (ref: string) => (ref.includes('#') ? `#${ref.split('#')[1]}` : ref)
+  const ignored: Ignored = b?.ignored ?? { repos: [], prs: [] }
+  const open = d.prs.filter(p => p.state === 'OPEN' || p.state === '')
+  // An ignored repo covers its PRs, the ones opened later too.
+  const isIgnored = (p: PrRow) => ignored.prs.includes(p.ref) || ignored.repos.includes(repoOf(p.ref))
+  const prs = open.filter(p => !isIgnored(p))
+  const ignoredCount = ignored.repos.length + ignored.prs.length
+  // The repos in the order their first PR comes, each with its PRs.
+  const groups: { repo: string; prs: PrRow[] }[] = []
+  for (const p of prs) {
+    const repo = repoOf(p.ref)
+    const g = groups.find(x => x.repo === repo)
+    if (g) g.prs.push(p)
+    else groups.push({ repo, prs: [p] })
+  }
+  // A row's right side on the desktop: the status word and the number, each in a column as wide as its longest, so they line up row to row.
+  const wordW = Math.max(0, ...prs.map(p => ((CI_MARK[p.ci] ?? CI_MARK['']).word || (p.state ? '' : 'state unknown')).length))
+  const numW = Math.max(0, ...prs.map(p => numOf(p.ref).length))
+  const quiet = (key: string, label: string, onPress: () => void) => k.actions(key, [{ key, label, onPress, quiet: true }])
+  const prRow = (p: PrRow) => {
+    const ci = CI_MARK[p.ci] ?? CI_MARK['']
+    const word = ci.word || (p.state ? '' : 'state unknown')
+    const num = numOf(p.ref)
+    // The number is the row's link to the PR (where gh gave its address); the repo is the group's label.
+    const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={num} /> : <Text key={`pr-${p.ref}-num`} wrap="truncate">{num}</Text>
+    const hide = quiet(`ignore-${p.ref}`, 'Ignore', () => act.ignore('prs', p.ref, true))
+    if (terminal) {
+      return k.item(`pr-${p.ref}`, {
+        lead: ci.lead ?? 'pr-open',
+        leadColor: ci.lead ? undefined : MUTED,
+        text: p.title || p.ref,
+        right: [word ? { part: word, drop: 1 } : null, link, { part: hide, drop: 2 }],
+      })
+    }
+    return led(`pr-${p.ref}`, ci.lead ? k.status(ci.lead) : k.icon('pr-open', MUTED), [
+      k.item(`pr-${p.ref}-head`, {
+        text: p.title || p.ref,
+        right: [
+          wordW ? (
+            <Box key={`pr-${p.ref}-word`} width={wordW} flexShrink={0} flexDirection="row">
+              <Text wrap="truncate" color={GRAY.mid}>
+                {word}
+              </Text>
+            </Box>
+          ) : null,
+          <Box key={`pr-${p.ref}-ref`} width={numW} flexShrink={0} flexDirection="row" overflow="hidden">
+            {link}
+          </Box>,
+          hide,
+        ],
       }),
-      live.length || prs.length ? null : k.note('running-none', 'No agents running, no open PRs.'),
-    ],
+    ])
+  }
+  /** A repo's label over its rows: the repo dim, its quiet Ignore repo action on the right. */
+  const repoLabel = (repo: string) => {
+    const label = k.item(`repo-${repo}`, { text: repo, dim: true, right: [quiet(`ignore-repo-${repo}`, 'Ignore repo', () => act.ignore('repos', repo, true))] })
+    return terminal ? label : inset(`repo-${repo}-row`, label)
+  }
+  /** The ignored repos and PRs, each with Stop ignoring, while the header's "N ignored" is pressed. */
+  const ignoredRows = (): RenderElement[] => {
+    if (!d.ignoredOpen || !ignoredCount) return []
+    const row = (key: string, text: string, note: string | undefined, stop: () => void) => {
+      const el = k.item(key, { text, note, dim: true, right: [quiet(`stop-${key}`, 'Stop ignoring', stop)] })
+      return terminal ? el : inset(`${key}-row`, el)
+    }
+    return [
+      ...ignored.repos.map(r => row(`ignored-repo-${r}`, r, 'repo', () => act.ignore('repos', r, false))),
+      ...ignored.prs.map(r => row(`ignored-pr-${r}`, r, d.prs.find(p => p.ref === r)?.title, () => act.ignore('prs', r, false))),
+    ]
+  }
+  const pulls = k.section({
+    id: 'prs',
+    icon: 'pr-open',
+    title: 'Pull requests',
+    right: (
+      <Box key="prs-right" flexDirection="row" alignItems="center" gap={k.space.item}>
+        {k.summary([[String(prs.length), 'open']])}
+        {ignoredCount ? quiet('ignored-toggle', `${ignoredCount} ignored`, act.showIgnored) : null}
+      </Box>
+    ),
+    keepRight: true,
+    ...fold('prs'),
+    children: !terminal
+      ? [
+          list(
+            'prs-list',
+            [
+              ...groups.map(g => (
+                <Box key={`group-${g.repo}`} flexDirection="column" width="100%" minWidth={0} rowGap={ROW_GAP}>
+                  {repoLabel(g.repo)}
+                  {g.prs.map(prRow)}
+                </Box>
+              )),
+              prs.length ? null : inset('prs-none', k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.')),
+              ...ignoredRows(),
+            ],
+            TILE_GAP * 2,
+          ),
+        ]
+      : [
+          ...groups.flatMap(g => [repoLabel(g.repo), ...g.prs.map(prRow)]),
+          prs.length ? null : k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.'),
+          ...ignoredRows(),
+        ],
   })
 
   // ---- What needs you: open approvals, then the count of open questions and the inbox button ----
@@ -389,7 +456,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       </Box>
     ) : s
   const body = k.pinned(
-    k.flow('sections', [spaced('doing', doing), spaced('decided', decided), spaced('running', running), spaced('needs', needs), spaced('next', next)]),
+    k.flow('sections', [spaced('doing', doing), spaced('decided', decided), spaced('agents', agents), spaced('prs', pulls), spaced('needs', needs), spaced('next', next)]),
     footer,
     rows,
   )

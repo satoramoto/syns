@@ -1,4 +1,4 @@
-import type { Approval, BrainView, Decision, ThreadRow } from '../types'
+import type { Approval, BrainView, Decision, Ignored, ThreadRow } from '../types'
 
 /** How many `next` threads (every prioritised one is listed), decisions and PRs the pane lists. */
 export const NEXT_THREADS = 5
@@ -45,9 +45,16 @@ export const updateText = (u: unknown): string => {
   return str(o.text ?? o.title ?? JSON.stringify(u))
 }
 
+/** brain.json's `ignored` (`{ repos, prs }`), each list strings only; missing or malformed reads as empty. */
+export const ignoredOf = (v: unknown): Ignored => {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>
+  const list = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : [])
+  return { repos: list(o.repos), prs: list(o.prs) }
+}
+
 /** brain.json's text, as the pane and the band draw it. */
 export const toView = (text: string, path: string, mtime: number): BrainView => {
-  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decidedThreads: 0, decided: [], approvals: [], questions: 0, prs: [], updates: [], next: '' }
+  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decidedThreads: 0, decided: [], approvals: [], questions: 0, prs: [], ignored: { repos: [], prs: [] }, updates: [], next: '' }
   let d: any
   try {
     d = JSON.parse(text)
@@ -99,7 +106,9 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
     decided,
     approvals,
     questions: open.length - approvals.length,
-    prs: prRefs(text).slice(0, PRS),
+    // The refs under `ignored` are PRs the user stopped hearing about, not PRs the file names.
+    prs: prRefs(JSON.stringify({ ...d, ignored: undefined })).slice(0, PRS),
+    ignored: ignoredOf(d.ignored),
     updates: (Array.isArray(d.updates) ? d.updates : []).filter((u: unknown) => u != null).map(updateText),
     // A `next` of its own wins; otherwise the top thread's.
     next: firstSentence(str(d.next)) || threads[0]?.next || '',

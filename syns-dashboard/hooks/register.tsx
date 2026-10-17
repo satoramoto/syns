@@ -4,7 +4,7 @@ import type { EngineInterface, Register, RenderElement } from 'claude-code'
 import { holdButtons, kit } from '../kit/ui'
 import type { AgentRow, BandOpen, DashTab, PrCi, PrRow } from '../types'
 import { band } from './band'
-import { toView, updateText } from './brain'
+import { ignoredOf, toView, updateText } from './brain'
 import { toSnap } from './context'
 import { attach, hideTree } from './filetree/register'
 import { render } from './view'
@@ -22,6 +22,7 @@ const columns = atom({ plugin: 'syns-dashboard', key: 'columns' } as const, true
 const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, null as BandOpen)
 const context = atom({ plugin: 'syns-dashboard', key: 'context' } as const, null)
 const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
+const ignoredOpen = atom({ plugin: 'syns-dashboard', key: 'ignoredOpen' } as const, false)
 
 /** The pane's tabs, in order. */
 const TABS: { id: DashTab; label: string }[] = [
@@ -82,7 +83,7 @@ const readBrain = async ($: EngineInterface, force = false) => {
   if (!same(old?.prs, fresh.prs)) prsStale = true
 }
 
-// ---- PRs: all of Ryan's open ones, plus any brain.json names, with CI; read when brain's list changes, else every few minutes ----
+// ---- PRs: Ryan's open ones updated this week, plus any brain.json names, with CI; read when brain's list changes, else every few minutes ----
 
 const PR_EVERY = 300_000
 let prsStale = true
@@ -112,9 +113,13 @@ const rollupOf = (checks: any[]): string => {
 const MINE_QUERY =
   'query($q:String!){search(query:$q,type:ISSUE,first:50){nodes{... on PullRequest{number title url state mergeable repository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}'
 
-/** Ryan's open PRs, in one GraphQL search: title, link, CI and mergeability. */
+/** How far back Ryan's own PRs are listed: those not updated in this many days fall off. */
+const MINE_DAYS = 7
+
+/** Ryan's open PRs updated in the last MINE_DAYS days, in one GraphQL search: title, link, CI and mergeability. */
 const readMine = async ($: EngineInterface): Promise<PrRow[]> => {
-  const run = await $.process.run(['gh', 'api', 'graphql', '-f', 'q=is:pr is:open author:@me archived:false', '-f', `query=${MINE_QUERY}`], { timeoutMs: 20_000 })
+  const since = new Date(Date.now() - MINE_DAYS * 86_400_000).toISOString().slice(0, 10)
+  const run = await $.process.run(['gh', 'api', 'graphql', '-f', `q=is:pr is:open author:@me archived:false updated:>=${since}`, '-f', `query=${MINE_QUERY}`], { timeoutMs: 20_000 })
   if (run.exitCode !== 0) return []
   const nodes: any[] = JSON.parse(run.stdout)?.data?.search?.nodes ?? []
   return nodes
@@ -239,6 +244,27 @@ const dismissUpdate = async ($: EngineInterface, text: string) => {
   await readBrain($, true)
 }
 
+/**
+ * Adds `value` to (`ignore`) or removes it from brain.json's `ignored[list]`, then
+ * reads the file again. As `dismissUpdate`: the file is read fresh right before the
+ * write, and only `ignored` changes. `ignored.prs` is tidied on the way, from the PR
+ * data already read (no extra gh calls): refs gh says are merged or closed, and refs
+ * an ignored repo already covers, are dropped.
+ */
+const setIgnored = async ($: EngineInterface, list: 'repos' | 'prs', value: string, ignore: boolean) => {
+  const path = await pathOf($)
+  const d = JSON.parse(await $.fs.read(path))
+  if (!d || typeof d !== 'object') return
+  const ig = ignoredOf(d.ignored)
+  ig[list] = ignore ? (ig[list].includes(value) ? ig[list] : [...ig[list], value]) : ig[list].filter(x => x !== value)
+  const rows = await read($, prs)
+  const gone = new Set(rows.filter(p => p.state === 'MERGED' || p.state === 'CLOSED').map(p => p.ref))
+  ig.prs = ig.prs.filter(r => !gone.has(r) && !ig.repos.includes(r.split('#')[0] ?? r))
+  d.ignored = { ...(d.ignored && typeof d.ignored === 'object' ? d.ignored : {}), repos: ig.repos, prs: ig.prs }
+  await $.fs.write(path, `${JSON.stringify(d, null, 2)}\n`)
+  await readBrain($, true)
+}
+
 export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
@@ -336,6 +362,7 @@ export const register: Register = (on, options) => {
       agents: await read($, agents),
       doing: await read($, doing),
       collapsed: await read($, collapsed),
+      ignoredOpen: await read($, ignoredOpen),
       now: await $.clock.now(),
     }
     const flowOn = await read($, columns)
@@ -348,6 +375,8 @@ export const register: Register = (on, options) => {
         inbox: () => ask($, 'syn:inbox'),
         back: () => ask($, 'syn:back'),
         standup: () => ask($, 'syn:standup'),
+        ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),
+        showIgnored: () => void update($, ignoredOpen, was => !was).catch(() => undefined),
         flow: { on: flowOn, toggle: () => void update($, columns, was => !was).catch(() => undefined) },
       }, e.props.isFocused),
     )
