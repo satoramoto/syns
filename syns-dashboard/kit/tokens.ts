@@ -13,8 +13,8 @@ import type { SkinId } from './skins'
  * - green: finished well — checks passed, an agent done
  * - purple: merged
  *
- * Cyan and orchid aren't statuses: they only tint parts within one chart. The
- * accents (ACCENT) aren't either: they only tell sections apart.
+ * Cyan and orchid aren't statuses: they only tint parts within one chart.
+ * Nothing else is coloured: sections are told apart by space and fill, never a hue.
  *
  * The values come from the skin the kit wears (kit/skin.ts): a zen theme pack's
  * palette, mapped to what the app surfaces draw. The kit starts in the
@@ -91,15 +91,6 @@ export let MUTED = ''
  */
 export const GRAY = { light: '', mid: '', dark: '' }
 
-/**
- * Accents: seven colours that only tell groups apart, such as the stripe along
- * the top of a section or a list (`accent` on `section` and `collapsibleList`).
- * They're the skin's palette's five categorical hue slots, then its two role
- * hues. An accent is never a status or a quantity, and only the app surfaces
- * draw one: the terminal has no theme key that means "this group", so it draws
- * no accent.
- */
-export const ACCENT: string[] = []
 
 /** A colour with one value for the light desktop theme and one for the dark. */
 export type Duo = { readonly light: string; readonly dark: string }
@@ -263,6 +254,8 @@ export type StatusKind = keyof typeof STATUS
 
 /** The skin the kit wears now: a key of SKINS, or `custom` for a skin passed in whole. */
 export let SKIN: SkinId | 'custom' = DEFAULT_SKIN
+/** The skin worn now, whole (its hues and roles included, which no token draws), so it can be put back after another. */
+export let WORN: Skin | undefined
 
 /**
  * Puts on a skin: a zen theme pack's (a key of SKINS, kit/skins.ts) or one made
@@ -282,7 +275,7 @@ export const wear = (skin: SkinId | Skin): void => {
   FILL.selectedBlurred = tint(s.blue, 0.065)!
   MUTED = s.muted
   Object.assign(GRAY, s.gray)
-  ACCENT.splice(0, ACCENT.length, ...s.hues, ...s.roles)
+  WORN = s
   const status: Record<StatusKind, string> = {
     running: s.blue,
     pending: s.blue,

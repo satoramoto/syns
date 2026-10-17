@@ -248,8 +248,6 @@ const HAIRLINE = 0.06
  * materials, `radiusCard`).
  */
 const RADIUS_PX = 6
-/** An accent's stripe along a container's top edge, in pixels: as thick as the active tab's bar. */
-const ACCENT_PX = 2
 
 /**
  * The desktop's fold arrow: full-size triangles, since text can't be sized.
@@ -303,6 +301,17 @@ export const PERF_GLYPH: Readonly<Record<string, string>> ={ render: '▣', tick
  *
  * The alternatives it was picked from (inspector, panel, ledger) are in commit ab3a37a.
  */
+
+/**
+ * The ladder: one brightness per role, whatever component draws the text.
+ * - primary (L0, the default foreground): section titles, item titles;
+ * - secondary (L1, GRAY.light): what's read after a title (a subtitle, a link);
+ * - meta (L2, GRAY.mid): what's scanned past: header figures, ages, notes, every action's label, an inactive tab;
+ * - mark (L3, GRAY.dark): structure: section icons, fold arrows, a ⋮.
+ * Colour is for status only (C.*): a CI mark, a live count, a done ✓.
+ */
+export type TextRole = 'primary' | 'secondary' | 'meta' | 'mark'
+export const TEXT_ROLES: Readonly<Record<Exclude<TextRole, 'primary'>, 'light' | 'mid' | 'dark'>> = { secondary: 'light', meta: 'mid', mark: 'dark' }
 
 /** Text props a terminal role is drawn with. */
 type Role = { color?: string; dimColor?: boolean; bold?: boolean; italic?: boolean }
@@ -594,6 +603,32 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
   const tone = (level: keyof typeof GRAY) => (terminal ? { dimColor: true } : { color: GRAY[level] })
   /** A token colour as Text props for this surface: on the terminal a status's theme key, a grey as dim. */
   const ink = (color?: string): { color?: string; dimColor?: boolean } => (terminal ? termInk(color) : color ? { color } : {})
+  /**
+   * A text's brightness by its role (TEXT_ROLES): primary the default foreground,
+   * secondary GRAY.light, meta GRAY.mid, mark GRAY.dark on the app surfaces; on the
+   * terminal primary plain and the rest dim. Read when drawing, so the skin worn is the one drawn.
+   */
+  const role = (r: TextRole): { color?: string; dimColor?: boolean } =>
+    r === 'primary' ? {} : terminal ? { dimColor: true } : { color: GRAY[TEXT_ROLES[r]] }
+  /**
+   * A press drawn in a text role on the app surfaces: the label as Text in `r`'s grey,
+   * a Button of as many BLANKs over it (the desktop draws a Button's label alone and
+   * uncoloured, so a Button can't be quiet any other way). A press anywhere on the
+   * label is a press of the Button, keyed `key`. On the terminal, a plain Button,
+   * dim unless `r` is primary.
+   */
+  const press = (key: string, label: string, r: TextRole, onPress: () => void, hot: Record<string, unknown> = {}): RenderElement => {
+    if (!Button) return <Text key={key} {...role(r)}>{label}</Text>
+    if (terminal) return <Button key={key} plain label={label} {...(r === 'primary' ? {} : { dimColor: true })} {...hot} onPress={onPress} />
+    return (
+      <Box key={`${key}-press`} position="relative" flexShrink={0} flexDirection="row">
+        <Text {...role(r)}>{label}</Text>
+        <Box position="absolute" top={0} left={0}>
+          <Button key={key} plain label={BLANK.repeat([...label].length)} {...hot} onPress={onPress} />
+        </Box>
+      </Box>
+    )
+  }
   /** The grid for this surface: CELLS on the terminal, SPACE elsewhere. */
   const space = terminal ? CELLS : SPACE
   const edge = terminal ? { left: GUTTER, right: RIGHT } : EDGE
@@ -674,8 +709,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    * - `card`: containers (a section's band, a list's surface, a tile). Their fill is
    *   a ground placed behind the content (`position: absolute`, all four offsets 0):
    *   an edge row of two SVG quarter discs (RADIUS_PX square) and a stretched middle
-   *   at the top and at the bottom, a plain fill between. An accent is the top edge's
-   *   first ACCENT_PX, the corners' share of it drawn in the same SVGs.
+   *   at the top and at the bottom, a plain fill between.
    * - Nothing else: `rounded` boxes (pills) are square-cornered fills.
    *
    * What doesn't work, so nobody tries again: a `round` border in `transparent` to
@@ -746,21 +780,12 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     )
   }
 
-  /**
-   * One corner of a card's ground, RADIUS_PX square: a quarter disc in `fill`, and
-   * on a top corner with an `accent`, the disc's top ACCENT_PX in the accent. The
-   * two parts meet without overlapping, so a see-through fill isn't painted twice.
-   */
-  const corner = (fill: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', accent?: string): RenderElement | null => {
+  /** One corner of a card's ground, RADIUS_PX square: a quarter disc in `fill`. */
+  const corner = (fill: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'): RenderElement | null => {
     if (!Svg) return null
     const r = RADIUS_PX
-    const s = Math.min(ACCENT_PX, r)
     // Drawn as the top-left (centre r,r), then mirrored into place.
-    const x = r - Math.sqrt(r * r - (r - s) * (r - s))
-    const top = at.startsWith('top') && accent
-    const paths = top
-      ? `<path d="M0 ${r}A${r} ${r} 0 0 1 ${x} ${s}H${r}V${r}Z" fill="${fill}"/><path d="M${x} ${s}A${r} ${r} 0 0 1 ${r} 0V${s}Z" fill="${accent}"/>`
-      : `<path d="M0 ${r}A${r} ${r} 0 0 1 ${r} 0V${r}Z" fill="${fill}"/>`
+    const paths = `<path d="M0 ${r}A${r} ${r} 0 0 1 ${r} 0V${r}Z" fill="${fill}"/>`
     const flip = `scale(${at.endsWith('right') ? -1 : 1} ${at.startsWith('bottom') ? -1 : 1})`
     const move = `translate(${at.endsWith('right') ? r : 0} ${at.startsWith('bottom') ? r : 0})`
     const source =
@@ -773,33 +798,30 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     )
   }
 
-  /** A card's top or bottom edge, RADIUS_PX tall: a corner, the stretched middle (the accent's stripe over the fill, on top), a corner. */
-  const cardEdge = (key: string, fill: string, side: 'top' | 'bottom', accent?: string): RenderElement => (
+  /** A card's top or bottom edge, RADIUS_PX tall: a corner, the stretched middle, a corner. */
+  const cardEdge = (key: string, fill: string, side: 'top' | 'bottom'): RenderElement => (
     <Box key={key} flexDirection="row" height={RADIUS_PX / ROW_PX} flexShrink={0} alignItems="stretch">
-      {corner(fill, `${side}-left`, accent)}
-      <Box flexGrow={1} flexDirection="column">
-        {side === 'top' && accent ? <Box key="accent" height={ACCENT_PX / ROW_PX} flexShrink={0} backgroundColor={accent} /> : null}
-        <Box key="fill" flexGrow={1} backgroundColor={fill} />
-      </Box>
-      {corner(fill, `${side}-right`, accent)}
+      {corner(fill, `${side}-left`)}
+      <Box flexGrow={1} backgroundColor={fill} />
+      {corner(fill, `${side}-right`)}
     </Box>
   )
 
   /**
    * A container with rounded corners on the app surfaces: `props` and `children`
    * laid out as a Box, over a ground in `fill` whose corners are rounded
-   * (RADIUS_PX), with an optional `accent` (one of ACCENT) as a thin stripe along
-   * its top edge. The ground sits behind the content, so the content keeps its
-   * own size, padding and centring. In the terminal, the box without fill or
-   * accent. See "Rounding on the desktop" above.
+   * (RADIUS_PX). The ground sits behind the content, so the content keeps its
+   * own size, padding and centring. In the terminal, the box without fill. See
+   * "Rounding on the desktop" above. No coloured stripes: a container is marked by
+   * its fill and the space around it, never a coloured line.
    */
-  const card = (fill: string, accent: string | undefined, props: Record<string, unknown>, children: RenderElement | (RenderElement | null)[] | null) =>
+  const card = (fill: string, props: Record<string, unknown>, children: RenderElement | (RenderElement | null)[] | null) =>
     terminal ? (
       <Box {...props}>{children}</Box>
     ) : (
       <Box {...props}>
         <Box key="card-ground" position="absolute" top={0} left={0} right={0} bottom={0} flexDirection="column">
-          {cardEdge('card-top', fill, 'top', accent)}
+          {cardEdge('card-top', fill, 'top')}
           <Box key="card-fill" flexGrow={1} backgroundColor={fill} />
           {cardEdge('card-bottom', fill, 'bottom')}
         </Box>
@@ -837,7 +859,6 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     ) : (
       card(
         opts.selected ? ((opts.focused ?? paneFocused) ? FILL.selected : FILL.selectedBlurred) : FILL.tile,
-        undefined,
         { key, flexDirection: 'column', paddingX: SPACE.item, paddingY: TILE_PAD_Y, rowGap: TILE_ROW_GAP, width: '100%' },
         children,
       )
@@ -856,23 +877,24 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    *   and height, centred on the title's line, so an SVG icon and a glyph or
    *   badge take the same room and every item's title starts on one column,
    *   whether it has a lead or not.
-   * - `title`: one line, cut with an ellipsis; `bold` for the one that leads, `dim`
-   *   for one waiting its turn.
-   * - `right`: figures (strings, dim) and controls (a ⋮ Button) on the title's
-   *   line, centred on it, at the right edge.
-   * - `subtitle`: the second line, dim; `subtitleWrap` lets it wrap on the
-   *   desktop rather than cut (the terminal breaks it between words into two
-   *   lines, the second cut). `subtitleLead` takes the lead's slot on that line (a ✓ before a
-   *   decision); `strong` draws the subtitle in the text's own colour, bold where
-   *   the surface has it (a decision called out rather than a detail).
-   *   `meta` follows it on the line (strings dim, elements such as a Link as
-   *   they are), `mark` ends it in a fixed slot centred on the line (a CI mark).
+   * - `title`: one line, cut with an ellipsis, primary (L0), the brightest thing
+   *   in its row; `bold` for the one that leads, `dim` (secondary, L1) for one
+   *   waiting its turn.
+   * - `right`: figures (strings, meta) and controls (a ⋮, drawn as a mark with
+   *   `press`) on the title's line, centred on it, at the right edge.
+   * - `subtitle`: the second line, secondary (L1), or meta with `subtitleRole`;
+   *   `subtitleWrap` lets it wrap on the desktop rather than cut (the terminal
+   *   breaks it between words into two lines, the second cut). `subtitleLead`
+   *   takes the lead's slot on that line (a ✓ in `C.ok` before a decision);
+   *   `strong` is kept for callers and draws as every subtitle. `meta` follows it
+   *   on the line (strings meta, elements such as a Link as they are), `mark`
+   *   ends it in a fixed slot centred on the line (a CI mark).
    * - `children`: lines under the subtitle, starting under the title, shown while
-   *   `open` (or always, without `onToggle`). `onToggle` draws the fold arrow
-   *   last on the title's line, as a section's header does.
+   *   `open` (or always, without `onToggle`). `onToggle` draws the fold arrow, a
+   *   mark (L3), last on the title's line.
    *
    * No box, fill, padding or rule of its own: the `collapsibleList` it sits in
-   * pads it and draws the hairline between items.
+   * insets it and spaces items apart.
    * On the terminal: the lead in a 2-cell column, the title and right cluster as
    * an `item`, the subtitle and children each a line under the title.
    */
@@ -888,6 +910,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       subtitle?: string
       subtitleWrap?: boolean
       subtitleLead?: StatusKind | string | RenderElement | null
+      /** The subtitle's role: secondary (L1) by default, meta (L2) for an item waiting its turn. */
+      subtitleRole?: 'secondary' | 'meta'
+      /** Kept for callers: a called-out subtitle now draws as every subtitle (L1), its lead (a ✓) carrying the call-out. */
       strong?: boolean
       meta?: (RenderElement | string | null | false)[]
       mark?: StatusKind | RenderElement | null
@@ -900,15 +925,14 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       x == null ? null : typeof x === 'string' ? (x in STATUS ? status(x as StatusKind) : icon(x, color ?? MUTED)) : x
     const shown = !e.onToggle || Boolean(e.open)
     const kids = shown ? (e.children ?? []).filter((c): c is RenderElement => c != null) : []
-    const arrow = e.onToggle
-      ? Button
-        ? <Button key={`${key}-fold`} plain dimColor label={terminal ? (e.open ? FOLD.open : FOLD.closed) : fold(!e.open)} onPress={() => e.onToggle?.()} />
-        : <Text key={`${key}-fold`} dimColor>{terminal ? (e.open ? FOLD.open : FOLD.closed) : fold(!e.open)}</Text>
-      : null
+    // The fold arrow is a mark (L3).
+    const arrow = e.onToggle ? press(`${key}-fold`, terminal ? (e.open ? FOLD.open : FOLD.closed) : fold(!e.open), 'mark', () => e.onToggle?.()) : null
     const right = [...(e.right ?? []).filter((x): x is RenderElement | string => Boolean(x)), ...(arrow ? [arrow] : [])]
     const meta = (e.meta ?? []).filter((x): x is RenderElement | string => Boolean(x))
     const mark = e.mark == null ? null : typeof e.mark === 'string' ? status(e.mark as StatusKind) : e.mark
-    const subLook = e.strong ? { bold: true } : tone('mid')
+    // The subtitle is secondary (L1) unless the caller says meta; `strong` no longer bolds it (one ladder: weight is the title's).
+    const subLook = role(e.subtitleRole ?? 'secondary')
+    const titleLook = role(e.dim ? 'secondary' : 'primary')
     if (terminal) {
       const under = (k2: string, el: RenderElement) => (
         <Box key={k2} paddingLeft={GUTTER} flexDirection="row" minWidth={0}>
@@ -936,7 +960,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
                       </Text>
                     </Box>
                   ) : null}
-                  {meta.map((m, i) => (typeof m === 'string' ? <Text key={`m${i}`} {...tone('mid')}>{m}</Text> : m))}
+                  {meta.map((m, i) => (typeof m === 'string' ? <Text key={`m${i}`} {...role('meta')}>{m}</Text> : m))}
                   {mark}
                 </Box>,
               )
@@ -964,17 +988,18 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       </Box>
     )
     return (
-      <Box key={key} flexDirection="column" width="100%" minWidth={0} rowGap={TILE_ROW_GAP * 2}>
+      // Title to subtitle a tile row's gap apart: tighter than items are from each other.
+      <Box key={key} flexDirection="column" width="100%" minWidth={0} rowGap={TILE_ROW_GAP}>
         <Box key="title" flexDirection="row" alignItems="center" width="100%" minWidth={0} gap={0}>
           {slot('lead', glyph(e.lead, e.leadColor))}
           <Box flexShrink={1} flexGrow={1} width={0} minWidth={0}>
-            <Text wrap="truncate" bold={e.bold} {...(e.dim ? tone('mid') : {})}>
+            <Text wrap="truncate" bold={e.bold} {...titleLook}>
               {e.title}
             </Text>
           </Box>
           {right.length ? (
             <Box flexDirection="row" alignItems="center" gap={space.item} flexShrink={0} marginLeft={space.item}>
-              {right.map((x, i) => (typeof x === 'string' ? <Text key={`r${i}`} {...tone('mid')}>{x}</Text> : x))}
+              {right.map((x, i) => (typeof x === 'string' ? <Text key={`r${i}`} {...role('meta')}>{x}</Text> : x))}
             </Box>
           ) : null}
         </Box>
@@ -991,7 +1016,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
               ) : null}
               {meta.map((m, i) =>
                 typeof m === 'string' ? (
-                  <Text key={`m${i}`} {...tone('mid')}>
+                  <Text key={`m${i}`} {...role('meta')}>
                     {m}
                   </Text>
                 ) : (
@@ -1017,13 +1042,13 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
 
   /**
    * A collapsible list: a section whose body is a list of items (`listItem`s, or a
-   * `note` when there are none), drawn as one surface. The header (icon, title,
-   * figures, the fold arrow last) and the items share one quiet fill (FILL.tile),
-   * a hairline (TRACK, HAIRLINE tall, as the tabs' rule) under the header and
-   * between items, each item padded alike. No band on the pane with tiles under
-   * it: one thing, one fill. On the app surfaces the surface's corners are rounded
-   * (`card`), its title one step up the type scale (`heading`), and an `accent`
-   * draws a thin stripe along its top edge.
+   * `note` when there are none). On the app surfaces the header (icon, title,
+   * figures, the fold arrow last) is the list's one fill: a band with rounded
+   * corners (`card`, FILL.head), its title one step up the type scale (`heading`).
+   * The items sit on the pane under it at the band's inset, SPACE.item apart, with
+   * no fill, rule or coloured line of their own: space and the header's fill give
+   * the structure. Text follows the ladder (TEXT_ROLES): the title primary, the
+   * figures meta, the icon and the fold arrow marks.
    *
    * Folded, only the header shows. `section` stays for bodies that aren't a list
    * (readings, bars, props); this is a list's section.
@@ -1038,8 +1063,6 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     collapsed?: boolean
     onToggle?: () => void
     loading?: boolean
-    /** A colour from ACCENT, drawn as a thin stripe along the surface's top edge on the app surfaces; the terminal draws none. */
-    accent?: string
     items: (RenderElement | null | false)[]
   }) => {
     const items = s.items.filter((x): x is RenderElement => Boolean(x))
@@ -1048,26 +1071,25 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     }
     const right = s.right ?? (s.loading ? summary([], { loading: true }) : null)
     const arrow = fold(Boolean(s.collapsed))
-    const toggle =
-      s.onToggle && Button ? (
-        <Button key={`toggle-${s.id}`} plain dimColor label={arrow} onPress={() => s.onToggle?.()} />
-      ) : (
-        <Text dimColor>{arrow}</Text>
-      )
-    const rule = (key: string) => <Box key={key} height={HAIRLINE} flexShrink={0} backgroundColor={TRACK} />
-    const header = (
-      <Box key="head" flexDirection="row" justifyContent="space-between" alignItems="center" gap={SPACE.item} paddingX={INSET} height={BAND_ROWS} flexShrink={0} overflow="hidden">
-        <Box flexDirection="row" alignItems="center" flexShrink={0}>
+    // The fold arrow and the icon are marks (L3); the title primary (L0).
+    const toggle = s.onToggle ? press(`toggle-${s.id}`, arrow, 'mark', () => s.onToggle?.()) : <Text {...role('mark')}>{arrow}</Text>
+    // The header band is the list's one fill: it marks where the section starts. The items sit
+    // on the pane under it, SPACE.item apart, with no fill, rule or line of their own.
+    const header = card(
+      FILL.head,
+      { key: 'head', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: SPACE.item, paddingX: INSET, height: BAND_ROWS, flexShrink: 0, overflow: 'hidden' },
+      [
+        <Box key="title" flexDirection="row" alignItems="center" flexShrink={0}>
           {s.icon ? (
             <Box width={2} flexShrink={0} flexDirection="row" alignItems="center">
-              {icon(s.icon, MUTED)}
+              {icon(s.icon, GRAY.dark)}
             </Box>
           ) : null}
           <Text wrap="truncate" bold size="heading">
             {s.title}
           </Text>
-        </Box>
-        <Box flexDirection="row" alignItems="center" justifyContent="flex-end" gap={SPACE.item} minWidth={0} flexShrink={1}>
+        </Box>,
+        <Box key="end" flexDirection="row" alignItems="center" justifyContent="flex-end" gap={SPACE.item} minWidth={0} flexShrink={1}>
           {right ? (
             <Box flexDirection="row" minWidth={0} flexShrink={1} overflow="hidden">
               {right}
@@ -1076,20 +1098,21 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
           <Box minWidth={1.6} flexShrink={0} flexDirection="row" justifyContent="flex-end">
             {toggle}
           </Box>
-        </Box>
-      </Box>
+        </Box>,
+      ],
     )
-    const body = s.collapsed
-      ? []
-      : items.flatMap((x, i) => [
-          rule(`rule-${i}`),
-          <Box key={`item-${i}`} flexDirection="column" width="100%" minWidth={0} paddingX={INSET} paddingY={TILE_PAD_Y}>
-            {x}
-          </Box>,
-        ])
     return (
       <Box key={`list-${s.id}`} flexDirection="column" marginTop={1}>
-        {card(FILL.tile, s.accent, { flexDirection: 'column', width: '100%', minWidth: 0 }, [header, ...body])}
+        {header}
+        {s.collapsed || !items.length ? null : (
+          <Box key="items" flexDirection="column" width="100%" minWidth={0} paddingX={INSET} paddingTop={SPACE.item} rowGap={SPACE.item}>
+            {items.map((x, i) => (
+              <Box key={`item-${i}`} flexDirection="column" width="100%" minWidth={0}>
+                {x}
+              </Box>
+            ))}
+          </Box>
+        )}
       </Box>
     )
   }
@@ -1321,10 +1344,11 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         ) : state.age ? (
           <Text key="state" {...tone('mid')}>{`${MARK.stale} ${state.age}`}</Text>
         ) : null}
+        {/* Each figure, number and word together, is meta (L2): figures aren't headings. The number takes a colour only when the caller marks it (a live count). */}
         {shown.map(([figure, unit, color], i) => (
           <Text key={`${figure}-${unit ?? ''}`} wrap={i === shown.length - 1 ? 'truncate' : undefined}>
-            <Text {...ink(color)}>{figure}</Text>
-            {unit ? <Text {...tone('mid')}>{` ${unit}`}</Text> : null}
+            <Text {...(color ? ink(color) : role('meta'))}>{figure}</Text>
+            {unit ? <Text {...role('meta')}>{` ${unit}`}</Text> : null}
           </Text>
         ))}
       </Box>
@@ -1418,8 +1442,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
    * the right end) and its properties indented under it, the terminal's under the
    * title. The arrow (a Button, key `toggle-<id>`) folds it. On the app surfaces
    * the header is a band with rounded corners (`card`), its title one step up the
-   * type scale (`heading`), and an `accent` draws a thin stripe along the band's
-   * top edge; the body has no fill or outline, rows and indentation group it.
+   * type scale (`heading`); the body has no fill or outline, rows and indentation group it.
    * Collapsible when given `onToggle` (the mod keeps which are folded in its
    * state); folded, only the header row shows.
    */
@@ -1447,8 +1470,6 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
      * the narrow floor, so an open section doesn't say it twice.
      */
     restated?: boolean
-    /** A colour from ACCENT, drawn as a thin stripe along the band's top edge on the app surfaces; the terminal draws none. */
-    accent?: string
     children: RenderElement | (RenderElement | null)[] | null
   }) => {
     if (s.loading && !s.right) s = { ...s, right: summary([], { loading: true }) }
@@ -1546,12 +1567,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       )
     }
     const arrow = fold(Boolean(s.collapsed))
-    const toggle =
-      s.onToggle && Button ? (
-        <Button key={`toggle-${s.id}`} plain dimColor label={arrow} onPress={() => s.onToggle?.()} />
-      ) : (
-        <Text dimColor>{arrow}</Text>
-      )
+    // The fold arrow is a mark (L3), as the icon.
+    const toggle = s.onToggle ? press(`toggle-${s.id}`, arrow, 'mark', () => s.onToggle?.()) : <Text {...role('mark')}>{arrow}</Text>
     // The icon takes a fixed column, so every title starts at the same x; the figures and
     // then the arrow sit at the right end, the arrow last and flush right. The arrow is a
     // Button's label (the desktop draws a Button's label only), so it shows and is pressed.
@@ -1560,7 +1577,6 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
       <Box key={`section-${s.id}`} flexDirection="column" marginTop={1}>
         {card(
           FILL.head,
-          s.accent,
           {
             flexDirection: 'row',
             justifyContent: 'space-between',
@@ -1574,7 +1590,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
             <Box key="title" flexDirection="row" alignItems="center" flexShrink={0}>
               {s.icon ? (
                 <Box width={2} flexShrink={0} flexDirection="row" alignItems="center">
-                  {icon(s.icon, MUTED)}
+                  {icon(s.icon, GRAY.dark)}
                 </Box>
               ) : null}
               <Text wrap="truncate" bold size="heading">
@@ -1845,7 +1861,6 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     ) : (
       card(
         FILL.head,
-        undefined,
         { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: justify, alignItems: 'center', columnGap: SPACE.item, paddingX: INSET, height: BAND_ROWS, flexShrink: 0, marginTop: SPACE.block, overflow: 'hidden' },
         row,
       )
@@ -2186,9 +2201,10 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
         </Button>
       )
     }
-    // A quiet one dim at rest: `dimColor`, as the desktop draws a Button's label and
-    // never its children, so a grey Text inside one never showed in the app.
-    return <Button key={a.key} plain label={a.label} {...(a.quiet ? { dimColor: true } : {})} {...hot} onPress={a.onPress} />
+    // On the terminal a quiet one is dim at rest. On the app surfaces every action's label is
+    // meta (L2): actions are quieter than content, quiet or not (`press`: a grey label under a blank Button).
+    if (terminal) return <Button key={a.key} plain label={a.label} {...(a.quiet ? { dimColor: true } : {})} {...hot} onPress={a.onPress} />
+    return press(a.key, a.label, 'meta', a.onPress, hot)
   }
 
   /** A row's actions, one cluster: main ones first, quiet ones after, `space.group` apart on the terminal. */
@@ -2230,7 +2246,9 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
           </Button>
         )
       }
-      return <Button key={`${key}-${t.id}`} plain label={t.label} {...(on ? {} : { dimColor: true })} {...hot} onPress={() => onSelect(t.id)} />
+      // The active tab plain (primary); the rest meta, as a grey label under a blank Button on the app surfaces.
+      if (on || terminal) return <Button key={`${key}-${t.id}`} plain label={t.label} {...(on ? {} : { dimColor: true })} {...hot} onPress={() => onSelect(t.id)} />
+      return press(`${key}-${t.id}`, t.label, 'meta', () => onSelect(t.id), hot)
     }
     if (terminal) {
       return (
@@ -2414,6 +2432,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     /** Whether the pane has the keyboard, as the kit was told (unknown counts as yes). */
     focused: paneFocused,
     ink,
+    role,
+    press,
     space,
     edge,
     /** A section body's width in cells on the terminal: what a bar or gauge spans by default. */

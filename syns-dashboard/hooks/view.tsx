@@ -1,6 +1,6 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
-import { ACCENT, C, GRAY, MUTED } from '../kit/tokens'
+import { C, GRAY, GLYPH, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
@@ -64,8 +64,10 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /**
  * The re-entry pane, on every surface: its sections as the kit's collapsible lists
  * (what we're doing, what you decided, agents, pull requests, what needs you, next),
- * each item a list item and each list its own accent (ACCENT, in that order), then a
- * footer with the standup and the full brief.
+ * each item a list item, on the kit's contrast ladder (TEXT_ROLES: titles primary,
+ * subtitles and links secondary, figures, ages, notes and actions meta, icons and
+ * marks the quietest, colour for status only), then a footer with the standup and
+ * the full brief.
  */
 export const render = (els: Els, surface: RenderSurface, columns: number, rows: number | undefined, d: DashData, act: DashActions, focused?: boolean): RenderElement => {
   const { Box, Text, Button, Link } = els
@@ -82,6 +84,12 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     </Text>
   )
   const quiet = (key: string, label: string, onPress: () => void) => k.actions(key, [{ key, label, onPress, quiet: true }])
+  /** A waiting item's lead: ◌ as a mark (L3), not a status blue. */
+  const waiting = (
+    <Text key="waiting" {...k.role('mark')}>
+      {GLYPH.pending}
+    </Text>
+  )
   const loading = !b
   const failed = b?.error
 
@@ -90,7 +98,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'doing',
     icon: 'tasklist',
     title: 'Doing',
-    accent: ACCENT[0],
     right:
       b && !failed
         ? k.summary([
@@ -107,17 +114,20 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         : [
             ...b.threads.map(t =>
               k.listItem(`thread-${t.id}`, {
+                // The badge is primary text (no hue: colour is for status), bold for P1; a waiting thread's ◌ is a mark,
+                // its title secondary and its next step meta, a step quieter than the prioritised ones.
                 lead:
                   t.tier === 'priority' ? (
-                    <Text key="p" bold {...k.ink(C.blue)}>
+                    <Text key="p" bold={t.priority === 1}>
                       {`P${t.priority}`}
                     </Text>
                   ) : (
-                    'pending'
+                    waiting
                   ),
                 title: t.title,
                 bold: t.tier === 'priority' && t.priority === 1,
                 dim: t.tier === 'next',
+                subtitleRole: t.tier === 'next' ? 'meta' : 'secondary',
                 subtitle: t.next ? `next: ${t.next}` : undefined,
                 subtitleWrap: true,
                 ...(t.about ? { ...itemFold(`thread-${t.id}`), children: [wrapped(`thread-${t.id}-about`, t.about)] } : {}),
@@ -136,7 +146,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'decided',
           icon: 'checklist',
           title: 'Decided',
-          accent: ACCENT[1],
           right: k.summary([[String(b.decided.length), 'recent']]),
           ...fold('decided'),
           items: b.decided.length
@@ -161,7 +170,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'agents',
     icon: 'hubot',
     title: 'Agents',
-    accent: ACCENT[2],
     right: k.summary([[String(live.length), 'running', live.length ? C.blue : undefined]]),
     ...fold('agents'),
     items: live.length
@@ -192,12 +200,21 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const prItem = (p: PrRow) => {
     const num = numOf(p.ref)
     const [icon, color] = stateIcon(p)
-    // The number is the PR's link (where gh gave its address).
-    const link = p.url && Link ? <Link key="link" href={p.url} label={num} /> : num
+    // The number is the PR's link (where gh gave its address), secondary like the repo name before it, not a link blue.
+    const link =
+      p.url && Link ? (
+        <Link key="link" href={p.url}>
+          <Text {...k.role('secondary')}>{num}</Text>
+        </Link>
+      ) : (
+        <Text key="link" {...k.role('secondary')}>
+          {num}
+        </Text>
+      )
     const ignore = () => act.ignore('prs', p.ref, true)
     const ignoreRepo = () => act.ignore('repos', repoOf(p.ref), true)
     // A ⋮ on the title's line unfolds Ignore and Ignore repo under the item (the kit has no popover); the terminal keeps one quiet Ignore.
-    const dots = Button ? <Button key="menu" plain dimColor label="⋮" onPress={() => act.menu(p.ref)} /> : null
+    const dots = Button ? k.press('menu', '⋮', 'mark', () => act.menu(p.ref)) : null
     const ci = CI_MARK[p.ci] ?? null
     // Merge and auto-merge, for open PRs: Merge asks for a second press (Confirm merge, in the danger tone);
     // a draft or a conflicting PR can't merge, and says why in its place.
@@ -251,7 +268,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     id: 'prs',
     icon: 'pr-open',
     title: 'Pull requests',
-    accent: ACCENT[3],
     right: k.summary([[String(prs.length), 'open'], ignoredCount ? [String(ignoredCount), 'ignored'] : null]),
     ...fold('prs'),
     items: [
@@ -269,14 +285,13 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'needs',
           icon: 'comment',
           title: 'Needs you',
-          accent: ACCENT[4],
           right: k.summary([
             [String(b.approvals.length), b.approvals.length === 1 ? 'approval' : 'approvals'],
             [String(b.questions), b.questions === 1 ? 'question' : 'questions'],
           ]),
           ...fold('needs'),
           items: [
-            ...b.approvals.map(x => k.listItem(`approval-${x.id}`, { lead: 'pending', title: x.question, right: [`#${x.id}`] })),
+            ...b.approvals.map(x => k.listItem(`approval-${x.id}`, { lead: waiting, title: x.question, right: [`#${x.id}`] })),
             b.approvals.length || b.questions
               ? k.listItem('inbox', {
                   title: b.questions ? `${plural(b.questions, 'open question')}, on recommendations till answered` : 'Approvals wait for you',
@@ -295,7 +310,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           id: 'next',
           icon: 'arrow-up',
           title: 'Next',
-          accent: ACCENT[5],
           ...fold('next'),
           items: [k.listItem('next-step', { title: b.next })],
         })
