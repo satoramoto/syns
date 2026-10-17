@@ -21,13 +21,15 @@ syn: the smallest version of the approval loop.
      `{ choice, note?, at }`, then move it from `inbox` to `answered`;
    - an approval (`reversible: false`) means the action may now happen, so do
      it, or hand it to an assistant.
-   - an approval with a `proposal` field (or, failing that, whose `applies`
-     names a proposal's `proposal.json`) also sets that proposal's `status`: Approve → `"approved"`, Reject →
-     `"rejected"`, Revise → stays `"review"` with `rev` raised by one and a
-     `revisions` entry `{ rev, at, note }` carrying the answer's note. Add
-     the item's id to the proposal's `decisions`, and append one line to
-     `~/.syns/memory.jsonl`: `event: "proposal.status"`, `from`, `to`,
-     `by: "Ryan"`, `via: "inbox <id>"` (shape in `docs/proposals.md`).
+   - an approval with an `epic` field (or, failing that, whose `applies`
+     names an epic's `epic.json`) also sets that epic's `status`: Approve →
+     `"approved"`, Reject → `"rejected"`, Revise → stays `"review"` with
+     `rev` raised by one and a `revisions` entry `{ rev, at, note }`
+     carrying the answer's note. Add the item's id to the epic's
+     `decisions`, and append one line to `~/.syns/memory.jsonl`:
+     `event: "epic.status"` (or `"epic.revised"` with `rev` for Revise),
+     `from`, `to`, `by: "Ryan"`, `via: "inbox <id>"` (shape in
+     `docs/epics.md`).
    A dismissed batch changes nothing.
 4. Keep going batch by batch until the inbox is empty or the user stops.
    Never ask anything outside the inbox during the run.
