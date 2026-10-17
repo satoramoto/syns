@@ -1,8 +1,43 @@
 {
   "name": "syns-dashboard",
-  "version": "0.1.3",
-  "description": "Re-entry at a glance: a pane reading ~/.syns/brain.json (or $SYN_BRAIN) live (what we're doing, what you decided, what's running, what needs you, next)",
-  "author": { "name": "Ryan Gavin" },
+  "version": "0.2.0",
+  "description": "Re-entry at a glance: a pane reading ~/.syns/brain.json (or $SYN_BRAIN) live (what we're doing, what you decided, what's running, what needs you, next), with tabs for the session, files, issues, dev servers and the lab, and Blast Radius holding risky commands",  "author": { "name": "Ryan Gavin" },
   "license": "MIT",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "activity": {
+      "type": "string",
+      "title": "Files: Claude activity",
+      "description": "Which of Claude's file activity shimmers in the Files tab: files read with the Read tool or Bash readers (rg, grep, find, cat) in purple, writes in orange and git actions in green",
+      "default": "reads and writes",
+      "options": ["reads and writes", "writes", "reads", "none"]
+    },
+    "glyphs": {
+      "type": "string",
+      "title": "Files: glyphs",
+      "description": "Icon set: auto uses Nerd Font icons when one is installed here, except in the desktop app; plain uses Unicode only",
+      "default": "auto",
+      "options": ["auto", "nerd", "plain"]
+    },
+    "follow": {
+      "type": "string",
+      "title": "Files: follow Claude",
+      "description": "on: the tree scrolls to what Claude reads, writes or commits. off: the view stays where you put it and only your own scrolling moves it; highlights still show.",
+      "default": "on",
+      "options": ["on", "off"]
+    },
+    "column": {
+      "type": "string",
+      "title": "Files: right column",
+      "description": "What the right column shows by default: date (last modified) or size (files in bytes, folders as disk usage computed in the background). The header button toggles it.",
+      "default": "date",
+      "options": ["date", "size"]
+    },
+    "open": {
+      "type": "string",
+      "title": "Files: open with",
+      "description": "What a double-click or Enter does with a file. Empty: the default app. preview: show it in the pane (left goes back). Anything else is a command run instead: {path} is the file and {dir} its folder; without {path} the path goes last. Words split on spaces, quotes keep a word whole, and no shell runs it. It should start the viewer and return; on Linux it runs detached.",
+      "default": ""
+    }
+  }
 }

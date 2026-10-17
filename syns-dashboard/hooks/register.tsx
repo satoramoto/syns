@@ -7,7 +7,13 @@ import { band } from './band'
 import { ignoredOf, toView, updateText } from './brain'
 import { toSnap } from './context'
 import { openInbox, sortEpics, toEpic } from './epics'
-import { attach, hideTree } from './filetree/register'
+import { attach as attachBlast } from './blast-radius/register'
+import { attach, COMMANDS as FILES_COMMANDS, hideTree } from './filetree/register'
+import { attach as attachIssues, COMMANDS as ISSUES_COMMANDS } from './issues/register'
+import { attach as attachLab, COMMANDS as LAB_COMMANDS } from './lab/register'
+import { attach as attachLauncher, COMMANDS as LAUNCHER_COMMANDS } from './launcher/register'
+import { attach as attachSession, COMMANDS as SESSION_COMMANDS } from './session/register'
+import { showTab } from './tabs'
 import { render } from './view'
 import type { Els } from './view'
 
@@ -35,8 +41,15 @@ const CONFIRM_MS = 5_000
 /** The pane's tabs, in order. */
 const TABS: { id: DashTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'session', label: 'Session' },
   { id: 'files', label: 'Files' },
+  { id: 'issues', label: 'Issues' },
+  { id: 'launcher', label: 'Launcher' },
+  // For mod authors: the engine experiments.
+  { id: 'lab', label: 'Lab' },
 ]
+/** The mods' slash commands (each opens the pane on its tab); registered as the session starts. */
+const commands = [...SESSION_COMMANDS, ...FILES_COMMANDS, ...ISSUES_COMMANDS, ...LAUNCHER_COMMANDS, ...LAB_COMMANDS]
 /** The rows the tab row takes above a tab's body (its row and the room under it). */
 const TAB_ROWS = 2
 
@@ -286,6 +299,7 @@ const tick = async ($: EngineInterface, force = false) => {
   if (busy) return
   if (!force && !(await isShown($))) {
     filesOff()
+    showTab(null)
     return
   }
   busy = true
@@ -345,8 +359,12 @@ const setIgnored = async ($: EngineInterface, list: 'repos' | 'prs', value: stri
 }
 
 export const register: Register = (on, options) => {
+  // blast-radius first: while it holds a risky command, its band above the prompt is the outer one.
+  attachBlast(on, options)
+
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
+    for (const c of commands) await $.command.register(c)
     worker?.cancel()
     worker = $.clock.every(2_000, () => void tick($).catch(() => undefined))
     brainWorker?.cancel()
@@ -404,7 +422,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
     const shown = await read($, tab)
     const select = (id: string) => {
-      const chosen: DashTab = id === 'files' ? 'files' : 'overview'
+      const chosen: DashTab = TABS.find(t => t.id === id)?.id ?? 'overview'
       if (chosen !== 'files') filesOff()
       void update($, tab, () => chosen).catch(() => undefined)
     }
@@ -423,16 +441,18 @@ export const register: Register = (on, options) => {
       )
     }
 
-    if (shown === 'files') {
-      if (e.surface !== 'terminal' && e.surface !== 'desktop') {
+    // A mod's tab: its hooks (attached below) draw it in the rows under the tab row; the others pass.
+    showTab(shown)
+    if (shown !== 'files') filesOff()
+    if (shown !== 'overview') {
+      if (shown === 'files' && e.surface !== 'terminal' && e.surface !== 'desktop') {
         const els = holdButtons($.ui.resolve(e), e) as unknown as Els
         const k = kit(els as any, e.surface, e.props.bodyColumns)
         return tabbed(els, k.note('files-surface', 'Files shows on the desktop and the terminal.'))
       }
-      // filetree draws the tree in the rows under the tab row.
-      filesDrawn = true
-      const tree = await next(scroll && rows !== undefined ? { ...e, props: { ...e.props, scroll: { ...scroll, bodyRows: rows } } } : e)
-      return tabbed(holdButtons($.ui.resolve(e), e) as unknown as Els, tree)
+      if (shown === 'files') filesDrawn = true
+      const body = await next(scroll && rows !== undefined ? { ...e, props: { ...e.props, scroll: { ...scroll, bodyRows: rows } } } : e)
+      return tabbed(holdButtons($.ui.resolve(e), e) as unknown as Els, body)
     }
 
     const data = {
@@ -486,6 +506,10 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // The Files tab: filetree's hooks (see build.ts), drawing under the render above and reading only while the tab is on screen.
+  // The mods' tabs (hooks/<mod>/), each drawing under the render above when its tab is shown and reading only then.
+  attachSession(on, options, PANE)
   attach(on, options, PANE)
+  attachIssues(on, options, PANE)
+  attachLauncher(on, options, PANE)
+  attachLab(on, options, PANE)
 }

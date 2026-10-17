@@ -1,0 +1,1388 @@
+{
+  "svg-linear-gradient": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-radial-gradient": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-blur": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-drop-shadow": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-masks": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-text": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-pattern-use": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-size": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "svg-limit-ok": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; exactly 131072 characters accepted"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; exactly 131072 characters accepted"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; exactly 131072 characters accepted"
+    }
+  },
+  "svg-limit-over": {
+    "desktop": {
+      "accepted": false,
+      "note": "Svg source longer than 131072 characters"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Svg source longer than 131072 characters"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Svg source longer than 131072 characters"
+    }
+  },
+  "svg-not-svg": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator does not parse the SVG: any string up to the cap is accepted; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator does not parse the SVG: any string up to the cap is accepted; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator does not parse the SVG: any string up to the cap is accepted; (not a listed surface)"
+    }
+  },
+  "svg-no-alt": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; an empty alt is accepted; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; an empty alt is accepted; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; an empty alt is accepted; (not a listed surface)"
+    }
+  },
+  "scrub-script": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    }
+  },
+  "scrub-onload": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    }
+  },
+  "scrub-href": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    }
+  },
+  "scrub-data-href": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    }
+  },
+  "scrub-foreign": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; the validator passes the markup whole (drawn() holds it unchanged); any scrub is the surface page's, paint unverified"
+    }
+  },
+  "smil-interactive": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    }
+  },
+  "smil-image": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    }
+  },
+  "css-interactive": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    }
+  },
+  "css-image": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted as markup; whether it moves is paint, unverified headlessly"
+    }
+  },
+  "client-blink": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; dot colour #eb5757 -> #3a3a3c -> #eb5757 at 500 ms steps"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; dot colour #eb5757 -> #3a3a3c -> #eb5757 at 500 ms steps"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-fade": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; colour #0b1a2e -> #2f80ed after advance(400)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; colour #0b1a2e -> #2f80ed after advance(400)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-bar": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; at 40 columns: 1 s \"██▌ | 8%\", 2 s \"█████ | 16%\""
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; at 40 columns: 1 s \"██▌ | 8%\", 2 s \"█████ | 16%\""
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-spinner": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; frames ⠋ ⠙ ⠹ at 80 ms"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; frames ⠋ ⠙ ⠹ at 80 ms"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-fps": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; mocked clock, 1 s: every(1) \"62 ticks in 0.0 s\", every(16) \"62 ticks in 0.0 s\""
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; mocked clock, 1 s: every(1) \"62 ticks in 0.0 s\", every(16) \"62 ticks in 0.0 s\""
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "svg-hover": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted; hover is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted; hover is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted; hover is paint, unverified headlessly"
+    }
+  },
+  "svg-title": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted; tooltip is paint, unverified headlessly"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; absent from the terminal table: Svg; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted; tooltip is paint, unverified headlessly"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted; tooltip is paint, unverified headlessly"
+    }
+  },
+  "box-hover": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "hover-scope": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "box-absolute": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "buttons": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; 10 Buttons; press primary -> {\"element\":\"primary\"}"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; 10 Buttons; press primary -> {\"element\":\"primary\"}"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified; 10 Buttons; press primary -> {\"element\":\"primary\"}"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified; 10 Buttons; press primary -> {\"element\":\"primary\"}"
+    }
+  },
+  "button-bad-hotkey": {
+    "desktop": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"bad\"> hotkey must be one digit 0-9 or one lowercase letter a-z"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"bad\"> hotkey must be one digit 0-9 or one lowercase letter a-z"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"bad\"> hotkey must be one digit 0-9 or one lowercase letter a-z"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"bad\"> hotkey must be one digit 0-9 or one lowercase letter a-z"
+    }
+  },
+  "button-box-child": {
+    "desktop": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"boxed\"> holds strings and Text, not <Box>"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"boxed\"> holds strings and Text, not <Box>"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"boxed\"> holds strings and Text, not <Box>"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "the element refused its props as built: JSX element <Button key=\"boxed\"> holds strings and Text, not <Box>"
+    }
+  },
+  "input-select": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; input change + submit and select reached their handlers"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; input change + submit and select reached their handlers"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified; input change + submit and select reached their handlers"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Input, Select; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "select-duplicate": {
+    "desktop": {
+      "accepted": false,
+      "note": "Select \"dup\" option \"a\" is listed twice; values are unique"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Select \"dup\" option \"a\" is listed twice; values are unique"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Select \"dup\" option \"a\" is listed twice; values are unique"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Select; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "links": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "link-too-long": {
+    "desktop": {
+      "accepted": false,
+      "note": "Link href longer than 2048 characters as written"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Link href longer than 2048 characters as written"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Link href longer than 2048 characters as written"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Link href longer than 2048 characters as written"
+    }
+  },
+  "markdown-links": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; link press reached onLinkPress"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; link press reached onLinkPress"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified; link press reached onLinkPress"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified; link press reached onLinkPress"
+    }
+  },
+  "client-pointer": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; \"move at 5,2\"; drag past the edge \"move at 50,9\""
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; \"move at 5,2\"; drag past the edge \"move at 50,9\""
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-keys": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; \"last key ctrl+right (2)\""
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; \"last key ctrl+right (2)\""
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "client-post": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified; press -> \"pong 1 via desktop\"; post {ping:41} -> \"pong 41 via desktop\""
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified; press -> \"pong 1 via terminal\"; post {ping:41} -> \"pong 41 via terminal\""
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Client; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "borders": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "border-unknown": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn with no border and logged (the kit does not surface the log)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn with no border and logged (the kit does not surface the log)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn with no border and logged (the kit does not surface the log)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn with no border and logged (the kit does not surface the log)"
+    }
+  },
+  "bg-hex": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-hex-short": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-hex-alpha": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-named": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-ansi-name": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-theme-key": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-rgb": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-rgba": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-transparent": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-hsl": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-linear-gradient": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "bg-radial-gradient": {
+    "desktop": {
+      "accepted": false,
+      "note": "Box prop \"backgroundColor\" must be a color (a theme key, a name, or hex)"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Box prop \"backgroundColor\" must be a color (a theme key, a name, or hex)"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Box prop \"backgroundColor\" must be a color (a theme key, a name, or hex)"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Box prop \"backgroundColor\" must be a color (a theme key, a name, or hex)"
+    }
+  },
+  "bg-css-var": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "pct-whole": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "pct-fraction": {
+    "desktop": {
+      "accepted": false,
+      "note": "Box prop \"width\" must be a number or a percentage"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Box prop \"width\" must be a number or a percentage"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Box prop \"width\" must be a number or a percentage"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Box prop \"width\" must be a number or a percentage"
+    }
+  },
+  "flexgrow-limit": {
+    "desktop": {
+      "accepted": false,
+      "note": "Box prop \"flexGrow\" must be a finite number within 10000"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Box prop \"flexGrow\" must be a finite number within 10000"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Box prop \"flexGrow\" must be a finite number within 10000"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Box prop \"flexGrow\" must be a finite number within 10000"
+    }
+  },
+  "fractional-cells": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; fractional height and margin accepted"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; fractional height and margin accepted"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; fractional height and margin accepted"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; fractional height and margin accepted"
+    }
+  },
+  "flex": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "text-styles": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "text-wrap": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "text-hover": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "text-hover-unkeyed": {
+    "desktop": {
+      "accepted": false,
+      "note": "Text hover has no Box with a key around it; the nearest keyed Box is what the pointer hovers, or a scope names its group"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Text hover has no Box with a key around it; the nearest keyed Box is what the pointer hovers, or a scope names its group"
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Text hover has no Box with a key around it; the nearest keyed Box is what the pointer hovers, or a scope names its group"
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Text hover has no Box with a key around it; the nearest keyed Box is what the pointer hovers, or a scope names its group"
+    }
+  },
+  "text-long": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs the first 100000 characters draw, then a note of how much is cut"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs the first 100000 characters draw, then a note of how much is cut"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs the first 100000 characters draw, then a note of how much is cut"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs the first 100000 characters draw, then a note of how much is cut"
+    }
+  },
+  "text-glyphs": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "code-source": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "code-diff": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "code-bad-diff": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn as plain code and logged (the kit does not surface the log)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn as plain code and logged (the kit does not surface the log)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn as plain code and logged (the kit does not surface the log)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; accepted; per the docs drawn as plain code and logged (the kit does not surface the log)"
+    }
+  },
+  "code-bad-wrap": {
+    "desktop": {
+      "accepted": false,
+      "note": "Code wrap is \"wrap\" or \"truncate-end\""
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Code wrap is \"wrap\" or \"truncate-end\""
+    },
+    "vscode": {
+      "accepted": false,
+      "note": "Code wrap is \"wrap\" or \"truncate-end\""
+    },
+    "mobile": {
+      "accepted": false,
+      "note": "Code wrap is \"wrap\" or \"truncate-end\""
+    }
+  },
+  "markdown": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    }
+  },
+  "raster": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; absent from the desktop table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "raster-wide-cell": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; absent from the desktop table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": false,
+      "note": "Raster \"wide\" cell 1 holds U+6F22, which is not one printable width-1 code point (a control, combining or wide character)"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Raster; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "image-png": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; absent from the desktop table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  },
+  "image-rgba": {
+    "desktop": {
+      "accepted": true,
+      "note": "accepted; absent from the desktop table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "terminal": {
+      "accepted": true,
+      "note": "accepted; paint unverified"
+    },
+    "vscode": {
+      "accepted": true,
+      "note": "accepted; absent from the vscode table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    },
+    "mobile": {
+      "accepted": true,
+      "note": "accepted; absent from the mobile table: Image; resolve's stand-in draws an empty column Box, no alt; (not a listed surface)"
+    }
+  }
+}

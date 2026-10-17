@@ -1,18 +1,21 @@
-// Changed in this fork (awesome-claude) for the desktop version: the desktop surface draws hooks/desktop.tsx.
-// The terminal draws in the kit's terminal design system: a section header, TREE
-// connectors, the kit's status colours as theme keys, and its note lines.
+// syns' Files tab: syns source, edited here (it came from awesome-claude's
+// mods/filetree, to 0652eb5; see README.md). The desktop surface draws
+// hooks/desktop.tsx. The terminal draws in the kit's terminal design system: a
+// section header, TREE connectors, the kit's status colours as theme keys, and its
+// note lines.
 //
-// Another mod can draw the tree in a tab of its own pane: it calls `attach` (see
-// there). syns' dashboard does, copying this folder. Every function that takes `$`
-// stays in this file: the engine follows `$` within one file only.
-import { type BuiltinToolResults, type Elements, type EngineInterface, type Hook, type Register, type RenderElement, type RenderInput, type Timer, update } from 'claude-code'
+// The dashboard draws the tree in a tab of its pane: it calls `attach` (see there).
+// Every function that takes `$` stays in this file: the engine follows `$` within
+// one file only.
+import { atom, type BuiltinToolResults, type Elements, type EngineInterface, type Hook, type Register, type RenderElement, type RenderInput, type Timer, update } from 'claude-code'
+import { type Command, TITLE, shownTab } from '../tabs'
 import { LINUX_LAUNCH, openCommand, openWithCommand } from './open'
 
 import { ago, middle } from '../../kit/format'
 import { C, MUTED, termInk, treePrefix } from '../../kit/tokens'
 import { type Hint, holdButtons, kit, MARK } from '../../kit/ui'
 
-import type { Activity, FileNode, FileTree } from '../../types'
+import type { Activity, DashTab, FileNode, FileTree } from '../../types'
 import { renderDesktop, statusColor, toneColor } from './desktop'
 import type { DesktopElements } from './desktop'
 import { BRANCH_ICON, chainOf, type GitAction, gitActions, readOnly, readTargets, resolve, TONES } from './git'
@@ -52,6 +55,8 @@ const ACTIVITY = { plugin: 'syns-dashboard', key: 'filesActivity' } as const
 let PANE = 'filetree'
 /** The tab's name. The folder is the section header's title, so the tab doesn't repeat it. */
 const TAB = 'Files'
+/** The dashboard's tab shown: `/filetree` turns it to Files. */
+const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
 /** Each activity tone's terminal colour: the kit's meaning for it (desktop's toneColor), as a theme key. */
 const SHIMMER: Record<string, string> = Object.fromEntries(TONES.map(k => [k, termInk(toneColor(k)).color ?? '']))
 /** The terminal's key hints while the pane has the keyboard, the most used first. */
@@ -1144,9 +1149,9 @@ export function pinTree(root: string | null): void {
   caughtUp = false
 }
 
-/** In a host's pane while the tree is off screen: every hook then passes straight through. */
+/** In a host's pane while the tree is off screen (or the Files tab isn't the one shown): every hook then passes straight through. */
 function hidden(): boolean {
-  return host !== null && !onScreen
+  return host !== null && (!onScreen || shownTab() !== 'files')
 }
 
 /** The tree's watch on Claude's edits, writes and Bash commands (git steps, files changed, reads). */
@@ -1203,52 +1208,35 @@ const watchTool: Hook<'tool.call'> = async ($, e, next) => {
   }
 }
 
-/** filetree's own pane: `/filetree` opens it, and the tree reads its folder as the session starts. */
-export const register: Register = (on, options) => {
-  attach(on, options)
-
-  on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'filetree', description: 'Show the file tree; args: [path] (no path = cwd)' })
-    await sessionReads($)
-    void (async () => {
-      await firstLook($)
-      const t = await get($)
-      const cwd = await cwdOf($)
-      if (!t.root || t.nodes.length === 0 || (follow && t.root !== cwd)) await reset($, cwd)
-      else if (!noDock) await $.ui.open({ id: PANE, title: TAB })
-    })()
-    return next(e)
-  })
-
-  on('command.run', { command: 'filetree' }, async ($, e) => {
-    // The layout checks are the terminal's: the desktop app docks the pane itself and
-    // reports no fullscreen layout, so a session no terminal draws skips them.
-    const terminal = await $.session.surfaces().then(s => s.includes('terminal'), () => true)
-    if (terminal && !e.presentation.isFullscreen) return { text: 'filetree shows in the sidebar, which needs the fullscreen layout. Run /tui fullscreen, then /filetree.' }
-    if (terminal && e.presentation.columns < 110) return { text: 'filetree shows in the sidebar, which needs a terminal at least 110 columns wide. Widen it, then run /filetree.' }
-    noDock = false
-    const arg = (e.args ?? '').trim()
-    const cwd = await cwdOf($)
-    follow = !arg
-    const root = arg ? resolve(cwd, arg, home) : cwd
-    await reset($, root, true)
-    return { text: `File tree on ${shortPath(root)}${follow ? ' (follows the cwd)' : ''}.` }
-  })
-}
-
 /**
- * Every hook of the tree but filetree's own pane's (its session start and
- * `/filetree`, in `register`). A host, a mod that draws the tree in a tab of its
- * own pane (syns' dashboard copies this folder), calls it with that `pane` and
- * after its own render hook for the pane, so its render is the outer one: it
- * draws its tabs and, for the tree's tab, `next(e)` draws the tree (with
- * `e.props.scroll.bodyRows` less its own rows). The tree then reads nothing until
- * it first draws, and the host calls `hideTree` when it goes off screen; while
- * off screen every hook passes straight through, so nothing is read or watched.
+ * Every hook of the tree, and its slash command. The dashboard, the host, calls it
+ * with its `pane` after its own render hook for the pane, so its render is the
+ * outer one: it draws its tabs and, for the Files tab, `next(e)` draws the tree
+ * (with `e.props.scroll.bodyRows` less its own rows). The tree then reads nothing
+ * until it first draws, and the host calls `hideTree` when it goes off screen;
+ * while off screen, or while another tab is shown (`shownTab`), every hook passes
+ * straight through, so nothing is read or watched.
+ *
+ * Returns the commands the host registers as the session starts: `/filetree
+ * [path]` opens the pane on Files, on `path` (pinned) or the cwd (followed).
  */
-export const attach = (on: Parameters<Register>[0], options: Parameters<Register>[1], pane?: string) => {
+export const attach = (on: Parameters<Register>[0], options: Parameters<Register>[1], pane?: string): void => {
   host = pane ?? null
   if (host) PANE = host
+  if (host) {
+    on('command.run', { command: 'filetree' }, async ($, e) => {
+      const arg = (e.args ?? '').trim()
+      // Home, for `~` in the path and the reply, before the tree has first drawn.
+      if (!looked) await sessionReads($)
+      pinTree(arg || null)
+      await update($, tab, () => 'files' as DashTab)
+      await $.ui.open({ id: PANE, title: TITLE })
+      // Already on screen, the tab unchanged: catch up on the folder now rather than on a redraw.
+      if (onScreen) drawnInHost($)
+      const root = arg ? resolve(await cwdOf($), arg, home) : ''
+      return { text: arg ? `Files on ${shortPath(root)}.` : 'Files on the cwd (followed).' }
+    })
+  }
   glyphSetting = typeof options?.glyphs === 'string' ? options.glyphs : 'auto'
   const activity = typeof options?.activity === 'string' ? options.activity : 'reads and writes'
   showReads = activity.includes('reads')
@@ -1262,6 +1250,8 @@ export const attach = (on: Parameters<Register>[0], options: Parameters<Register
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    // In the dashboard's pane, the tree draws only on the Files tab; another tab's hooks draw the rest.
+    if (host && shownTab() !== 'files') return next(e)
     if (!host && e.surface === 'terminal' && e.props.placement === 'inline') {
       noDock = true
       void $.ui.close({ id: PANE }).catch(() => undefined)
@@ -1284,7 +1274,8 @@ export const attach = (on: Parameters<Register>[0], options: Parameters<Register
     return result
   })
 
-  on('ui.message', async ($, e, next) => {
+  // Matched: the dashboard's other tabs register ui.message hooks too, and a plugin takes one unmatched.
+  on('ui.message', { component: 'Pane', requestId: PANE, element: 'rows' }, async ($, e, next) => {
     if (hidden()) return next(e)
     if (e.requestId !== PANE || e.element !== 'rows' || !e.data || typeof e.data !== 'object') return next(e)
     const data = e.data as { press?: unknown; key?: unknown; ctrl?: unknown; shift?: unknown; scrollTo?: unknown; copy?: unknown }
@@ -1420,6 +1411,9 @@ export const attach = (on: Parameters<Register>[0], options: Parameters<Register
     return next(e)
   })
 }
+
+/** `/filetree [path]` (a host's): the dashboard registers it as the session starts. */
+export const COMMANDS: Command[] = [{ name: 'filetree', description: 'Open the syn dashboard on Files; args: [path] (no path = the cwd, followed)', argumentHint: '[path]' }]
 
 /** The tree, drawn for one render of its pane: `els` is that render's table (through `holdButtons`), `t` the tree as read at its start. */
 async function drawTree($: EngineInterface, e: RenderInput<'Pane', 'terminal' | 'desktop'>, els: Elements['terminal'] | Elements['desktop'], t: FileTree): Promise<RenderElement> {

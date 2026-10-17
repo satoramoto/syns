@@ -16,10 +16,26 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
   `syns-dashboard/kit/` by `bun build.ts` (committed; never edit it here,
   change it in zen and run the build again). Built the way awesome-claude's
   mods are: zen's `docs/harness-claude-code.md` holds the look and the engine's
-  limits. Its pane has two tabs: Overview, and Files, awesome-claude's
-  `filetree` mod drawn in the pane; `bun build.ts` copies filetree's `hooks/`
-  into `syns-dashboard/hooks/filetree/` and its value types into
-  `types/index.d.ts` (both committed; change them in awesome-claude).
+  limits. Its one pane has tabs: Overview (syn's own), Session, Files,
+  Issues, Launcher and Lab. All but Overview were awesome-claude's mods
+  (`overview` is Session) and are syns source now, edited in place in
+  `syns-dashboard/hooks/<mod>/`; so is `blast-radius`, which holds risky
+  commands in a pane of its own and has no tab. Each mod has an `attach(on,
+  options, pane)` the dashboard's `register.tsx` calls after its own Pane
+  render, which draws the tab row and calls `next(e)` for a mod's tab; the
+  mod draws only when `hooks/tabs.ts` says its tab is shown, and reads only
+  then. Each exports its slash commands as `COMMANDS` (the dashboard registers
+  them: one `session.start` per plugin). Their value types and state (keys
+  prefixed by tab: `session…`, `files…`, `issues…`, `launcher…`, `lab…`,
+  `blast…`) are in the one `types/index.d.ts`. filetree keeps its MIT LICENSE
+  (Kurt Buhler) and blast-radius its Apache-2.0 LICENSE (Anthropic), each with
+  its README stating its origin.
+- Engine limits that shape the mods: `$` passes only to functions in the same
+  file; an atom's plugin and key are literals in the file using it; a plugin
+  registers each event at most once without a matcher (`claude plugin
+  validate` refuses a second); a function `on` is passed to returns nothing
+  the caller uses; a render can't write state; nested renders each hold their
+  Buttons in their own `holdButtons` scope.
 - Plugin folders sit at the top level: sessions load this repo with
   `CLAUDE_CODE_PLUGIN_DIRS=~/Code/satoramoto/syns`, which finds plugin folders
   one level down only.
@@ -48,9 +64,10 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
 | Command | What it checks | When to run |
 | --- | --- | --- |
 | `claude plugin validate plugin` | the engine accepts the `syn` plugin's manifest and commands | any change under `plugin/` |
-| `bun build.ts` | copies zen's `src/harness/claude-code/kit/` (a zen checkout beside this repo, or `$ZEN`) into `syns-dashboard/kit/`, and awesome-claude's `mods/filetree/` (beside it, or `$AWESOME`) into the dashboard's Files tab | to take a newer kit or filetree |
+| `bun build.ts` | copies zen's `src/harness/claude-code/kit/` (a zen checkout beside this repo, or `$ZEN`) into `syns-dashboard/kit/` | to take a newer kit |
 | `claude plugin validate syns-dashboard` | the engine accepts the dashboard: its hooks, calls, and state reads and writes against `types/index.d.ts` | any change under `syns-dashboard/` |
-| `bunx tsc -p syns-dashboard` | the dashboard type-checks (needs the engine's types in `syns-dashboard/.claude-plugin/types/`, laid when a session loads it, or copied from an awesome-claude mod that has them) | any `.ts`/`.tsx` change there |
+| `bunx tsc -p syns-dashboard` | the dashboard type-checks (needs the engine's types in `syns-dashboard/.claude-plugin/types/`, laid when a session loads it, or copied from another checkout that has them) | any `.ts`/`.tsx` change there |
+| `claude plugin test syns-dashboard` | every tab's tests (`syns-dashboard/hooks/<mod>/**/*.test.ts(x)`), through the engine's test kit; the whole plugin loads in each test, so a test stubs what the dashboard's own hooks call. It takes the plugin folder only (about 10 minutes for all of them) | a change to a tab's behaviour, once, before the PR |
 | `docker build --target naked -t syns-naked .` | the naked image builds with the pinned Claude Code | a change to `Dockerfile` |
 | `docker build --target syn -t syns-syn .` | the syn variant builds with the templates and plugin | a change to `Dockerfile`, `templates/` or `plugin/` you want to try in a container |
 | `docker run --rm syns-naked claude --version` | Claude Code runs inside the image (exit 0) | after building the image |

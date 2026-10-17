@@ -12,7 +12,7 @@
       "name": "syns-dashboard",
       "source": "./syns-dashboard",
       "description": "Re-entry at a glance: a pane reading ~/.syns/brain.json live",
-      "version": "0.1.3"
+      "version": "0.2.0"
     }
   ]
 }

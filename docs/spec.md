@@ -432,6 +432,31 @@ in awesome-claude's inspector look on the desktop and the terminal:
 - **Next:** brain.json's own `next` if it has one, else the top thread's.
 - A footer: **Standup** (`/syn:standup`) and **Brief** (`/syn:back`).
 
+The sections above are the pane's first tab, **Overview**. The other tabs were
+awesome-claude's mods; their code is syns source now, each in
+`syns-dashboard/hooks/<mod>/`, and each reads only while its tab is shown:
+
+- **Session** (`/overview`): what Overview doesn't show of the session: its
+  context window, the account's limits, activity (cost, time, turns, tools,
+  files), git (the branch, its PRs, the branches the session started) and the
+  machine. Tool calls and turns are counted whatever tab is shown.
+- **Files** (`/filetree [path]`): the file tree of the session's cwd (or the
+  folder given), with Claude's reads, writes and git steps marked as they
+  happen.
+- **Issues** (`/issues`): the repo's open GitHub issues, with refine, start
+  and sprint prompts.
+- **Launcher** (`/launcher`, `/preview`): the dev servers in
+  `.claude/launch.json`: start, stop, restart, take over, their output. Servers
+  it started keep running and logging on any tab.
+- **Lab** (`/lab [id]`), last, for mod authors: the index of engine
+  experiments; each experiment opens in a pane of its own.
+
+Each slash command opens the pane on its tab. **Blast Radius** has no tab: it
+holds a risky Bash command (`rm -r`, `git reset --hard`, `git clean`, a force
+push, a migration) and shows what it would change in a pane of its own, opened
+only while a command is held, with Proceed and Cancel (in the band above the
+prompt where the pane can't be placed).
+
 Not built yet, and wanted as the work pulls them in: everything in 33–38
 above (the session state and mode switch in the head, the quiz in the pane,
 jobs as rows with their states, the graph view of the machine, Done), guards

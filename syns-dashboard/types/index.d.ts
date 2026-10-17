@@ -137,10 +137,15 @@ export type EpicRow = {
   error?: string
 }
 
-/** The pane's tabs: Overview (the sections above) and Files (filetree's tree of the session's cwd). */
-export type DashTab = 'overview' | 'files'
+/**
+ * The pane's tabs: Overview (the sections above), Session (the session's context,
+ * limits, activity, cost and git), Files (filetree's tree of the session's cwd),
+ * Issues (the repo's open GitHub issues), Launcher (launch.json's dev servers)
+ * and Lab (the engine experiments, for mod authors).
+ */
+export type DashTab = 'overview' | 'session' | 'files' | 'issues' | 'launcher' | 'lab'
 
-// ---- filetree types (bun build.ts writes these, from awesome-claude mods/filetree/types/index.d.ts) ----
+// ---- filetree types (the Files tab, hooks/filetree/) ----
 
 export type FileNode = {
   id: string
@@ -203,6 +208,341 @@ export type FileTree = {
 
 // ---- end filetree types ----
 
+// ---- session types (the Session tab, hooks/session/: awesome-claude's overview mod) ----
+
+/** One category of the window, as /context lists it; `kind` as the engine stamps it. */
+export type Segment = { name: string; tokens: number; kind: 'used' | 'free' | 'buffer' | 'deferred' }
+
+/** One line item under a category (a memory file, an MCP server, a skill, an agent). */
+export type Item = { label: string; tokens: number }
+
+/** The breakdown, slimmed to what the tab draws. */
+export type Snapshot = {
+  model: string
+  total: number
+  max: number
+  percent: number
+  compactAt?: number
+  segments: Segment[]
+  memory: Item[]
+  mcp: Item[]
+  skills: Item[]
+  agents: Item[]
+}
+
+/** One changed path from `git status --porcelain=v2`. */
+export type GitFile = {
+  path: string
+  kind: 'conflict' | 'untracked' | 'added' | 'deleted' | 'renamed' | 'modified'
+  /** Only the index has the change (nothing left unstaged). */
+  staged: boolean
+}
+
+/** The session's repo as the git section draws it. */
+export type GitInfo = {
+  ok: true
+  /** `git rev-parse --show-toplevel` of the session cwd. */
+  root: string
+  repo: string
+  /** Branch name, or the short commit when detached. */
+  branch: string
+  detached: boolean
+  upstream?: string
+  ahead: number
+  behind: number
+  worktree: { name: string; path: string; linked: boolean; count: number }
+  staged: number
+  modified: number
+  untracked: number
+  conflicted: number
+  insertions: number
+  deletions: number
+  /** The first few changed paths. */
+  files: GitFile[]
+  /** Changed paths in all, beyond `files` too. */
+  fileCount: number
+  /** Set when the last read failed and these are the last-good figures kept through it: why it failed. Absent after a good read. */
+  failed?: string
+  /** With `failed`: when the figures were last read good (ms since epoch). */
+  at?: number
+}
+
+/** Why there is no git section: not a repo, git missing. */
+export type GitNote = { ok: false; note: string }
+
+/** One pull request for the git section. */
+export type GitPr = {
+  number: number
+  title: string
+  url: string
+  /** `OPEN`, `MERGED` or `CLOSED`. */
+  state: string
+  isDraft: boolean
+  /** `APPROVED`, `CHANGES_REQUESTED`, `REVIEW_REQUIRED` or empty. */
+  review: string
+  checks: { passed: number; failed: number; pending: number }
+  /** Names of the failing checks. */
+  failing: string[]
+  /** The PR's head is the current branch. */
+  current: boolean
+  /** GitHub can't merge it for conflicts with its base (`mergeable` is `CONFLICTING`). */
+  conflicting?: boolean
+}
+
+/** The cached `gh` result, refreshed on a slower timer. */
+export type GhInfo = {
+  /** The repo root it was fetched for. */
+  root: string
+  prs: GitPr[]
+  /** Why there are no PRs to show: gh missing, unauthenticated, no remote. */
+  note?: string
+  /** Set when the last read failed and `prs` are the last-good ones kept through it: why it failed. Absent after a good read. */
+  failed?: string
+  /** When `prs` were read (ms since epoch); with `failed`, when they were last read good. */
+  at: number
+}
+
+/** The workspaces' shared `gh pr list` read: whether the last one failed, and when the PRs were last read good. */
+export type WorkspacesGh = { failed?: string; at: number }
+
+/** One account rate-limit window as the API last reported it. */
+export type Limit = {
+  /** `five_hour`, `seven_day`, a gateway's `spend_limit`, or another window the API names. */
+  kind: string
+  /** 0 to 100; past 100 on an exceeded spend limit. */
+  percent: number
+  /** ISO 8601 time the window resets. */
+  resetsAt?: string
+}
+
+/** One tool's calls this session, and how many of them errored. */
+export type ToolCount = { n: number; err: number }
+
+/** One main-loop turn: its time, its tokens, and the tool calls made during it (absent on older points). */
+export type TurnPoint = {
+  ms: number
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  calls?: number
+  /** The turn's tool calls by tool name (absent on older points). */
+  tools?: Record<string, number>
+}
+
+/** What the session has done, as the hooks saw it (the overview mod's `Activity`; filetree's `Activity` is another thing). */
+export type SessionActivity = {
+  /** When the session's figures count from (ms since epoch); absent until the first usage read. */
+  startedAt?: number
+  /** US dollars so far; absent where the host keeps no cost ledger. */
+  cost?: number
+  /** Main-loop turns finished. */
+  turns: number
+  /** Tool calls since the last turn finished, for the next TurnPoint. */
+  callsThisTurn?: number
+  /** Those calls by tool name. */
+  turnTools?: Record<string, number>
+  /** Calls per tool name, subagents' included. */
+  tools: Record<string, ToolCount>
+  /** Paths Edit, Write, MultiEdit and NotebookEdit touched, each once. */
+  files: string[]
+  /** The last main-loop turns, oldest first. */
+  turnLog: TurnPoint[]
+  /** The context window's percent at each measurement, oldest first. */
+  contextLog: number[]
+}
+
+/** A branch the session started (or began on), and the checkout it lives in. */
+export type Tracked = { branch: string; path: string; at: number }
+
+/** One tracked branch's state against the repo's default branch, and its PR. */
+export type BranchView = {
+  branch: string
+  /** The checkout (main or a worktree) the branch was started in. */
+  path: string
+  /** That checkout's folder name, and whether it's a linked worktree. */
+  place: string
+  worktree: boolean
+  /** The branch still exists locally. */
+  exists: boolean
+  /** It's what that checkout has checked out now, so the uncommitted counts are its. */
+  checkedOut: boolean
+  /** Commits ahead of and behind the default branch. */
+  ahead: number
+  behind: number
+  /** Lines added and removed against the default branch, committed and not. */
+  insertions: number
+  deletions: number
+  staged: number
+  modified: number
+  untracked: number
+  conflicted: number
+  /** Pushed: the remote has the branch. */
+  pushed: boolean
+  /** Its most recent PR, if any. */
+  pr: GitPr | null
+}
+
+/** This session's process tree against the whole machine, from the last sample. */
+export type Resources = {
+  /** Processes in the session's tree. */
+  procs: number
+  /** CPU: the tree's and the system's busy share of all cores, 0 to 100. */
+  cpu: number
+  cpuAll: number
+  /** Memory: the tree's resident bytes, and the machine's RAM. */
+  mem: number
+  memAll: number
+  /** Disk: the system's bytes per second, read plus written (macOS has no cheap per-process figure). */
+  diskAll: number
+  /** Network: bytes per second in plus out; the tree's is null until nettop's first sample. */
+  net: number | null
+  netAll: number
+}
+
+// ---- end session types ----
+
+// ---- issues types (the Issues tab, hooks/issues/) ----
+
+/** A label as GitHub colours it. */
+export type Label = { name: string; color: string }
+
+/** A pull request linked to close an issue ("Closes #n"), with its state. */
+export type LinkedPr = {
+  number: number
+  title: string
+  url: string
+  /** `OPEN`, `MERGED` or `CLOSED`; empty when it lives in another repository and wasn't read. */
+  state: string
+  isDraft: boolean
+  /** GitHub can't merge it for conflicts with its base. */
+  conflicting: boolean
+  /** Checks failing, and still running. */
+  failing: number
+  pending: number
+}
+
+/** One open issue, slimmed to what the tab draws. */
+export type Issue = {
+  number: number
+  title: string
+  url: string
+  author: string
+  labels: Label[]
+  assignees: string[]
+  comments: number
+  /** When it last changed (ms since epoch). */
+  updatedAt: number
+  /** The pull requests linked to close it. */
+  prs: LinkedPr[]
+}
+
+/** The last `gh issue list`: the repository's open issues, newest change first. */
+export type IssueList = {
+  /** `owner/name`; empty when gh couldn't tell. */
+  repo: string
+  issues: Issue[]
+  /** Whether there are more open issues than were read. */
+  more: boolean
+  /** When it was last read well (ms since epoch). */
+  at: number
+  /** Why there's nothing to show, when gh failed on the first read. */
+  note?: string
+  /** Why the last refresh failed, when these are the last-good issues kept through it. */
+  failed?: string
+}
+
+// ---- end issues types ----
+
+// ---- launcher types (the Launcher tab, hooks/launcher/) ----
+
+/** One entry of `.claude/launch.json`'s `configurations`, as the desktop app reads it. */
+export type LaunchConfig = {
+  name: string
+  runtimeExecutable: string
+  runtimeArgs: string[]
+  port: number
+  /** Relative to the project root (the folder holding `.claude/`); absent, the root. */
+  cwd?: string
+  env?: Record<string, string>
+  /** When the port is taken, run on the next free one instead. */
+  autoPort?: boolean
+}
+
+/** The project's `.claude/launch.json`, as last read. */
+export type LaunchFile = {
+  /** The folder holding `.claude/launch.json`; empty when none was found. */
+  root: string
+  configs: LaunchConfig[]
+  /** Why there's nothing to show (no file, unreadable JSON). */
+  note?: string
+  /** When it was read (ms since epoch). */
+  at: number
+}
+
+/**
+ * - `stopped`: nothing answers on its port;
+ * - `starting`: started from this session, its port not answering yet;
+ * - `running`: started from this session (or taken over) and answering;
+ * - `elsewhere`: something this session didn't start answers on its port, and
+ *   it is this configuration's server (its command line or working directory
+ *   match), or there's no telling whose it is;
+ * - `taken`: the process on its port is another one's (another configuration's
+ *   on the same port, or another program);
+ * - `failed`: started from this session and exited on its own with an error.
+ */
+export type Status = 'stopped' | 'starting' | 'running' | 'elsewhere' | 'taken' | 'failed'
+
+/** A server this session didn't start but took over: Stop signals its process. */
+export type Adopted = {
+  pid: number
+  port: number
+  /** When it started and its command line, as ps said when it was taken over: Stop signals the pid only while ps still says both (not a later process given the same pid). */
+  start: string
+  command: string
+  /** When it was taken over (ms since epoch). */
+  at: number
+}
+
+/** A Kill pressed once, waiting for the second press that confirms it. */
+export type KillConfirm = {
+  name: string
+  /** The process the first press found on `port`, and who it was (as in Adopted): the second press signals it only if it's still that. */
+  pid: number
+  port: number
+  start: string
+  command: string
+  /** When the confirm lapses (ms since epoch, the engine's clock). */
+  until: number
+}
+
+/** One configuration's server as the tab draws it. */
+export type Server = {
+  status: Status
+  /** The port it runs on: the configuration's, or the free one `autoPort` picked. */
+  port: number
+  /** The last lines it wrote, oldest first (at most 200). */
+  log: string[]
+  /** How it last ended: its exit code, null for a signal or while it runs. */
+  code: number | null
+  /** When this session started it (ms since epoch); 0 when it didn't. */
+  startedAt: number
+  /** While it answers: the CPU (percent of one core) of the process listening on its port, one sample a tick while the tab is shown, oldest first (at most 60). Absent when it can't be measured (no lsof or ps). */
+  cpu?: number[]
+  /** While it answers: that process's resident memory, in bytes, at the last sample. */
+  rss?: number
+  /** The process listening on its port when this session didn't start it (lsof), and its command line (ps). */
+  pid?: number
+  command?: string
+  /** Running because it was taken over: its output isn't the launcher's to show. */
+  adopted?: boolean
+}
+
+// ---- end launcher types ----
+
+/** Whether a wide app pane flows a view's items into columns (its footer's switch); on until flipped. Lab's and blast-radius's. */
+export type ColumnsView = boolean
+
 declare module 'claude-code' {
   interface PluginState {
     'syns-dashboard': {
@@ -235,6 +575,66 @@ declare module 'claude-code' {
       filesTree: FileTree
       /** Claude's git steps the Files tab's footer shows: filetree's `activity`. */
       filesActivity: Activity[]
+
+      // The Session tab (hooks/session/): the overview mod's state, each key prefixed `session`.
+      /** The account's rate-limit windows from the last usage read; null until the first. */
+      sessionLimits: Limit[] | null
+      /** The session cwd's git state; null until the first read. */
+      sessionGit: GitInfo | GitNote | null
+      /** The last `gh` read for that repo; null until the first. */
+      sessionGh: GhInfo | null
+      sessionSnapshot: Snapshot | null
+      /** The clock elapsed times are drawn against (ms since epoch). */
+      sessionNow: number
+      /** Cost, time, turns, tool calls and files: the session's activity. */
+      sessionActivity: SessionActivity
+      /** The app mode's section ids the person folded. */
+      sessionCollapsed: string[]
+      /** Whether a wide app pane flows its sections into columns (the footer's switch); on until flipped. */
+      sessionColumns: boolean
+      /** The session's share of the machine; null until two samples give rates. */
+      sessionResources: Resources | null
+      /** Branches the session started or began on, oldest first. */
+      sessionTracked: Tracked[]
+      /** Branches the person closed with ✕. */
+      sessionHidden: string[]
+      /** Each shown tracked branch's state, newest first. */
+      sessionBranches: BranchView[]
+      /** The last `gh pr list` for the workspaces; null until the first. Their PRs are kept through a failed one. */
+      sessionWorkspacesGh: WorkspacesGh | null
+      /** A branch a PR is being created for, while gh runs. */
+      sessionCreating: string | null
+
+      // The Issues tab (hooks/issues/), each key prefixed `issues`.
+      issuesList: IssueList | null
+      /** Issues selected for a sprint, by number. */
+      issuesSelected: number[]
+      /** The title of the issue being added, while gh runs. */
+      issuesAdding: string | null
+      /** Whether gh is being read right now. */
+      issuesReading: boolean
+      /** The issue the terminal's cursor is on (the one whose row holds the focus), by number. */
+      issuesCursor: number | null
+      /** Whether a wide app pane flows the tiles into columns (the footer's switch); on until flipped. */
+      issuesColumns: boolean
+
+      // The Launcher tab (hooks/launcher/), each key prefixed `launcher`.
+      launcherFile: LaunchFile | null
+      /** By configuration name. */
+      launcherServers: Record<string, Server>
+      /** Configurations whose details and output are unfolded, by name. */
+      launcherOpen: string[]
+      /** Servers taken over from elsewhere, by configuration name. */
+      launcherAdopted: Record<string, Adopted>
+      /** The row whose Kill waits for its confirming press, if any. */
+      launcherConfirm: KillConfirm | null
+      /** Whether a wide app pane flows its rows into columns (the footer's switch); on until flipped. */
+      launcherColumns: boolean
+
+      /** The Lab tab (hooks/lab/): whether a wide app pane flows the index's groups and the gallery into columns. */
+      labColumns: ColumnsView
+      /** blast-radius (hooks/blast-radius/): whether a wide app pane flows the held report's lines into columns. */
+      blastColumns: ColumnsView
     }
   }
 }
