@@ -23,7 +23,7 @@ const bandOpen = atom({ plugin: 'syns-dashboard', key: 'bandOpen' } as const, nu
 const context = atom({ plugin: 'syns-dashboard', key: 'context' } as const, null)
 const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
 const ignoredOpen = atom({ plugin: 'syns-dashboard', key: 'ignoredOpen' } as const, false)
-const decidedOpen = atom({ plugin: 'syns-dashboard', key: 'decidedOpen' } as const, [] as number[])
+const unfolded = atom({ plugin: 'syns-dashboard', key: 'unfolded' } as const, [] as string[])
 const prMenu = atom({ plugin: 'syns-dashboard', key: 'prMenu' } as const, null as string | null)
 
 /** The pane's tabs, in order. */
@@ -366,7 +366,7 @@ export const register: Register = (on, options) => {
       doing: await read($, doing),
       collapsed: await read($, collapsed),
       ignoredOpen: await read($, ignoredOpen),
-      decidedOpen: await read($, decidedOpen),
+      unfolded: await read($, unfolded),
       prMenu: await read($, prMenu),
       now: await $.clock.now(),
     }
@@ -383,7 +383,7 @@ export const register: Register = (on, options) => {
         ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),
         showIgnored: () => void update($, ignoredOpen, was => !was).catch(() => undefined),
         menu: ref => void update($, prMenu, was => (was === ref ? null : ref)).catch(() => undefined),
-        unfold: id => void update($, decidedOpen, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])).catch(() => undefined),
+        unfold: id => void update($, unfolded, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])).catch(() => undefined),
         flow: { on: flowOn, toggle: () => void update($, columns, was => !was).catch(() => undefined) },
       }, e.props.isFocused),
     )

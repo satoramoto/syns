@@ -387,7 +387,10 @@ every 2 s while the pane is shown; nothing runs while it's hidden). Sections,
 in awesome-claude's inspector look on the desktop and the terminal:
 
 - **Doing:** the top 3 active threads by priority, each its
-  title (up to the first colon), priority, and its `next` (first sentence).
+  title (up to the first colon), priority, and its `next` (first sentence);
+  the rest of the title (what it's about) behind a per-thread fold. Every
+  section is a collapsible list (header and items one surface, hairlines
+  between items), each item a two-line list item.
 - **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
   newest `answer.at` first. Each item's title is its question in one line (the
   item's `title` or `topic` when it has one, else the question's first

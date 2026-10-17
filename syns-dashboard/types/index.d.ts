@@ -179,8 +179,8 @@ declare module 'claude-code' {
       columns: boolean
       /** Whether Pull requests lists its ignored repos and PRs (the header's "N ignored" pressed). */
       ignoredOpen: boolean
-      /** Decided items unfolded to their note, full question and reason, by inbox id; folded by default. */
-      decidedOpen: number[]
+      /** List items unfolded (`thread-<id>` to what it's about, `decided-<id>` to its note, question and reason); folded by default. */
+      unfolded: string[]
       /** The PR (`owner/repo#n`) whose ⋮ menu is unfolded in Pull requests, if any. */
       prMenu: string | null
       /** The band's unfolded list. */

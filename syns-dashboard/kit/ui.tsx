@@ -770,6 +770,237 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     )
 
   /**
+   * A list item: one item of a `collapsibleList`, read in two lines, as an
+   * app's PR or thread list draws them:
+   *
+   *   [lead]  title ……………………………… right  [fold]
+   *   [mark]  subtitle  meta…  [end mark]
+   *           what the fold holds, while `open`
+   *
+   * - `lead`: a status kind, an icon key (in `leadColor`, muted by default) or an
+   *   element (a short text badge such as `P1`). It sits in a slot of fixed width
+   *   and height, centred on the title's line, so an SVG icon and a glyph or
+   *   badge take the same room and every item's title starts on one column,
+   *   whether it has a lead or not.
+   * - `title`: one line, cut with an ellipsis; `bold` for the one that leads, `dim`
+   *   for one waiting its turn.
+   * - `right`: figures (strings, dim) and controls (a ⋮ Button) on the title's
+   *   line, centred on it, at the right edge.
+   * - `subtitle`: the second line, dim; `subtitleWrap` lets it wrap rather than
+   *   cut. `subtitleLead` takes the lead's slot on that line (a ✓ before a
+   *   decision); `strong` draws the subtitle in the text's own colour, bold where
+   *   the surface has it (a decision called out rather than a detail).
+   *   `meta` follows it on the line (strings dim, elements such as a Link as
+   *   they are), `mark` ends it in a fixed slot centred on the line (a CI mark).
+   * - `children`: lines under the subtitle, starting under the title, shown while
+   *   `open` (or always, without `onToggle`). `onToggle` draws the fold arrow
+   *   last on the title's line, as a section's header does.
+   *
+   * No box, fill, padding or rule of its own: the `collapsibleList` it sits in
+   * pads it and draws the hairline between items.
+   * On the terminal: the lead in a 2-cell column, the title and right cluster as
+   * an `item`, the subtitle and children each a line under the title.
+   */
+  const listItem = (
+    key: string,
+    e: {
+      title: string
+      lead?: StatusKind | string | RenderElement | null
+      leadColor?: string
+      bold?: boolean
+      dim?: boolean
+      right?: (RenderElement | string | null | false)[]
+      subtitle?: string
+      subtitleWrap?: boolean
+      subtitleLead?: StatusKind | string | RenderElement | null
+      strong?: boolean
+      meta?: (RenderElement | string | null | false)[]
+      mark?: StatusKind | RenderElement | null
+      open?: boolean
+      onToggle?: () => void
+      children?: (RenderElement | null)[]
+    },
+  ): RenderElement => {
+    const glyph = (x: StatusKind | string | RenderElement | null | undefined, color?: string) =>
+      x == null ? null : typeof x === 'string' ? (x in STATUS ? status(x as StatusKind) : icon(x, color ?? MUTED)) : x
+    const shown = !e.onToggle || Boolean(e.open)
+    const kids = shown ? (e.children ?? []).filter((c): c is RenderElement => c != null) : []
+    const arrow = e.onToggle
+      ? Button
+        ? <Button key={`${key}-fold`} plain dimColor label={terminal ? (e.open ? FOLD.open : FOLD.closed) : fold(!e.open)} onPress={() => e.onToggle?.()} />
+        : <Text key={`${key}-fold`} dimColor>{terminal ? (e.open ? FOLD.open : FOLD.closed) : fold(!e.open)}</Text>
+      : null
+    const right = [...(e.right ?? []).filter((x): x is RenderElement | string => Boolean(x)), ...(arrow ? [arrow] : [])]
+    const meta = (e.meta ?? []).filter((x): x is RenderElement | string => Boolean(x))
+    const mark = e.mark == null ? null : typeof e.mark === 'string' ? status(e.mark as StatusKind) : e.mark
+    const subLook = e.strong ? { bold: true } : tone('mid')
+    if (terminal) {
+      const under = (k2: string, el: RenderElement) => (
+        <Box key={k2} paddingLeft={GUTTER} flexDirection="row" minWidth={0}>
+          {el}
+        </Box>
+      )
+      const subLead = glyph(e.subtitleLead)
+      return (
+        <Box key={key} flexDirection="column" minWidth={0}>
+          {item(`${key}-title`, { lead: glyph(e.lead, e.leadColor) ?? undefined, text: e.title, bold: e.bold, dim: e.dim, right })}
+          {e.subtitle || meta.length || mark
+            ? under(
+                `${key}-sub`,
+                <Box flexDirection="row" gap={CELLS.pair} minWidth={0}>
+                  {subLead ? <Box flexShrink={0}>{subLead}</Box> : null}
+                  {e.subtitle ? (
+                    <Box flexShrink={1} minWidth={0}>
+                      <Text wrap={e.subtitleWrap ? 'wrap' : 'truncate'} {...subLook}>
+                        {e.subtitle}
+                      </Text>
+                    </Box>
+                  ) : null}
+                  {meta.map((m, i) => (typeof m === 'string' ? <Text key={`m${i}`} {...tone('mid')}>{m}</Text> : m))}
+                  {mark}
+                </Box>,
+              )
+            : null}
+          {kids.map((c, i) => under(`${key}-more-${i}`, c))}
+        </Box>
+      )
+    }
+    // The lead's slot: a fixed width (a two-letter badge and its room) and one text line tall; each
+    // line is its own row, centred, so a slot's centre is its line's whatever that line's height.
+    const SLOT = 2 + SPACE.pair
+    const slot = (k2: string, x: RenderElement | null) => (
+      <Box key={k2} width={SLOT} height={1} flexShrink={0} flexDirection="row" alignItems="center">
+        {x}
+      </Box>
+    )
+    return (
+      <Box key={key} flexDirection="column" width="100%" minWidth={0} rowGap={TILE_ROW_GAP * 2}>
+        <Box key="title" flexDirection="row" alignItems="center" width="100%" minWidth={0} gap={0}>
+          {slot('lead', glyph(e.lead, e.leadColor))}
+          <Box flexShrink={1} flexGrow={1} width={0} minWidth={0}>
+            <Text wrap="truncate" bold={e.bold} {...(e.dim ? tone('mid') : {})}>
+              {e.title}
+            </Text>
+          </Box>
+          {right.length ? (
+            <Box flexDirection="row" alignItems="center" gap={space.item} flexShrink={0} marginLeft={space.item}>
+              {right.map((x, i) => (typeof x === 'string' ? <Text key={`r${i}`} {...tone('mid')}>{x}</Text> : x))}
+            </Box>
+          ) : null}
+        </Box>
+        {e.subtitle || meta.length || mark ? (
+          <Box key="sub" flexDirection="row" alignItems={e.subtitleWrap ? 'flex-start' : 'center'} width="100%" minWidth={0}>
+            {slot('sub-lead', glyph(e.subtitleLead))}
+            <Box flexDirection="row" alignItems="center" gap={SPACE.pair} flexShrink={1} flexGrow={1} width={0} minWidth={0}>
+              {e.subtitle ? (
+                <Box flexShrink={1} minWidth={0}>
+                  <Text wrap={e.subtitleWrap ? 'wrap' : 'truncate'} {...subLook}>
+                    {e.subtitle}
+                  </Text>
+                </Box>
+              ) : null}
+              {meta.map((m, i) =>
+                typeof m === 'string' ? (
+                  <Text key={`m${i}`} {...tone('mid')}>
+                    {m}
+                  </Text>
+                ) : (
+                  m
+                ),
+              )}
+              {mark ? (
+                <Box key="mark" width={2} height={1} flexShrink={0} flexDirection="row" alignItems="center">
+                  {mark}
+                </Box>
+              ) : null}
+            </Box>
+          </Box>
+        ) : null}
+        {kids.length ? (
+          <Box key="more" flexDirection="column" paddingLeft={SLOT} minWidth={0} rowGap={TILE_ROW_GAP * 2}>
+            {kids}
+          </Box>
+        ) : null}
+      </Box>
+    )
+  }
+
+  /**
+   * A collapsible list: a section whose body is a list of items (`listItem`s, or a
+   * `note` when there are none), drawn as one surface. The header (icon, title,
+   * figures, the fold arrow last) and the items share one quiet fill (FILL.tile),
+   * a hairline (TRACK, HAIRLINE tall, as the tabs' rule) under the header and
+   * between items, each item padded alike. No band on the pane with tiles under
+   * it: one thing, one fill.
+   *
+   * Folded, only the header shows. `section` stays for bodies that aren't a list
+   * (readings, bars, props); this is a list's section.
+   * On the terminal it's a `section` with the items stacked under it, no rules:
+   * the two-line rhythm and the indent separate them.
+   */
+  const collapsibleList = (s: {
+    id: string
+    title: string
+    icon?: string
+    right?: RenderElement | null
+    collapsed?: boolean
+    onToggle?: () => void
+    loading?: boolean
+    items: (RenderElement | null | false)[]
+  }) => {
+    const items = s.items.filter((x): x is RenderElement => Boolean(x))
+    if (terminal) {
+      return section({ id: s.id, title: s.title, icon: s.icon, right: s.right, collapsed: s.collapsed, onToggle: s.onToggle, loading: s.loading, children: items })
+    }
+    const right = s.right ?? (s.loading ? summary([], { loading: true }) : null)
+    const arrow = fold(Boolean(s.collapsed))
+    const toggle =
+      s.onToggle && Button ? (
+        <Button key={`toggle-${s.id}`} plain dimColor label={arrow} onPress={() => s.onToggle?.()} />
+      ) : (
+        <Text dimColor>{arrow}</Text>
+      )
+    const rule = (key: string) => <Box key={key} height={HAIRLINE} flexShrink={0} backgroundColor={TRACK} />
+    const header = (
+      <Box key="head" flexDirection="row" justifyContent="space-between" alignItems="center" gap={SPACE.item} paddingX={INSET} height={BAND_ROWS} flexShrink={0} overflow="hidden">
+        <Box flexDirection="row" alignItems="center" flexShrink={0}>
+          {s.icon ? (
+            <Box width={2} flexShrink={0} flexDirection="row" alignItems="center">
+              {icon(s.icon, MUTED)}
+            </Box>
+          ) : null}
+          <Text wrap="truncate" bold>
+            {s.title}
+          </Text>
+        </Box>
+        <Box flexDirection="row" alignItems="center" justifyContent="flex-end" gap={SPACE.item} minWidth={0} flexShrink={1}>
+          {right ? (
+            <Box flexDirection="row" minWidth={0} flexShrink={1} overflow="hidden">
+              {right}
+            </Box>
+          ) : null}
+          <Box minWidth={1.6} flexShrink={0} flexDirection="row" justifyContent="flex-end">
+            {toggle}
+          </Box>
+        </Box>
+      </Box>
+    )
+    const body = s.collapsed
+      ? []
+      : items.flatMap((x, i) => [
+          rule(`rule-${i}`),
+          <Box key={`item-${i}`} flexDirection="column" width="100%" minWidth={0} paddingX={INSET} paddingY={TILE_PAD_Y}>
+            {x}
+          </Box>,
+        ])
+    return (
+      <Box key={`list-${s.id}`} flexDirection="column" marginTop={1}>
+        {rounded(FILL.tile, { flexDirection: 'column', width: '100%', minWidth: 0 }, [header, ...body])}
+      </Box>
+    )
+  }
+
+  /**
    * A thin bar: parts left to right out of `max`, the rest as track. On the
    * terminal one row `width` cells wide (a section body's width by default): the
    * gauge's heavy line, each part in its own colour, `room` parts and the rest
@@ -2044,6 +2275,8 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     pinned,
     share,
     tile,
+    listItem,
+    collapsibleList,
     bar,
     capped,
     rounded,
