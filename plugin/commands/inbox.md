@@ -8,30 +8,34 @@ syn: the smallest version of the approval loop.
 1. Read `inbox` in the brain file (the path in `$SYN_BRAIN`, or
    `~/.syns/brain.json` when that's unset), taking the items with `status: "open"`. Order them: approvals first, then
    questions whose `blocks` isn't empty, then the rest.
-2. Ask with the question tool, up to 4 items per call, using each item exactly
+2. Before asking: for every open approval with an `epic` whose epic has a
+   proposal page under `evidence`, read `approvals/<epic id>` from that
+   artifact's db (ArtifactData, `action: "get"`, `collection: "approvals"`,
+   `doc_id` the epic id). A document with `by: "page"`, `inbox` equal to the
+   item's id and a `decision` of approve or reject is Ryan's answer: apply it
+   with the `epic-decision` skill (door `page`) without asking, and leave
+   the item out of the quiz. Anything else (no document, an earlier
+   approval's, no ArtifactData tool) leaves the item for the quiz.
+3. Ask with the question tool, up to 4 items per call, using each item exactly
    as stored:
    - the question is its `question`;
    - the header is its kind and id (e.g. "Approval 14");
    - the options are its `options`, in order, with the one at `recommended`
      first and labelled "(Recommended)".
    The user can always answer "Other".
-3. After each batch, apply the answers right away:
+4. After each batch, apply the answers right away:
    - do what the item's `applies` names, using the chosen option;
    - set the item's `status` to "answered" and its `answer` to
      `{ choice, note?, at }`, then move it from `inbox` to `answered`;
    - an approval (`reversible: false`) means the action may now happen, so do
      it, or hand it to an assistant.
    - an approval with an `epic` field (or, failing that, whose `applies`
-     names an epic's `epic.json`) also sets that epic's `status`: Approve →
-     `"approved"`, Reject → `"rejected"`, Revise → stays `"review"` with
-     `rev` raised by one and a `revisions` entry `{ rev, at, note }`
-     carrying the answer's note. Add the item's id to the epic's
-     `decisions`, and append one line to `~/.syns/memory.jsonl`:
-     `event: "epic.status"` (or `"epic.revised"` with `rev` for Revise),
-     `from`, `to`, `by: "Ryan"`, `via: "inbox <id>"` (shape in
-     `docs/epics.md`).
+     names an epic's `epic.json`) is applied by the `epic-decision` skill
+     (door `inbox`): the epic's `status` and `decisions`, the ledger line,
+     the item answered, and the page's db document written so the page
+     shows it.
    A dismissed batch changes nothing.
-4. Keep going batch by batch until the inbox is empty or the user stops.
+5. Keep going batch by batch until the inbox is empty or the user stops.
    Never ask anything outside the inbox during the run.
-5. End with one line: how many were answered, what's left, and what each
-   answer unblocked.
+6. End with one line: how many were answered (and how many on a page),
+   what's left, and what each answer unblocked.

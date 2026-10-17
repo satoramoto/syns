@@ -1,0 +1,307 @@
+<!--
+  Epic proposal page. A session copies this file to ~/.syns/epics/<id>/page.html,
+  fills the placeholders from that epic's epic.json (and proposal.md for the
+  prose), and publishes it with the Artifact tool as a private page with the
+  capabilities {"comments":{"composer_only":true},"db":{},"user":{}}.
+  No build step: fill by hand, keep it one plain HTML file. Escape text for
+  HTML (& < > ") when you put it in. Leave no {{…}} or EACH marker behind.
+
+  Scalars (from epic.json unless said otherwise):
+    {{id}}             epic id, e.g. bloom-swarm (also in the script below)
+    {{title}}          the page title, two to four words
+    {{headline}}       the h1: the goal or question, one line
+    {{lede}}           two or three sentences: what it proposes, and where it stands now
+    {{rev}}            current rev (a number; also in the script)
+    {{date}}           date of this rev, YYYY-MM-DD
+    {{status}}         epic status: draft, review, approved, rejected, active, done, dropped
+    {{status_glyph}}   ◐ draft/review/active, ● approved/done, ✕ rejected, ○ dropped
+    {{status_colour}}  var(--warn) draft/review, var(--ok) approved/done, var(--blue) active,
+                       var(--bad) rejected, var(--ink-3) dropped
+    {{approval}}       inbox id of the open approval (`approval`; a number; also in the script)
+    {{approval_text}}  the Approval row: "Awaiting your decision · rev N" while in review,
+                       else "Approved · rev N" / "Rejected · rev N"
+    {{approval_note}}  under it: what approving lets start (the approval item's Approve
+                       description) while in review, else who decided, when and how
+    {{approval_glyph}} {{approval_colour}}  as status_glyph/status_colour, for the row
+    {{promise_count}} {{proven_count}} {{job_count}} {{decided_count}}  figures
+    {{decided_ids}}    inbox ids of `decisions`, e.g. "32–35, 37" ("none" when empty)
+    {{problem}}        one or more <p> from proposal.md's problem
+    {{chosen}}         approach.chosen
+    {{thread}} {{mode}} {{parent}} (links.parent or "none") {{raisedBy}} {{raisedAt}}
+
+  Repeated blocks, between <!-- EACH x --> and <!-- /EACH x -->: copy the block
+  once per entry, in epic.json order, and delete the markers.
+    alternative  {{alt.what}} {{alt.whyNot}}               (approach.alternatives)
+    risk         {{risk.what}} {{risk.then}}                (risks)
+    assumption   {{text}}                                    (assumptions, then dependencies)
+    promise      {{p.id}} {{p.text}} {{p.by}} {{p.job}} {{p.proof}} {{p.status}}
+                 {{p.glyph}}/{{p.colour}}: ○ var(--warn) open, ● var(--ok) proven,
+                 ✕ var(--bad) refuted, ○ var(--ink-3) dropped
+    segment      one per promise, the proof bar: for n promises and segment i (0-based)
+                 {{x}} = i*100/n, {{w}} = 100/n - 1 (one decimal), {{fill}} var(--ok)
+                 proven, var(--bad) refuted, var(--track) otherwise
+    job          {{j.id}} {{j.what}} {{j.owner}} {{j.state}} {{j.promises}} (e.g. "P2, P4")
+    question     {{q.question}} {{q.answer}}: per item in `questions`, from the brain's
+                 inbox or answered (the answer, or "open · recommended: <option>")
+  Optional: <!-- EXTRA SECTIONS --> takes any further <details> sections the
+  proposal needs (background, a diagram, a cost table), in the same shape.
+
+  The Approval row writes approvals/{{id}} in the artifact's db; the session
+  applies it with plugin/skills/epic-decision/SKILL.md. Republish this page
+  (same file path or url) whenever the epic changes.
+-->
+<title>{{title}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column of collapsible inspector sections (header: glyph, title, figures, fold arrow; readings indented under it), the way syns' mods draw. Palette and faces follow syns' UAT template so the artifacts read as one family. Colours carry one meaning each, as in zen's kit: blue live, green proven, amber open or near a limit, red refuted or failed, purple merged, slate quantity. */
+:root {
+  --bg: #f4f5f7; --ink: #16181d; --ink-2: #4b5160; --ink-3: #8a909c; --line: #dfe2e8; --head: rgba(128,128,128,0.09); --track: rgba(128,128,128,0.18);
+  --blue: #4b5bdc; --ok: #1f9d63; --warn: #b5871b; --bad: #d2453b; --purple: #7c4fbf; --slate: #6b7a90;
+  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111317; --ink: #e8eaef; --ink-2: #a9afbb; --ink-3: #6c7280; --line: #2a2e37;
+  --blue: #8b97ff; --ok: #3fc487; --warn: #e0b04a; --bad: #f06b61; --purple: #b08af5; --slate: #8a97ad; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111317; --ink: #e8eaef; --ink-2: #a9afbb; --ink-3: #6c7280; --line: #2a2e37;
+  --blue: #8b97ff; --ok: #3fc487; --warn: #e0b04a; --bad: #f06b61; --purple: #b08af5; --slate: #8a97ad; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 56px }
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 6px }
+header { display: grid; gap: 10px; padding-bottom: 18px }
+.id { font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3) }
+h1 { font-size: 24px; font-weight: 600; margin: 0; text-wrap: balance; line-height: 1.2 }
+.lede { color: var(--ink-2); max-width: 65ch; margin: 0 }
+.figures { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2) }
+.figures u { text-decoration: none; color: var(--ink-3); font-weight: 400 }
+.st { color: var(--c) }
+.st::before { content: attr(data-g) " " }
+details { border-top: 1px solid var(--line) }
+summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 6px; background: var(--head); font-weight: 600; font-size: 15px; min-width: 0 }
+summary::-webkit-details-marker { display: none }
+summary .g { width: 1.4em; text-align: center; color: var(--ink-3); font-family: var(--mono); font-weight: 400 }
+summary .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+summary .f { font: 400 13px var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0 }
+summary .fold { color: var(--ink-3); font-family: var(--mono); transition: transform .15s }
+details[open] summary .fold { transform: rotate(90deg) }
+details[open] summary .f.restated { display: none }
+.body { padding: 12px 6px 18px 32px; display: grid; gap: 12px }
+.body p { margin: 0; max-width: 65ch }
+.dim { color: var(--ink-3) }
+.m { font-family: var(--mono); font-size: 13px }
+code { font: 13px var(--mono); color: var(--ink-2) }
+.readings { display: grid; gap: 6px }
+.r { display: grid; grid-template-columns: 11ch minmax(60px, 1fr) 4.5ch 6ch; gap: 10px; align-items: center; font-size: 13px; min-width: 0 }
+.r .l { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.r svg { width: 100%; height: 6px; display: block }
+.r .v { font: 500 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums }
+.r .u { color: var(--ink-3); font-size: 12px }
+@media (max-width: 480px) { .r { grid-template-columns: 9ch minmax(40px, 1fr) 4ch 5ch; gap: 6px } .body { padding-left: 18px } }
+.items { display: grid; gap: 4px }
+.i { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 14px; padding: 3px 0 }
+.i .g { color: var(--c, var(--ink-3)); font-family: var(--mono); text-align: center }
+.i .x { min-width: 0 }
+.i .x b { font-weight: 500 }
+.i .x small { display: block; color: var(--ink-3); font-size: 13px; margin-top: 1px }
+.i .x small a { color: var(--blue); text-decoration: none }
+.i .x small a:hover { text-decoration: underline }
+.i .n { font: 400 12px var(--mono); color: var(--ink-3); white-space: nowrap; display: flex; gap: 6px; align-items: baseline }
+.i.q { grid-template-columns: 1.4em minmax(0, 1fr) }
+.props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 16px; font-size: 14px }
+.props dt { color: var(--ink-3); font: 400 13px var(--mono); padding-top: 1px }
+.props dd { margin: 0; min-width: 0 }
+button { font: 500 12px var(--mono); border: 0; border-radius: 4px; padding: 3px 8px; background: var(--head); color: var(--ink-2); cursor: pointer }
+button:hover { color: var(--ink) }
+button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+button[hidden], .n[hidden] { display: none }
+footer { border-top: 1px solid var(--line); padding-top: 12px; font: 12px var(--mono); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 6px 18px }
+@media (prefers-reduced-motion: reduce) { summary .fold { transition: none } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="id">epic · {{id}} · rev {{rev}} · {{date}} · {{status}}</div>
+  <h1>{{headline}}</h1>
+  <p class="lede">{{lede}}</p>
+  <div class="figures">
+    <span class="st" data-g="{{status_glyph}}" style="--c: {{status_colour}}">{{status}} · rev {{rev}}</span>
+    <span>{{promise_count}} <u>promises</u></span>
+    <span>{{proven_count}} <u>proven</u></span>
+    <span>{{decided_count}} <u>decided · inbox {{decided_ids}}</u></span>
+    <span>{{job_count}} <u>jobs</u></span>
+  </div>
+</header>
+
+<details open id="approval">
+  <summary><span class="g">◇</span><span class="t">Approval</span><span class="f" id="approval-f">inbox {{approval}} · {{status}}</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <div class="i" id="approval-row" style="--c: {{approval_colour}}"><span class="g" id="approval-g">{{approval_glyph}}</span><span class="x"><b id="approval-b">{{approval_text}}</b><small id="approval-s">{{approval_note}}</small></span><span class="n" id="approval-n" hidden><button class="decide" data-d="approve">approve</button><button class="decide" data-d="revise">revise</button><button class="decide" data-d="reject">reject</button></span></div>
+    </div>
+    <p class="dim">Approve and reject ask for a second click, then save; the session applies the decision to the epic, the ledger and inbox {{approval}}. Revise opens a comment on this row: say what to change.</p>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="g">?</span><span class="t">Problem</span><span class="fold">›</span></summary>
+  <div class="body">
+    {{problem}}
+  </div>
+</details>
+
+<details open>
+  <summary><span class="g">⚖</span><span class="t">Approach</span><span class="f restated">{{chosen}}</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <div class="i" style="--c: var(--blue)"><span class="g">◐</span><span class="x"><b>Chosen</b><small>{{chosen}}</small></span><span class="n"></span></div>
+      <!-- EACH alternative -->
+      <div class="i" style="--c: var(--ink-3)"><span class="g">○</span><span class="x"><b>{{alt.what}}</b><small>{{alt.whyNot}}</small></span><span class="n"></span></div>
+      <!-- /EACH alternative -->
+    </div>
+  </div>
+</details>
+
+<!-- EXTRA SECTIONS -->
+
+<details open id="promises">
+  <summary><span class="g">✓</span><span class="t">Promises</span><span class="f">{{proven_count}} / {{promise_count}} proven</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="readings">
+      <div class="r"><span class="l">proof bar</span><svg viewBox="0 0 100 6" preserveAspectRatio="none"><!-- EACH segment --><rect x="{{x}}" y="0" width="{{w}}" height="6" rx="3" fill="{{fill}}"/><!-- /EACH segment --></svg><span class="v">{{proven_count}}</span><span class="u">of {{promise_count}}</span></div>
+    </div>
+    <div class="items" data-comment-target>
+      <!-- EACH promise -->
+      <div class="i" style="--c: {{p.colour}}"><span class="g">{{p.glyph}}</span><span class="x"><b>{{p.id}} · {{p.text}}</b><small>{{p.status}} · {{p.by}} · {{p.job}} · proof plan: {{p.proof}}</small></span><span class="n"><button class="challenge" hidden>challenge</button></span></div>
+      <!-- /EACH promise -->
+    </div>
+    <p class="dim">Challenge opens a comment on that promise; comments come back to the session as review.</p>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="g">▤</span><span class="t">Jobs</span><span class="f">{{job_count}}</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <!-- EACH job -->
+      <div class="i" style="--c: var(--ink-3)"><span class="g">◌</span><span class="x"><b>{{j.id}} · {{j.owner}}</b><small>{{j.what}} · {{j.promises}}</small></span><span class="n">{{j.state}}</span></div>
+      <!-- /EACH job -->
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="g">!</span><span class="t">Risks</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <!-- EACH risk -->
+      <div class="i" style="--c: var(--warn)"><span class="g">△</span><span class="x"><b>{{risk.what}}</b><small>then: {{risk.then}}</small></span><span class="n"></span></div>
+      <!-- /EACH risk -->
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="g">≡</span><span class="t">Assumptions and dependencies</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <!-- EACH assumption -->
+      <div class="i q" style="--c: var(--ink-3)"><span class="g">·</span><span class="x">{{text}}</span></div>
+      <!-- /EACH assumption -->
+    </div>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="g">?</span><span class="t">Questions</span><span class="f">answer in the inbox</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <!-- EACH question -->
+      <div class="i q" style="--c: var(--purple)"><span class="g">◆</span><span class="x"><b>{{q.question}}</b><small>{{q.answer}}</small></span></div>
+      <!-- /EACH question -->
+    </div>
+  </div>
+</details>
+
+<footer><span>{{id}} · rev {{rev}}</span><span>thread {{thread}}</span><span>mode {{mode}}</span><span>parent {{parent}}</span><span>raised by {{raisedBy}} · {{raisedAt}}</span></footer>
+</div>
+
+<script>
+(async () => {
+  // Approval: the decision lives in the artifact's db at approvals/<id>
+  // ({decision, rev, inbox, at, by}); a session reads it and applies it to
+  // epic.json, the ledger and the inbox item (plugin/skills/epic-decision).
+  // A session that decides another way writes the same document, so this row
+  // shows every decision. Revise goes through a comment.
+  const EPIC = "{{id}}", REV = {{rev}}, APPROVAL = {{approval}}, OPEN = "{{status}}" === "review";
+  const use = (n) => window.claude?.use?.(n) ?? Promise.resolve(null);
+  const [db, user, comments] = await Promise.all([use("db"), use("user"), use("comments")]);
+  const faces = {
+    approve: { g: "●", c: "var(--ok)", b: "Approved", f: "approved" },
+    reject: { g: "✕", c: "var(--bad)", b: "Rejected", f: "rejected" },
+    revise: { g: "◐", c: "var(--warn)", b: "Revising", f: "revising" },
+  };
+  const n = document.getElementById("approval-n");
+  let decided = !OPEN;
+  const show = (d) => {
+    const face = faces[d?.decision];
+    if (!face || d.inbox !== APPROVAL) return; // a decision on an earlier rev's approval
+    decided = true;
+    n.hidden = true;
+    const row = document.getElementById("approval-row");
+    row.style.setProperty("--c", face.c);
+    document.getElementById("approval-g").textContent = face.g;
+    document.getElementById("approval-b").textContent = face.b + " · rev " + (d.rev ?? REV) + (d.by === "page" ? " (page)" : "");
+    document.getElementById("approval-s").textContent = "decided " + (d.at ?? "") + (d.by === "page" ? " on this page · the session applies it to the epic, the ledger and inbox " + APPROVAL : " · " + (d.by ?? "") + (d.note ? " · " + d.note : ""));
+    document.getElementById("approval-f").textContent = "inbox " + APPROVAL + " · " + face.f;
+    const st = document.querySelector(".figures .st");
+    if (st) { st.textContent = face.f + " · rev " + REV; st.dataset.g = face.g; st.style.setProperty("--c", face.c); }
+  };
+  if (db) {
+    const ref = db.doc("approvals/" + EPIC);
+    ref.onSnapshot((snap) => { if (snap.exists) show(snap.data()); }, () => {});
+    const canEdit = await (user?.canEdit?.() ?? Promise.resolve(false));
+    if (canEdit && !decided) {
+      n.hidden = false;
+      for (const b of n.querySelectorAll(".decide")) b.addEventListener("click", async () => {
+        const d = b.dataset.d;
+        if (d === "revise") {
+          if (!comments) return;
+          try { await comments.openComposer({ element: document.getElementById("approval-row") }); } catch (e) {}
+          return;
+        }
+        // No confirm(): dialogs are blocked in the artifact frame. Arm on the first click, write on the second.
+        if (b.dataset.armed !== "1") {
+          for (const x of n.querySelectorAll(".decide")) { x.dataset.armed = ""; x.textContent = x.dataset.d; }
+          b.dataset.armed = "1";
+          b.textContent = d + "? click again";
+          setTimeout(() => { if (b.dataset.armed === "1") { b.dataset.armed = ""; b.textContent = d; } }, 6000);
+          return;
+        }
+        b.dataset.armed = ""; b.textContent = d;
+        document.getElementById("approval-s").textContent = "saving…";
+        try {
+          await ref.set({ decision: d, rev: REV, inbox: APPROVAL, at: new Date().toISOString(), by: "page" });
+        } catch (e) {
+          document.getElementById("approval-s").textContent = "could not save the decision (" + (e?.code ?? e?.message ?? "error") + "); answer inbox " + APPROVAL + " instead";
+        }
+      });
+    }
+  }
+  if (!comments) return;
+  const buttons = document.querySelectorAll(".challenge");
+  for (const b of buttons) {
+    b.hidden = false;
+    b.addEventListener("click", async () => {
+      const row = b.closest(".i");
+      try {
+        const r = await comments.openComposer({ element: row });
+        if (!r.opened) return;
+      } catch (e) {
+        if (e && e.code === "unavailable") for (const x of buttons) x.hidden = true;
+      }
+    });
+  }
+})();
+</script>

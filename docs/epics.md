@@ -80,7 +80,32 @@ one ledger line.
   Ryan confirms become inbox questions. Never changes `status`.
 - `/syn:inbox`: answering an epic's approval sets its `status` (Approve →
   `approved`, Reject → `rejected`, Revise → `review`, rev + 1) and writes the
-  ledger line.
+  ledger line. It first takes any decision already made on the page.
+- `epic-decision` (a skill, no command): "approve <id>", "reject <id>" or
+  "revise <id>: <note>" in any session applies the same decision.
+
+## Deciding on the page
+
+The proposal page (`page.html`, filled from `templates/epic-page.html`,
+published with the capabilities `comments` (composer only), `db` and `user`)
+has an Approval row. Approve and reject arm on the first click and save on
+the second, to the artifact's db document `approvals/<epic id>`:
+
+| Field | Holds |
+| --- | --- |
+| `decision` | `approve` or `reject` (a session may also write `revise`) |
+| `rev` | the epic's rev the decision is on |
+| `inbox` | the approval item's id; the page shows only its current one |
+| `at` | when, ISO time |
+| `by` | `page`, or the door a session decided through: `inbox`, `words` |
+| `note` | optional, Ryan's note |
+
+Revise opens a comment on the row instead; comments reach the session that
+published the page. The page, the quiz in `/syn:inbox` and the spoken
+decision are three doors to one procedure, the plugin's `epic-decision`
+skill: `status` and `decisions` in `epic.json`, one ledger line (`via:
+"inbox <id>"`, the door in `note`), the approval item answered, and, for the
+quiz and words, the db document written so the page shows it.
 
 ## Ledger lines
 

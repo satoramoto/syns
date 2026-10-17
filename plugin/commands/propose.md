@@ -46,14 +46,22 @@ are in `docs/epics.md`; the example is
    - one `kind: "approval"` for the proposal itself, `reversible: false`,
      `blocks: ["<id> M1"]`, options Approve, Revise, Reject (in that order,
      Approve recommended), and `applies: "~/.syns/epics/<id>/epic.json
-     status"`.
+     status"`. Its `question` ends with "Page: <url>" once step 5 has
+     published the page.
    Every item gets `"epic": "<id>"`, `thread`, `raisedBy`, `raisedAt` and
    `status: "open"`. Put the question ids in the epic's `questions` and the
    approval's id in its `approval`.
 5. Set the epic's `status` to `"review"` and append the ledger line
-   `from: "draft"`, `to: "review"`. If the Artifact tool is available,
-   publish the proposal as a private page from `~/.syns/epics/<id>/page.html`
-   and record its url under `evidence` (`kind: "page"`).
+   `from: "draft"`, `to: "review"`. If the Artifact tool is available, make
+   `~/.syns/epics/<id>/page.html` from `templates/epic-page.html` in this
+   repo (its placeholders are listed at the top; fill them from `epic.json`
+   and `proposal.md`), and publish it as a private page with the
+   capabilities `{"comments":{"composer_only":true},"db":{},"user":{}}`.
+   Record its url under `evidence` as `{ kind: "page", url, note: "the
+   proposal page; its Approval row writes approvals/<id> in the artifact
+   db" }` and add "Page: <url>" to the approval's `question`. Ryan can then
+   decide on the page, in `/syn:inbox` or in words; all three apply the
+   `epic-decision` skill.
 6. End with one line: the folder path and how many questions are open.
 
 Ryan is the reviewer. Never run a review here; `/syn:review <id>` is his to
