@@ -220,7 +220,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                 list(
                   'decided-list',
                   b.decided.length
-                    ? // Each decision a tile: its fold arrow, the question in one line and its age; the decision called out under it (✓, bold);
+                    ? // Each decision a tile: the question in one line, its age, then its fold arrow flush right as on a section header; the decision called out under it (✓, bold);
                       // unfolded, the full question, the note and the reason.
                       b.decided.map(x => {
                         const open = d.decidedOpen.includes(x.id)
@@ -235,7 +235,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                           )
                         ) : null
                         return k.tile(`decided-${x.id}`, [
-                          led(`decided-${x.id}-row`, arrow, [k.item(`decided-${x.id}-head`, { text: x.title, right: [daysAgo(x.at, d.now)] })], true),
+                          led(`decided-${x.id}-row`, null, [k.item(`decided-${x.id}-head`, { text: x.title, right: [daysAgo(x.at, d.now), arrow] })], true),
                           led(
                             `decided-${x.id}-choice`,
                             k.status('done'),
