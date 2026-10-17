@@ -103,6 +103,26 @@ export type ContextSnap = {
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
 
+/** One `~/.syns/proposals/<id>/proposal.json` under Proposals: its status, claims and open questions. */
+export type ProposalRow = {
+  id: string
+  rev: number
+  /** `draft`, `review`, `approved`, `active`, `done`, `rejected` or `dropped`, lower-cased; empty when unset. */
+  status: string
+  /** The goal's first sentence. */
+  goal: string
+  /** Claims in all, and how many are verified and refuted (the rest are open). */
+  claims: number
+  verified: number
+  refuted: number
+  /** Its `questions` still open in brain.json's inbox. */
+  questions: number
+  /** The first `evidence` entry of kind `page`: the proposal's page; empty when none. */
+  page: string
+  /** Why the file couldn't be read (bad JSON). */
+  error?: string
+}
+
 /** The pane's tabs: Overview (the sections above) and Files (filetree's tree of the session's cwd). */
 export type DashTab = 'overview' | 'files'
 
@@ -174,6 +194,8 @@ declare module 'claude-code' {
     'syns-dashboard': {
       brain: BrainView | null
       prs: PrRow[]
+      /** Every `~/.syns/proposals/<id>/proposal.json`, review first; null before the first read. */
+      proposals: ProposalRow[] | null
       agents: AgentRow[]
       /** Each running agent's latest tool call, in words, by agent id. */
       doing: Record<string, string>

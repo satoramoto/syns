@@ -2,10 +2,11 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { holdButtons, kit } from '../kit/ui'
-import type { AgentRow, BandOpen, DashTab, PrCi, PrRow } from '../types'
+import type { AgentRow, BandOpen, DashTab, PrCi, PrRow, ProposalRow } from '../types'
 import { band } from './band'
 import { ignoredOf, toView, updateText } from './brain'
 import { toSnap } from './context'
+import { openInbox, sortProposals, toProposal } from './proposals'
 import { attach, hideTree } from './filetree/register'
 import { render } from './view'
 import type { Els } from './view'
@@ -15,6 +16,7 @@ const TITLE = 'syn'
 
 const brain = atom({ plugin: 'syns-dashboard', key: 'brain' } as const, null)
 const prs = atom({ plugin: 'syns-dashboard', key: 'prs' } as const, [])
+const proposals = atom({ plugin: 'syns-dashboard', key: 'proposals' } as const, null as ProposalRow[] | null)
 const agents = atom({ plugin: 'syns-dashboard', key: 'agents' } as const, [])
 const doing = atom({ plugin: 'syns-dashboard', key: 'doing' } as const, {})
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'collapsed' } as const, [])
@@ -54,11 +56,13 @@ const readContext = async ($: EngineInterface) => {
  * model would read `/syn:inbox` as words), so it's only the fallback, should the
  * command be unknown (the `syn` plugin not loaded).
  */
-const ask = ($: EngineInterface, command: string) =>
+const ask = ($: EngineInterface, command: string, args = '') => {
+  const typed = `/${command}${args ? ` ${args}` : ''}`
   void $.command
-    .run({ command })
-    .catch(() => $.prompt.submit({ text: `/${command}`, asUser: true }))
-    .catch(() => $.ui.toast(`/${command}: could not send it to the session`))
+    .run({ command, ...(args ? { args } : {}) })
+    .catch(() => $.prompt.submit({ text: typed, asUser: true }))
+    .catch(() => $.ui.toast(`${typed}: could not send it to the session`))
+}
 
 // ---- brain.json, read again whenever its mtime moves ----
 
@@ -87,6 +91,44 @@ const readBrain = async ($: EngineInterface, force = false) => {
   const fresh = toView(text, path, stat.mtimeMs)
   if (!same(old, fresh)) await update($, brain, () => fresh)
   if (!same(old?.prs, fresh.prs)) prsStale = true
+}
+
+// ---- proposals: <brain.json's folder>/proposals/*/proposal.json, read again when any of them (or brain.json, for open questions) moves ----
+
+/** The mtimes the proposals were last read at (brain.json's, then each folder's proposal.json), as one string. */
+let proposalsStamp = ''
+
+const readProposals = async ($: EngineInterface) => {
+  const brainFile = await pathOf($)
+  const dir = `${brainFile.slice(0, brainFile.lastIndexOf('/'))}/proposals`
+  // A folder, or a link to one: the file under it says whether it's a proposal.
+  const entries = (await $.fs.list(dir).catch(() => [])).filter(x => x.kind === 'dir' || x.isLink).map(x => x.name).sort()
+  const files = (
+    await Promise.all(
+      entries.map(async name => {
+        const path = `${dir}/${name}/proposal.json`
+        const stat = await $.fs.stat(path).catch(() => null)
+        return stat && stat.kind === 'file' ? { name, path, mtime: stat.mtimeMs } : null
+      }),
+    )
+  ).filter(f => f !== null)
+  const brainStat = await $.fs.stat(brainFile).catch(() => null)
+  const stamp = JSON.stringify([brainStat?.mtimeMs ?? 0, files.map(f => [f.name, f.mtime])])
+  const old = await read($, proposals)
+  if (old && stamp === proposalsStamp) return
+  proposalsStamp = stamp
+  const open = brainStat ? openInbox(await $.fs.read(brainFile).catch(() => '')) : null
+  const rows = sortProposals(
+    await Promise.all(files.map(async f => toProposal(await $.fs.read(f.path).catch(() => ''), f.name, open))),
+  )
+  if (!same(old, rows)) await update($, proposals, () => rows)
+}
+
+/** Opens a proposal's page in the browser, with macOS's `open`. */
+const openPage = async ($: EngineInterface, p: ProposalRow) => {
+  if (!p.page) return
+  const run = await $.process.run(['open', p.page], { timeoutMs: 10_000 })
+  if (run.exitCode !== 0) await $.ui.toast(`${p.id}: could not open its page (${(run.stderr || '').trim().split('\n').pop() || `open exited ${run.exitCode}`})`)
 }
 
 // ---- PRs: Ryan's open ones updated this week, plus any brain.json names, with CI; read when brain's list changes, else every few minutes ----
@@ -247,6 +289,7 @@ const tick = async ($: EngineInterface, force = false) => {
     // brain.json itself is read by its own timer (brainWorker), for the band and the pane alike.
     if (force) await readBrain($, true).catch(() => undefined)
     await readAgents($).catch(() => undefined)
+    await readProposals($).catch(() => undefined)
     if (prsStale || Date.now() - prsAt > PR_EVERY) await readPrs($).catch(() => undefined)
   } finally {
     busy = false
@@ -391,6 +434,7 @@ export const register: Register = (on, options) => {
     const data = {
       brain: await read($, brain),
       prs: await read($, prs),
+      proposals: await read($, proposals),
       agents: await read($, agents),
       doing: await read($, doing),
       collapsed: await read($, collapsed),
@@ -410,6 +454,8 @@ export const register: Register = (on, options) => {
         inbox: () => ask($, 'syn:inbox'),
         back: () => ask($, 'syn:back'),
         standup: () => ask($, 'syn:standup'),
+        openProposal: p => void openPage($, p).catch(() => $.ui.toast(`${p.id}: could not open its page`)),
+        review: p => ask($, 'syn:review', p.id),
         ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),
         showIgnored: () => void update($, ignoredOpen, was => !was).catch(() => undefined),
         // Opening or closing a menu clears a pending merge confirm.

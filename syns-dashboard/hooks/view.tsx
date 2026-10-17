@@ -4,7 +4,7 @@ import { C, GRAY, GLYPH, MUTED } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
-import type { AgentRow, BrainView, Ignored, PrCi, PrRow } from '../types'
+import type { AgentRow, BrainView, Ignored, PrCi, PrRow, ProposalRow } from '../types'
 import { daysAgo } from './brain'
 
 export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button' | 'Link'>>
@@ -18,9 +18,22 @@ const CI_MARK: Record<PrCi, StatusKind | null> = {
   '': null,
 }
 
+/** A proposal's status as a status mark: in review waits on Ryan, approved or active is under way. */
+const PROPOSAL_MARK: Record<string, StatusKind> = {
+  review: 'pending',
+  approved: 'running',
+  active: 'running',
+  done: 'done',
+  rejected: 'stopped',
+  dropped: 'stopped',
+  draft: 'idle',
+}
+
 export type DashData = {
   brain: BrainView | null
   prs: PrRow[]
+  /** Every proposal under `~/.syns/proposals/`; null before the first read. */
+  proposals: ProposalRow[] | null
   agents: AgentRow[]
   doing: Record<string, string>
   collapsed: string[]
@@ -44,6 +57,10 @@ export type DashActions = {
   back: () => void
   /** Runs `/syn:standup`. */
   standup: () => void
+  /** Opens a proposal's page (its first `page` evidence) in the browser. */
+  openProposal: (p: ProposalRow) => void
+  /** Runs `/syn:review <id>`. */
+  review: (p: ProposalRow) => void
   /** Ignores (`ignore`) or stops ignoring a repo (`owner/name`) or PR (`owner/repo#n`): brain.json's `ignored`. */
   ignore: (list: 'repos' | 'prs', value: string, ignore: boolean) => void
   /** Folds or unfolds Pull requests' list of what's ignored. */
@@ -303,6 +320,55 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         })
       : null
 
+  // ---- Proposals: each its status, id, goal and open questions; its claims as a reading under it; Open and Review beside it ----
+  const props = d.proposals ?? []
+  const openQs = props.reduce((n, p) => n + p.questions, 0)
+  const inReview = props.filter(p => p.status === 'review').length
+  const proposalItem = (p: ProposalRow) =>
+    k.listItem(`proposal-${p.id}`, {
+      lead: PROPOSAL_MARK[p.status] ?? 'idle',
+      title: p.id,
+      dim: p.status === 'done' || p.status === 'rejected' || p.status === 'dropped',
+      right: [
+        k.actions(`proposal-${p.id}-actions`, [
+          p.page ? { key: `open-${p.id}`, label: 'Open', onPress: () => act.openProposal(p) } : null,
+          { key: `review-${p.id}`, label: 'Review', onPress: () => act.review(p), quiet: true },
+        ]),
+      ],
+      subtitle: p.error ?? (p.goal || undefined),
+      // The status word (with the revision past the first), then the open questions: the row's note.
+      meta: [[p.status || 'no status', p.rev > 1 ? `rev ${p.rev}` : ''].filter(Boolean).join(' · '), p.questions ? plural(p.questions, 'open question') : null],
+      children: p.claims
+        ? [
+            k.reading(`proposal-${p.id}-claims`, {
+              label: 'claims',
+              value: p.verified,
+              max: p.claims,
+              color: C.ok,
+              figure: `${p.verified}/${p.claims}`,
+              // Refuted claims are the ones to read: called out in the failed colour; otherwise the gauge's unit.
+              unit: p.refuted ? `${p.refuted} refuted` : 'verified',
+              ...(p.refuted ? { unitColor: C.bad } : {}),
+              // On the terminal a list item's children sit a gutter (2 cells) in from the body.
+              ...(terminal ? { width: k.width - 2 } : {}),
+            }),
+          ]
+        : [],
+    })
+  const proposalsList = k.collapsibleList({
+    id: 'proposals',
+    icon: 'book',
+    title: 'Proposals',
+    right: d.proposals && props.length ? k.summary([[String(inReview), 'in review'], [String(openQs), openQs === 1 ? 'question' : 'questions']]) : undefined,
+    loading: !d.proposals,
+    ...fold('proposals'),
+    items: !d.proposals
+      ? [k.note('proposals-loading', 'Reading proposals…', 'loading')]
+      : props.length
+        ? props.map(proposalItem)
+        : [k.note('proposals-none', 'No proposals yet. /syn:propose <ask>')],
+  })
+
   // ---- Next: the single next step ----
   const next =
     b && !failed && b.next
@@ -335,7 +401,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       </Box>
     ) : s
   const body = k.pinned(
-    k.flow('sections', [spaced('doing', doing), spaced('decided', decided), spaced('agents', agents), spaced('prs', pulls), spaced('needs', needs), spaced('next', next)]),
+    k.flow('sections', [spaced('doing', doing), spaced('decided', decided), spaced('agents', agents), spaced('prs', pulls), spaced('needs', needs), spaced('proposals', proposalsList), spaced('next', next)]),
     footer,
     rows,
   )
