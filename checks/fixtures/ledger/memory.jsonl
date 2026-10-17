@@ -1,0 +1,20 @@
+{"id":"alpha-0001","parent":"alpha","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"beta-0001","parent":"beta","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"alpha-0002","parent":"alpha","at":"2026-10-17T00:00:01Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
+{"id":"alpha-0003","parent":"alpha","at":"2026-10-17T00:00:01Z","event":"job.state","job":"j1","to":"asked","owner":"developer","promises":["P1"]}
+{"id":"ghost-0001","parent":"ghost","at":"2026-10-17T00:00:02Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"ghost-0002","parent":"ghost","at":"2026-10-17T00:00:02Z","event":"job.state","job":"j1","to":"asked","owner":"developer","promises":["P1"]}
+{"id":"beta-0002","parent":"beta","at":"2026-10-17T00:00:02Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
+{"id":"alpha-0004","parent":"alpha","at":"2026-10-17T00:00:03Z","event":"epic.status","from":"review","to":"approved","by":"Ryan","via":"inbox 1"}
+{"id":"alpha-0099","parent":"beta","at":"2026-10-17T00:00:03Z","event":"epic.status","from":"review","to":"rejected","by":"Ryan","via":"inbox 2"}
+{"id":"alpha-0005","parent":"alpha","at":"2026-10-17T00:00:04Z","event":"epic.status","from":"approved","to":"active","by":"fixture"}
+{"id":"legacy-0001","parent":"legacy","at":"2026-10-17T00:00:00Z","event":"proposal.status","from":null,"to":"draft","by":"fixture"}
+{"id":"legacy-0002","parent":"legacy","at":"2026-10-17T00:00:01Z","event":"proposal.status","from":"draft","to":"review","by":"fixture"}
+{"id":"legacy-0003","parent":"legacy","at":"2026-10-17T00:00:02Z","event":"epic.revised","rev":2,"by":"Ryan"}
+{"id":"legacy-0004","parent":"legacy","at":"2026-10-17T00:00:03Z","event":"epic.status","from":"review","to":"approved","by":"Ryan","via":"inbox 3"}
+{"id":"broken-0001","parent":"broken","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"broken-0002","parent":"broken","at":"2026-10-17T00:00:01Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
+{"id":"broken-0003","parent":"broken","at":"2026-10-17T00:00:02Z","event":"epic.status","from":"approved","to":"active","by":"fixture"}
+{"id":"late-start-0001","parent":"late-start","at":"2026-10-17T00:00:00Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
+{"id":"stale-0001","parent":"stale","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"stale-0002","parent":"stale","at":"2026-10-17T00:00:01Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}

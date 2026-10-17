@@ -1,0 +1,10 @@
+{
+  "id": "no-proof",
+  "status": "draft",
+  "promises": [
+    { "id": "P1", "text": "one", "by": "test", "job": "j1", "proof": "", "status": "open", "proofs": [] }
+  ],
+  "jobs": [
+    { "id": "j1", "what": "first", "owner": "developer", "mode": "normal", "state": "asked", "promises": ["P1"], "at": "2026-10-17" }
+  ]
+}

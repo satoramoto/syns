@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epics contract checks</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1d1d1b; --muted: #6b6b66; --line: #e2e2de;
+    --pass: #1f7a3f; --fail: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ececea; --muted: #9a9a94; --line: #2c2c2a;
+      --pass: #5cc184; --fail: #f28b82;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --fg: #ececea; --muted: #9a9a94; --line: #2c2c2a;
+    --pass: #5cc184; --fail: #f28b82;
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 28px 0 8px; }
+  p.meta { color: var(--muted); margin: 0; font-size: 13px; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  td.r { white-space: nowrap; font-weight: 600; }
+  .pass { color: var(--pass); } .fail { color: var(--fail); }
+  .table { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Epics contract checks</h1>
+  <p class="meta">Run <code>2026-10-17T07:06:35Z</code> · <code>bun test checks/</code> in syns · exit 0 · 27 pass, 0 fail</p>
+  <p class="meta">Over every <code>~/.syns/epics/*/epic.json</code> and <code>~/.syns/memory.jsonl</code>; contract <code>docs/epics.md</code>.</p>
+
+  <h2>Live, per epic</h2>
+  <div class="table"><table>
+    <tr><th>Epic</th><th>Check</th><th>Promise</th><th>Result</th></tr>
+    <tr><td rowspan="3"><code>proposal-system</code></td><td>every job names promises, all of this epic (5 jobs)</td><td>P2</td><td class="r pass">pass</td></tr>
+    <tr><td>every promise names an existing job and a proof plan (6 promises)</td><td>P2</td><td class="r pass">pass</td></tr>
+    <tr><td>status lines chain from null to the current status: null → draft → review → approved → active</td><td>P3</td><td class="r pass">pass</td></tr>
+  </table></div>
+
+  <h2>Live, whole ledger</h2>
+  <div class="table"><table>
+    <tr><th>Check</th><th>Promise</th><th>Result</th></tr>
+    <tr><td>every epic.json parses (1 epic)</td><td>—</td><td class="r pass">pass</td></tr>
+    <tr><td>every ledger line is one JSON object (16 lines)</td><td>P3</td><td class="r pass">pass</td></tr>
+    <tr><td>every status line's parent is an existing epic, the one its id names (4 lines)</td><td>P3</td><td class="r pass">pass</td></tr>
+  </table></div>
+  <p class="meta">The 4 status lines are <code>proposal.status</code>, written before the rename to epics; the check counts them as <code>epic.status</code> (inbox 31, reversible).</p>
+
+  <h2>Fixtures (failure paths)</h2>
+  <div class="table"><table>
+    <tr><th>Case</th><th>Expected</th><th>Result</th></tr>
+    <tr><td>many jobs and promises, cross-named; and none at all</td><td>no failure</td><td class="r pass">pass</td></tr>
+    <tr><td>job without <code>promises</code>; with <code>[]</code>; naming an unknown promise</td><td>P2 fails, once each</td><td class="r pass">pass</td></tr>
+    <tr><td>promise naming an unknown job; no job; empty proof plan</td><td>promise check fails, once each</td><td class="r pass">pass</td></tr>
+    <tr><td>each defect fails only its own check</td><td>no cross-talk</td><td class="r pass">pass</td></tr>
+    <tr><td>full chain interleaved with other epics and events</td><td>no failure</td><td class="r pass">pass</td></tr>
+    <tr><td>status line whose parent is no epic; non-status line likewise</td><td>fails; ignored</td><td class="r pass">pass</td></tr>
+    <tr><td>status line whose id names one epic, parent another</td><td>fails, out of both chains</td><td class="r pass">pass</td></tr>
+    <tr><td>from ≠ previous to; first from not null; chain short of status; no line at all</td><td>chain fails, once each</td><td class="r pass">pass</td></tr>
+    <tr><td>legacy <code>proposal.status</code> lines</td><td>chain with <code>epic.status</code></td><td class="r pass">pass</td></tr>
+    <tr><td>no epics, empty ledger</td><td>no failure</td><td class="r pass">pass</td></tr>
+    <tr><td>malformed ledger line; malformed epic.json</td><td>fails; the rest still checked</td><td class="r pass">pass</td></tr>
+  </table></div>
+</main>
+</body>
+</html>
