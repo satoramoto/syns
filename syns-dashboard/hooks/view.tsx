@@ -1,7 +1,7 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
 import { C, GRAY, MUTED } from '../kit/tokens'
-import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
+import { EDGE, MEASURE, SPACE, fold as foldArrow, kit } from '../kit/ui'
 import type { FlowSwitch } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
 import type { AgentRow, BrainView, Ignored, PrCi, PrRow } from '../types'
@@ -9,13 +9,13 @@ import { daysAgo } from './brain'
 
 export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button' | 'Link'>>
 
-/** A PR's CI as the row's lead (a status kind) and the word after it. */
-const CI_MARK: Record<PrCi, { lead: StatusKind | null; word: string }> = {
-  passing: { lead: 'done', word: 'passing' },
-  failing: { lead: 'failed', word: 'failing' },
-  pending: { lead: 'pending', word: 'pending' },
-  conflicting: { lead: 'warn', word: 'conflicting' },
-  '': { lead: null, word: '' },
+/** A PR's CI as a coloured status mark and its word (the PR's state has its own icon): pending is in progress, blue. */
+const CI_MARK: Record<PrCi, { kind: StatusKind | null; word: string }> = {
+  passing: { kind: 'done', word: 'passing' },
+  failing: { kind: 'failed', word: 'failing' },
+  pending: { kind: 'running', word: 'pending' },
+  conflicting: { kind: 'warn', word: 'conflicting' },
+  '': { kind: null, word: '' },
 }
 
 export type DashData = {
@@ -26,6 +26,10 @@ export type DashData = {
   collapsed: string[]
   /** Whether Pull requests lists what's ignored (its header's "N ignored" pressed). */
   ignoredOpen: boolean
+  /** Decided items unfolded to their note, full question and reason, by inbox id. */
+  decidedOpen: number[]
+  /** The PR whose ⋮ menu is unfolded, if any. */
+  prMenu: string | null
   /** The engine's clock (ms since epoch). */
   now: number
 }
@@ -42,6 +46,10 @@ export type DashActions = {
   ignore: (list: 'repos' | 'prs', value: string, ignore: boolean) => void
   /** Folds or unfolds Pull requests' list of what's ignored. */
   showIgnored: () => void
+  /** Unfolds (or folds again) one PR's ⋮ menu, by `owner/repo#n`. */
+  menu: (ref: string) => void
+  /** Folds or unfolds one Decided item (by inbox id). */
+  unfold: (id: number) => void
   flow?: FlowSwitch
 }
 
@@ -64,6 +72,8 @@ const ROW_GAP = SPACE.pair
 const TILE_GAP = SPACE.block
 const SECTION_GAP = SPACE.group
 const HEAD_GAP = SPACE.pair
+/** Between two-line PR rows: no box or rule, the space alone separates them (as the app's PR list). */
+const PR_GAP = SPACE.group
 
 /**
  * The re-entry pane, on every surface: five sections in the kit's inspector
@@ -71,7 +81,7 @@ const HEAD_GAP = SPACE.pair
  * next), then a footer with the full brief (`/syn:back`).
  */
 export const render = (els: Els, surface: RenderSurface, columns: number, rows: number | undefined, d: DashData, act: DashActions, focused?: boolean): RenderElement => {
-  const { Box, Text } = els
+  const { Box, Text, Button } = els
   const terminal = surface === 'terminal'
   const k = kit(els as any, surface, columns, { focused, flow: act.flow, ...(terminal ? { measure: MEASURE } : {}) })
   const b = d.brain
@@ -210,27 +220,46 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                 list(
                   'decided-list',
                   b.decided.length
-                    ? // Each decision a tile: ✓, the answer and its age on the first line, the question wrapping under it.
-                      b.decided.map(x =>
-                        k.tile(`decided-${x.id}`, [
+                    ? // Each decision a tile: its fold arrow, the question in one line and its age; the decision called out under it (✓, bold);
+                      // unfolded, the full question, the note and the reason.
+                      b.decided.map(x => {
+                        const open = d.decidedOpen.includes(x.id)
+                        const more = [x.topic && x.topic !== x.title ? x.topic : '', x.note && x.note !== x.text ? x.note : '', x.reason ? `Why: ${x.reason}` : ''].filter(Boolean)
+                        const arrow = more.length ? (
+                          Button ? (
+                            <Button key={`decided-${x.id}-fold`} plain dimColor label={foldArrow(!open)} onPress={() => act.unfold(x.id)} />
+                          ) : (
+                            <Text key={`decided-${x.id}-fold`} dimColor>
+                              {foldArrow(!open)}
+                            </Text>
+                          )
+                        ) : null
+                        return k.tile(`decided-${x.id}`, [
+                          led(`decided-${x.id}-row`, arrow, [k.item(`decided-${x.id}-head`, { text: x.title, right: [daysAgo(x.at, d.now)] })], true),
                           led(
-                            `decided-${x.id}-row`,
+                            `decided-${x.id}-choice`,
                             k.status('done'),
-                            [k.item(`decided-${x.id}-head`, { text: x.text, right: [daysAgo(x.at, d.now)] }), x.topic ? wrapped(`decided-${x.id}-q`, x.topic) : null],
+                            [
+                              <Text key={`decided-${x.id}-text`} bold wrap="truncate">
+                                {x.text}
+                              </Text>,
+                            ],
                             true,
                           ),
-                        ]),
-                      )
+                          open && more.length ? led(`decided-${x.id}-more`, null, more.map((t, i) => wrapped(`decided-${x.id}-more-${i}`, t)), true) : null,
+                        ])
+                      })
                     : [inset('decided-none', k.note('decided-none', 'Nothing answered yet.'))],
                   TILE_GAP,
                 ),
               ]
             : b.decided.length
             ? b.decided.map(x =>
+                // The terminal: the question in one line, the decision after it.
                 k.item(`decided-${x.id}`, {
                   lead: 'done',
-                  text: x.text,
-                  note: x.topic,
+                  text: x.title,
+                  note: `→ ${x.text}`,
                   right: [{ part: daysAgo(x.at, d.now), drop: 1 }],
                 }),
               )
@@ -284,56 +313,81 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const isIgnored = (p: PrRow) => ignored.prs.includes(p.ref) || ignored.repos.includes(repoOf(p.ref))
   const prs = open.filter(p => !isIgnored(p))
   const ignoredCount = ignored.repos.length + ignored.prs.length
-  // The repos in the order their first PR comes, each with its PRs.
-  const groups: { repo: string; prs: PrRow[] }[] = []
-  for (const p of prs) {
-    const repo = repoOf(p.ref)
-    const g = groups.find(x => x.repo === repo)
-    if (g) g.prs.push(p)
-    else groups.push({ repo, prs: [p] })
-  }
-  // A row's right side on the desktop: the status word and the number, each in a column as wide as its longest, so they line up row to row.
-  const wordW = Math.max(0, ...prs.map(p => ((CI_MARK[p.ci] ?? CI_MARK['']).word || (p.state ? '' : 'state unknown')).length))
-  const numW = Math.max(0, ...prs.map(p => numOf(p.ref).length))
+  /** The repo's short name (`visuals` for `openflowfm/visuals`). */
+  const shortRepo = (ref: string) => repoOf(ref).split('/').pop() ?? repoOf(ref)
   const quiet = (key: string, label: string, onPress: () => void) => k.actions(key, [{ key, label, onPress, quiet: true }])
+  /**
+   * What the PR is, as its lead: the kit's PR icon for its state, the colour carrying it (open blue, in
+   * progress; draft grey; merged purple; closed red). Never a CI glyph.
+   */
+  const stateIcon = (p: PrRow) => {
+    const [key, color] =
+      p.state === 'MERGED' ? ['pr-merged', C.purple] : p.state === 'CLOSED' ? ['pr-closed', C.bad] : p.draft ? ['pr-draft', MUTED] : ['pr-open', C.blue]
+    return k.icon(key as string, color as string)
+  }
+  /** How its checks stand, as one small coloured mark: ✓ passing, ✕ failing, ◐ pending, ▲ conflicting. */
+  const ciMark = (p: PrRow, key: string) => {
+    const ci = CI_MARK[p.ci] ?? CI_MARK['']
+    return ci.kind ? k.status(ci.kind, undefined, key) : null
+  }
   const prRow = (p: PrRow) => {
     const ci = CI_MARK[p.ci] ?? CI_MARK['']
-    const word = ci.word || (p.state ? '' : 'state unknown')
     const num = numOf(p.ref)
-    // The number is the row's link to the PR (where gh gave its address); the repo is the group's label.
-    const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={num} /> : <Text key={`pr-${p.ref}-num`} wrap="truncate">{num}</Text>
-    const hide = quiet(`ignore-${p.ref}`, 'Ignore', () => act.ignore('prs', p.ref, true))
+    const repo = repoOf(p.ref)
+    // The number is the PR's link (where gh gave its address).
+    const link = p.url && Link ? <Link key={`pr-${p.ref}-link`} href={p.url} label={num} /> : <Text key={`pr-${p.ref}-num`} color={GRAY.mid}>{num}</Text>
+    const ignore = () => act.ignore('prs', p.ref, true)
+    const ignoreRepo = () => act.ignore('repos', repo, true)
     if (terminal) {
       return k.item(`pr-${p.ref}`, {
-        lead: ci.lead ?? 'pr-open',
-        leadColor: ci.lead ? undefined : MUTED,
+        lead: stateIcon(p),
         text: p.title || p.ref,
-        right: [word ? { part: word, drop: 1 } : null, link, { part: hide, drop: 2 }],
+        note: `${shortRepo(p.ref)} ${num}`,
+        right: [ci.kind ? { part: ciMark(p, `pr-${p.ref}-ci`)!, drop: 1, cells: 1 } : null, { part: quiet(`ignore-${p.ref}`, 'Ignore', ignore), drop: 2 }],
       })
     }
-    return led(`pr-${p.ref}`, ci.lead ? k.status(ci.lead) : k.icon('pr-open', MUTED), [
-      k.item(`pr-${p.ref}-head`, {
-        text: p.title || p.ref,
-        right: [
-          wordW ? (
-            <Box key={`pr-${p.ref}-word`} width={wordW} flexShrink={0} flexDirection="row">
-              <Text wrap="truncate" color={GRAY.mid}>
-                {word}
-              </Text>
-            </Box>
-          ) : null,
-          <Box key={`pr-${p.ref}-ref`} width={numW} flexShrink={0} flexDirection="row" overflow="hidden">
-            {link}
-          </Box>,
-          hide,
-        ],
-      }),
-    ])
-  }
-  /** A repo's label over its rows: the repo dim, its quiet Ignore repo action on the right. */
-  const repoLabel = (repo: string) => {
-    const label = k.item(`repo-${repo}`, { text: repo, dim: true, right: [quiet(`ignore-repo-${repo}`, 'Ignore repo', () => act.ignore('repos', repo, true))] })
-    return terminal ? label : inset(`repo-${repo}-row`, label)
+    // As the app's PR list: the state icon; the title, then `repo #n` and the CI mark dim under it; a ⋮ on the
+    // right that unfolds Ignore and Ignore repo inline (the kit has no popover). No box or rule: space separates rows.
+    const menuOpen = d.prMenu === p.ref
+    const dots = Button ? (
+      <Button key={`pr-${p.ref}-menu`} plain dimColor label="⋮" onPress={() => act.menu(p.ref)} />
+    ) : (
+      <Text key={`pr-${p.ref}-menu`} dimColor>
+        ⋮
+      </Text>
+    )
+    return (
+      <Box key={`pr-${p.ref}`} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingX={INSET} gap={SPACE.item}>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0} minWidth={0}>
+          {led(
+            `pr-${p.ref}-body`,
+            stateIcon(p),
+            [
+              <Text key={`pr-${p.ref}-title`} wrap="truncate">
+                {p.title || p.ref}
+              </Text>,
+              <Box key={`pr-${p.ref}-meta`} flexDirection="row" alignItems="center" gap={SPACE.pair} minWidth={0}>
+                <Text color={GRAY.mid} wrap="truncate">
+                  {shortRepo(p.ref)}
+                </Text>
+                {link}
+                {ciMark(p, `pr-${p.ref}-ci`)}
+              </Box>,
+              menuOpen
+                ? k.actions(`pr-${p.ref}-actions`, [
+                    { key: `ignore-${p.ref}`, label: 'Ignore', onPress: ignore, quiet: true },
+                    { key: `ignore-repo-${p.ref}`, label: `Ignore ${shortRepo(p.ref)}`, onPress: ignoreRepo, quiet: true },
+                  ])
+                : null,
+            ],
+            true,
+          )}
+        </Box>
+        <Box flexShrink={0} flexDirection="row">
+          {dots}
+        </Box>
+      </Box>
+    )
   }
   /** The ignored repos and PRs, each with Stop ignoring, while the header's "N ignored" is pressed. */
   const ignoredRows = (): RenderElement[] => {
@@ -364,20 +418,15 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
           list(
             'prs-list',
             [
-              ...groups.map(g => (
-                <Box key={`group-${g.repo}`} flexDirection="column" width="100%" minWidth={0} rowGap={ROW_GAP}>
-                  {repoLabel(g.repo)}
-                  {g.prs.map(prRow)}
-                </Box>
-              )),
+              ...prs.map(prRow),
               prs.length ? null : inset('prs-none', k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.')),
               ...ignoredRows(),
             ],
-            TILE_GAP * 2,
+            PR_GAP,
           ),
         ]
       : [
-          ...groups.flatMap(g => [repoLabel(g.repo), ...g.prs.map(prRow)]),
+          ...prs.map(prRow),
           prs.length ? null : k.note('prs-none', ignoredCount && open.length ? 'Every open PR is ignored.' : 'No open PRs updated this week.'),
           ...ignoredRows(),
         ],

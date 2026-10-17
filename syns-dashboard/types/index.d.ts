@@ -13,13 +13,19 @@ export type ThreadRow = {
   next: string
 }
 
-/** One answered inbox item under "What you decided": the decision, not the question. */
+/** One answered inbox item under "What you decided": the question as a one-line title, the decision called out under it, the rest behind a fold. */
 export type Decision = {
   id: number
+  /** The question in one line: its `title` or `topic` when the item has one, else its first sentence. */
+  title: string
   /** The choice, or the note's first sentence when the choice was "Other". */
   text: string
-  /** The question it answered, for context. */
+  /** The question it answered, in full. */
   topic: string
+  /** The answer's note, in full; empty when none. */
+  note: string
+  /** Why: the chosen option's description, when the choice was one of the options; empty otherwise. */
+  reason: string
   /** `answer.at` as stored (a date, or a date and time). */
   at: string
 }
@@ -72,6 +78,8 @@ export type PrRow = {
   /** The PR's page; empty when gh couldn't tell. */
   url: string
   ci: PrCi
+  /** A draft PR (gh's `isDraft`). */
+  draft: boolean
 }
 
 /** Which list the band above the prompt has unfolded under its kinds, if any. */
@@ -171,6 +179,10 @@ declare module 'claude-code' {
       columns: boolean
       /** Whether Pull requests lists its ignored repos and PRs (the header's "N ignored" pressed). */
       ignoredOpen: boolean
+      /** Decided items unfolded to their note, full question and reason, by inbox id; folded by default. */
+      decidedOpen: number[]
+      /** The PR (`owner/repo#n`) whose ⋮ menu is unfolded in Pull requests, if any. */
+      prMenu: string | null
       /** The band's unfolded list. */
       bandOpen: BandOpen
       /** The context window, for the band's bar; null before the first measurement. */

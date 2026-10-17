@@ -389,15 +389,21 @@ in awesome-claude's inspector look on the desktop and the terminal:
 - **Doing:** the outcome, then the top 3 active threads by priority, each its
   title (up to the first colon), priority, and its `next` (first sentence).
 - **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
-  newest `answer.at` first: the choice, or the note when the choice was Other,
-  with the question dim after it.
+  newest `answer.at` first. Each item's title is its question in one line (the
+  item's `title` or `topic` when it has one, else the question's first
+  sentence), with its age; under it the decision, called out (✓, bold): the
+  choice, or the note's first sentence when the choice was Other. Behind a
+  per-item fold, folded by default: the full question, the note, and why (the
+  chosen option's description).
 - **Agents:** live agents (`$.agent.list()`) with each one's latest tool call.
 - **Pull requests:** the PRs brain.json names (`owner/repo#n` or a pull URL)
   that gh says are open, plus the user's open PRs updated in the last 7 days
   (a gh search, `updated:>=<date>`), so old ones fall off on their own; read
-  when the list changes and every 5 minutes, with CI. Grouped by repo, each
-  group under its repo's name. Each group has a quiet **Ignore repo** action
-  and each row a quiet **Ignore**: an ignored repo or PR drops out of the list
+  when the list changes and every 5 minutes. Each PR is two lines, as the
+  app's own PR list: its state icon (open, draft, merged, closed, the colour
+  carrying it), the title; then dim, the short repo name and `#n` (the link)
+  and a small coloured CI mark. A ⋮ on the right unfolds **Ignore** and
+  **Ignore repo** inline: an ignored repo or PR drops out of the list
   and the counts for good (an ignored repo's future PRs too), kept in
   brain.json's `ignored` (below). The header's **N ignored** unfolds the
   ignored ones, each with **Stop ignoring**.

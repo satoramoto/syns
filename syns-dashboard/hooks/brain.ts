@@ -38,6 +38,13 @@ const decisionText = (answer: any) => {
   return choice && choice !== 'Other' ? choice : firstSentence(note) || choice
 }
 
+/** Why a decision: the description of the option whose label is the choice; empty when the choice was "Other" or matches none. */
+const reasonOf = (item: any) => {
+  const choice = str(item?.answer?.choice)
+  const options: any[] = Array.isArray(item?.options) ? item.options : []
+  return str(options.find(o => o && str(o.label) === choice)?.description)
+}
+
 /** One entry of brain.json's `updates` as a line of text: a string as is, an object by its `text` or `title`. */
 export const updateText = (u: unknown): string => {
   if (typeof u === 'string') return u
@@ -88,7 +95,15 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
   const items: any[] = [...(Array.isArray(d.inbox) ? d.inbox : []), ...(Array.isArray(d.answered) ? d.answered : [])].filter(Boolean)
   const decided: Decision[] = items
     .filter(i => i.status === 'answered' && i.answer)
-    .map(i => ({ id: Number(i.id) || 0, text: decisionText(i.answer), topic: str(i.question), at: str(i.answer.at) }))
+    .map(i => ({
+      id: Number(i.id) || 0,
+      title: str(i.title || i.topic) || firstSentence(str(i.question)),
+      text: decisionText(i.answer),
+      topic: str(i.question),
+      note: str(i.answer.note),
+      reason: reasonOf(i),
+      at: str(i.answer.at),
+    }))
     // Newest first: by when it was answered, then (answers of the same day) the later item.
     .sort((a, b) => (a.at === b.at ? b.id - a.id : a.at < b.at ? 1 : -1))
     .slice(0, DECIDED)
