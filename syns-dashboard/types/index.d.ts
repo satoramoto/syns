@@ -80,6 +80,10 @@ export type PrRow = {
   ci: PrCi
   /** A draft PR (gh's `isDraft`). */
   draft: boolean
+  /** The repo's default merge method for the viewer (`MERGE`, `SQUASH`, `REBASE`); empty when unknown. */
+  method: string
+  /** Auto-merge is on (gh's `autoMergeRequest` is set). */
+  auto: boolean
 }
 
 /** Which list the band above the prompt has unfolded under its kinds, if any. */
@@ -183,6 +187,8 @@ declare module 'claude-code' {
       unfolded: string[]
       /** The PR (`owner/repo#n`) whose ⋮ menu is unfolded in Pull requests, if any. */
       prMenu: string | null
+      /** The PR (`owner/repo#n`) whose Merge was pressed once and now asks to confirm; cleared after 5 s or when its menu closes. */
+      mergeConfirm: string | null
       /** The band's unfolded list. */
       bandOpen: BandOpen
       /** The context window, for the band's bar; null before the first measurement. */

@@ -30,6 +30,8 @@ export type DashData = {
   unfolded: string[]
   /** The PR whose ⋮ menu is unfolded, if any. */
   prMenu: string | null
+  /** The PR whose Merge asks to be confirmed, if any. */
+  mergeConfirm: string | null
   /** The engine's clock (ms since epoch). */
   now: number
 }
@@ -48,6 +50,8 @@ export type DashActions = {
   showIgnored: () => void
   /** Unfolds (or folds again) one PR's ⋮ menu, by `owner/repo#n`. */
   menu: (ref: string) => void
+  /** Merge's first press (`confirm`), its second (`merge`), or auto-merge on (`auto`) or off (`disable-auto`). */
+  merge: (p: PrRow, how: 'confirm' | 'merge' | 'auto' | 'disable-auto') => void
   /** Folds or unfolds one list item (`thread-<id>`, `decided-<id>`). */
   unfold: (id: string) => void
   flow?: FlowSwitch
@@ -190,21 +194,41 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     const ignoreRepo = () => act.ignore('repos', repoOf(p.ref), true)
     // A ⋮ on the title's line unfolds Ignore and Ignore repo under the item (the kit has no popover); the terminal keeps one quiet Ignore.
     const dots = Button ? <Button key="menu" plain dimColor label="⋮" onPress={() => act.menu(p.ref)} /> : null
+    const ci = CI_MARK[p.ci] ?? null
+    // Merge and auto-merge, for open PRs: Merge asks for a second press (Confirm merge, in the danger tone);
+    // a draft or a conflicting PR can't merge, and says why in its place.
+    const isOpen = p.state === 'OPEN'
+    const blocked = p.draft ? 'draft' : p.ci === 'conflicting' ? 'conflicting' : ''
+    const confirming = d.mergeConfirm === p.ref
+    const mergeActions = isOpen
+      ? [
+          blocked
+            ? null
+            : confirming
+              ? { key: `merge-${p.ref}`, label: 'Confirm merge', onPress: () => act.merge(p, 'merge'), tone: 'danger' as const }
+              : { key: `merge-${p.ref}`, label: 'Merge', onPress: () => act.merge(p, 'confirm'), quiet: true },
+          p.auto
+            ? { key: `auto-${p.ref}`, label: 'Disable auto-merge', onPress: () => act.merge(p, 'disable-auto'), quiet: true }
+            : { key: `auto-${p.ref}`, label: 'Enable auto-merge', onPress: () => act.merge(p, 'auto'), quiet: true },
+        ]
+      : []
     return k.listItem(`pr-${p.ref}`, {
       lead: icon,
       leadColor: color,
       title: p.title || p.ref,
       subtitle: shortRepo(p.ref),
-      meta: [link],
-      mark: CI_MARK[p.ci] ?? null,
+      // The CI mark, then a dim "auto" while auto-merge is on.
+      meta: [link, ci ? k.status(ci, undefined, 'ci') : null, p.auto ? 'auto' : null],
       right: terminal || !dots ? [quiet(`ignore-${p.ref}`, 'Ignore', ignore)] : [dots],
       children:
         !terminal && d.prMenu === p.ref
           ? [
               k.actions(`pr-${p.ref}-actions`, [
+                ...mergeActions,
                 { key: `ignore-${p.ref}`, label: 'Ignore', onPress: ignore, quiet: true },
                 { key: `ignore-repo-${p.ref}`, label: `Ignore ${shortRepo(p.ref)}`, onPress: ignoreRepo, quiet: true },
               ]),
+              isOpen && blocked ? wrapped(`pr-${p.ref}-why`, `Can't merge: it's ${blocked === 'draft' ? 'a draft' : 'conflicting'}.`) : null,
             ]
           : [],
     })

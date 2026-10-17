@@ -410,6 +410,16 @@ in awesome-claude's inspector look on the desktop and the terminal:
   and the counts for good (an ignored repo's future PRs too), kept in
   brain.json's `ignored` (below). The header counts them (**N ignored**); a quiet **Show N ignored** at the end of the body unfolds the
   ignored ones, each with **Stop ignoring**.
+  An open PR's ⋮ also holds **Merge** and **Enable auto-merge** (or
+  **Disable auto-merge** while it's on). Merge is irreversible, so its first
+  press turns it into **Confirm merge** (danger tone) and the second merges;
+  the confirm resets when the menu closes or after 5 s. Merge can't be pressed
+  on a draft or conflicting PR, and says why. Both use the repo's default merge
+  method (`viewerDefaultMergeMethod`), `--squash` when it's unknown: `gh pr
+  merge <n> --repo <owner/repo> --<method>`, with `--auto` to enable auto-merge,
+  `--disable-auto` to turn it off. A PR with auto-merge on shows a dim
+  **auto** after its CI mark. After any of them, a toast says how it went (gh's
+  error when it failed) and the PRs are read again at once.
 - **brain.json's `ignored`** holds what the user doesn't want to hear about
   again: `"ignored": { "repos": ["owner/name"], "prs": ["owner/repo#n"] }`,
   both lists optional. The dashboard writes it as it writes `updates`: it reads

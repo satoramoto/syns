@@ -25,6 +25,10 @@ const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' a
 const ignoredOpen = atom({ plugin: 'syns-dashboard', key: 'ignoredOpen' } as const, false)
 const unfolded = atom({ plugin: 'syns-dashboard', key: 'unfolded' } as const, [] as string[])
 const prMenu = atom({ plugin: 'syns-dashboard', key: 'prMenu' } as const, null as string | null)
+const mergeConfirm = atom({ plugin: 'syns-dashboard', key: 'mergeConfirm' } as const, null as string | null)
+
+/** How long Merge waits for its confirming press. */
+const CONFIRM_MS = 5_000
 
 /** The pane's tabs, in order. */
 const TABS: { id: DashTab; label: string }[] = [
@@ -113,7 +117,7 @@ const rollupOf = (checks: any[]): string => {
 }
 
 const MINE_QUERY =
-  'query($q:String!){search(query:$q,type:ISSUE,first:50){nodes{... on PullRequest{number title url state isDraft mergeable repository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}'
+  'query($q:String!){search(query:$q,type:ISSUE,first:50){nodes{... on PullRequest{number title url state isDraft mergeable autoMergeRequest{enabledAt} repository{nameWithOwner viewerDefaultMergeMethod} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}'
 
 /** How far back Ryan's own PRs are listed: those not updated in this many days fall off. */
 const MINE_DAYS = 7
@@ -133,18 +137,21 @@ const readMine = async ($: EngineInterface): Promise<PrRow[]> => {
       url: String(p.url ?? ''),
       ci: ciOf(String(p.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? ''), String(p.mergeable ?? '')),
       draft: Boolean(p.isDraft),
+      method: String(p.repository?.viewerDefaultMergeMethod ?? ''),
+      auto: Boolean(p.autoMergeRequest),
     }))
 }
 
 /** One PR brain.json names that the search didn't find (someone else's, or closed). */
 const readOne = async ($: EngineInterface, ref: string): Promise<PrRow> => {
   const [repo, n] = ref.split('#')
-  const none: PrRow = { ref, state: '', title: '', url: '', ci: '', draft: false }
+  // `gh pr view` has no repo default merge method: these merge with the fallback (squash).
+  const none: PrRow = { ref, state: '', title: '', url: '', ci: '', draft: false, method: '', auto: false }
   try {
-    const run = await $.process.run(['gh', 'pr', 'view', n!, '--repo', repo!, '--json', 'state,title,url,isDraft,mergeable,statusCheckRollup'], { timeoutMs: 15_000 })
+    const run = await $.process.run(['gh', 'pr', 'view', n!, '--repo', repo!, '--json', 'state,title,url,isDraft,mergeable,statusCheckRollup,autoMergeRequest'], { timeoutMs: 15_000 })
     if (run.exitCode !== 0) return none
     const j = JSON.parse(run.stdout)
-    return { ref, state: String(j.state ?? ''), title: String(j.title ?? ''), url: String(j.url ?? ''), ci: ciOf(rollupOf(j.statusCheckRollup), String(j.mergeable ?? '')), draft: Boolean(j.isDraft) }
+    return { ref, state: String(j.state ?? ''), title: String(j.title ?? ''), url: String(j.url ?? ''), ci: ciOf(rollupOf(j.statusCheckRollup), String(j.mergeable ?? '')), draft: Boolean(j.isDraft), method: '', auto: Boolean(j.autoMergeRequest) }
   } catch {
     return none
   }
@@ -158,6 +165,28 @@ const readPrs = async ($: EngineInterface) => {
   const extra = await Promise.all(refs.filter(r => !mine.some(m => m.ref === r)).map(r => readOne($, r)))
   const rows = [...mine, ...extra]
   if (!same(await read($, prs), rows)) await update($, prs, () => rows)
+}
+
+/** `gh pr merge`'s flag for a repo's default merge method; squash when unknown. */
+const methodFlag = (method: string) => (method === 'MERGE' ? '--merge' : method === 'REBASE' ? '--rebase' : '--squash')
+
+/**
+ * Merges a PR now (`merge`), turns auto-merge on (`auto`) or off (`disable-auto`) with gh,
+ * toasts how it went (gh's error when it failed), and has the PRs read again at once.
+ */
+const mergePr = async ($: EngineInterface, p: PrRow, how: 'merge' | 'auto' | 'disable-auto') => {
+  const [repo, n] = p.ref.split('#')
+  const args = how === 'disable-auto' ? ['--disable-auto'] : how === 'auto' ? ['--auto', methodFlag(p.method)] : [methodFlag(p.method)]
+  const done = { merge: `Merged ${p.ref}`, auto: `Auto-merge on for ${p.ref}`, 'disable-auto': `Auto-merge off for ${p.ref}` }[how]
+  try {
+    const run = await $.process.run(['gh', 'pr', 'merge', n!, '--repo', repo!, ...args], { timeoutMs: 30_000 })
+    const err = (run.stderr || run.stdout || '').trim().split('\n').pop() ?? ''
+    await $.ui.toast(run.exitCode === 0 ? done : `${p.ref}: ${err || `gh exited ${run.exitCode}`}`)
+  } catch (e) {
+    await $.ui.toast(`${p.ref}: ${String((e as Error)?.message ?? e).slice(0, 160)}`)
+  }
+  prsStale = true
+  await readPrs($).catch(() => undefined)
 }
 
 // ---- live agents ----
@@ -368,6 +397,7 @@ export const register: Register = (on, options) => {
       ignoredOpen: await read($, ignoredOpen),
       unfolded: await read($, unfolded),
       prMenu: await read($, prMenu),
+      mergeConfirm: await read($, mergeConfirm),
       now: await $.clock.now(),
     }
     const flowOn = await read($, columns)
@@ -382,7 +412,23 @@ export const register: Register = (on, options) => {
         standup: () => ask($, 'syn:standup'),
         ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),
         showIgnored: () => void update($, ignoredOpen, was => !was).catch(() => undefined),
-        menu: ref => void update($, prMenu, was => (was === ref ? null : ref)).catch(() => undefined),
+        // Opening or closing a menu clears a pending merge confirm.
+        menu: ref =>
+          void (async () => {
+            await update($, prMenu, was => (was === ref ? null : ref))
+            if (await read($, mergeConfirm)) await update($, mergeConfirm, () => null)
+          })().catch(() => undefined),
+        merge: (p, how) => {
+          if (how === 'confirm') {
+            void update($, mergeConfirm, () => p.ref).catch(() => undefined)
+            $.clock.after(CONFIRM_MS, () => void update($, mergeConfirm, was => (was === p.ref ? null : was)).catch(() => undefined))
+            return
+          }
+          void (async () => {
+            if (how === 'merge') await update($, mergeConfirm, () => null)
+            await mergePr($, p, how)
+          })().catch(() => undefined)
+        },
         unfold: id => void update($, unfolded, ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])).catch(() => undefined),
         flow: { on: flowOn, toggle: () => void update($, columns, was => !was).catch(() => undefined) },
       }, e.props.isFocused),
