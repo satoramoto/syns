@@ -386,7 +386,7 @@ It opens on session start (and with `/dashboard`), reads `$SYN_BRAIN` or
 every 2 s while the pane is shown; nothing runs while it's hidden). Sections,
 in awesome-claude's inspector look on the desktop and the terminal:
 
-- **Doing:** the outcome, then the top 3 active threads by priority, each its
+- **Doing:** the top 3 active threads by priority, each its
   title (up to the first colon), priority, and its `next` (first sentence).
 - **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
   newest `answer.at` first. Each item's title is its question in one line (the

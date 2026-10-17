@@ -103,7 +103,8 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
    */
   const led = (key: string, lead: RenderElement | null, lines: (RenderElement | null)[], inTile = false) => (
     <Box key={key} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingX={inTile ? 0 : INSET}>
-      <Box width={LEAD} flexShrink={0} flexDirection="row">
+      {/* A fixed slot one text line tall, so an SVG icon and a text glyph sit alike, centred on the first line. */}
+      <Box width={LEAD} height={1} flexShrink={0} flexDirection="row" alignItems="center">
         {lead}
       </Box>
       <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0} minWidth={0} rowGap={TILE_GAP / 2}>
@@ -130,7 +131,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     </Box>
   )
 
-  // ---- What we're doing: the outcome, then the top threads, each its title and status, then its next step ----
+  // ---- What we're doing: the top threads, each its title and status, then its next step ----
   const doing = k.section({
     id: 'doing',
     icon: 'tasklist',
@@ -151,7 +152,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         : !terminal
           ? [
               list('doing-list', [
-                b.outcome ? inset('outcome', k.note('outcome', b.outcome)) : null,
                 // Prioritised threads, each a tile: its priority badge (P1, P2 alike, in blue) and title, its next step wrapping under the title.
                 ...b.threads
                   .filter(t => t.tier === 'priority')
@@ -177,7 +177,6 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
               ]),
             ]
           : [
-            b.outcome ? k.note('outcome', b.outcome) : null,
             // Prioritised threads, in priority order, their priority as the lead (P1, P2) and their next step under them.
             ...b.threads
               .filter(t => t.tier === 'priority')
@@ -328,7 +327,14 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   /** How its checks stand, as one small coloured mark: ✓ passing, ✕ failing, ◐ pending, ▲ conflicting. */
   const ciMark = (p: PrRow, key: string) => {
     const ci = CI_MARK[p.ci] ?? CI_MARK['']
-    return ci.kind ? k.status(ci.kind, undefined, key) : null
+    if (!ci.kind) return null
+    if (terminal) return k.status(ci.kind, undefined, key)
+    // A fixed slot one line tall, centred on line 2's text.
+    return (
+      <Box key={key} width={2} height={1} flexShrink={0} flexDirection="row" alignItems="center">
+        {k.status(ci.kind)}
+      </Box>
+    )
   }
   const prRow = (p: PrRow) => {
     const ci = CI_MARK[p.ci] ?? CI_MARK['']
@@ -357,7 +363,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       </Text>
     )
     return (
-      <Box key={`pr-${p.ref}`} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingX={INSET} gap={SPACE.item}>
+      <Box key={`pr-${p.ref}`} flexDirection="row" alignItems="flex-start" width="100%" minWidth={0} paddingLeft={INSET} gap={SPACE.item}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0} minWidth={0}>
           {led(
             `pr-${p.ref}-body`,
@@ -383,7 +389,8 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
             true,
           )}
         </Box>
-        <Box flexShrink={0} flexDirection="row">
+        {/* On the title line, centred on it, flush with the section body's right edge (EDGE.right in from the pane's). */}
+        <Box height={1} flexShrink={0} flexDirection="row" alignItems="center" justifyContent="flex-end">
           {dots}
         </Box>
       </Box>
