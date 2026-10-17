@@ -26,5 +26,8 @@ question.
 
 **Next:** the single next step that would put the user back in flow.
 
-Don't ask questions. Don't start any work. If brain.json is missing, say so
+After the brief, sweep stale sessions in the sidebar with the
+`session-groups` skill (its step 3), and add its one line.
+
+Don't ask questions. Don't start any other work. If brain.json is missing, say so
 and suggest `/syn:onboard`.

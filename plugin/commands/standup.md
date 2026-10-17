@@ -25,5 +25,8 @@ it. If none, say "none".
 **When you have a minute:** open approvals first, then one-time chores and the
 count of open questions (which proceed on recommendations).
 
+After the standup, sweep stale sessions in the sidebar with the
+`session-groups` skill (its step 3), and add its one line.
+
 Then append `{ "at": <today>, "note": "standup" }` to the brain file's `done`
 list only if the user asks to record it.

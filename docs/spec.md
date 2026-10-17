@@ -245,6 +245,17 @@ Bracketed steps exist in every mode. A mode marks each one `required`,
 When a job is done, the thread it serves gets a proposed state and next-step
 update (rule 4), and notable results go to `done`.
 
+### Sessions in the sidebar
+
+Every session a syns-enabled session starts (and the session itself) is filed
+in Claude desktop's sidebar group **syns · in progress**, by moving its family
+root there right after `start_session` or `hand_off_to_session`. A session is
+stale when it is idle, not pinned, and nothing in the brain file names it as
+running or blocked, or when it is already archived; stale ones move to
+**syns · done**, and archiving is only offered. The plugin has no hook for
+another session going quiet, so `/syn:standup` and `/syn:back` run the sweep.
+The procedure is the `session-groups` skill.
+
 ## Events (engine sources)
 
 | Event | Hook or call |

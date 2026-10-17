@@ -42,6 +42,9 @@ rules). Agent definitions live in templates/agents/; copy them to
   then its ask, so they share one cached prefix. Reuse the same assistant for
   follow-ups on the same files; start a fresh one on a topic change.
 - A real feature or a broad investigation goes to a `developer`.
+- Sessions started here (and this one, at its start) are filed in the
+  sidebar's "syns · in progress" group by the `session-groups` skill; stale
+  ones move to "syns · done".
 - Briefs are short: the outcome and the exact files.
 - Don't grow an ask: no persistence, configurability, extra tests or
   generalising unless I ask.
