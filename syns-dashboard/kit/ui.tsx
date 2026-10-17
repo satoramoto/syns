@@ -1080,7 +1080,7 @@ export const kit = (els: Els, surface: RenderSurface, columns = 40, opts: KitOpt
     // The fold arrow and the icon are marks (L3); the title primary (L0).
     const toggle = s.onToggle ? press(`toggle-${s.id}`, arrow, 'mark', () => s.onToggle?.()) : <Text {...role('mark')}>{arrow}</Text>
     // The header band is the list's one fill: it marks where the section starts. The items sit
-    // on the pane under it, SPACE.item apart, with no fill, rule or line of their own.
+    // on the pane under it, each padded alike, a TRACK hairline under the header and between them.
     const header = card(
       FILL.head,
       { key: 'head', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: SPACE.item, paddingX: INSET, height: BAND_ROWS, flexShrink: 0, overflow: 'hidden' },
