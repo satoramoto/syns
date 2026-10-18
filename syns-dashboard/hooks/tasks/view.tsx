@@ -65,7 +65,8 @@ export const renderTasks = (els: Els, surface: RenderSurface, columns: number, r
       meta: r.state === 'waiting' ? ['waiting on you'] : undefined,
       right: [
         roomy ? gauge(r, `${prefix}-${r.key}-gauge`) : null,
-        roomy ? k.press(`${prefix}-${r.key}-open`, label(r), 'secondary', () => act.open(r)) : null,
+        // The app opens a session on the desktop only (`open` is macOS's), and only one it has a record of: plain text otherwise.
+        roomy ? (r.link && !terminal ? k.press(`${prefix}-${r.key}-open`, label(r), 'secondary', () => act.open(r)) : label(r)) : null,
         ago(d.now - r.at),
       ],
     })

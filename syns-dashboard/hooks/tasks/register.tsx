@@ -30,15 +30,17 @@ const TITLE_CHARS = 48
 
 /**
  * The lines of a transcript from byte `$2` (1-based), `$3` bytes of it, that the
- * tab reads: the turn tools' calls whole (up to 60k characters), the prompts'
- * first 2k (enough for a title and their place in order), the last 3.5 MB of
- * that. Only the new bytes are read each time, so a big transcript costs one
- * pass, once.
+ * tab reads: the turn tools' calls whole (up to 60k characters), the person's
+ * prompts' first 2k (enough for a title and their place in order), the last
+ * 3.5 MB of that. A meta prompt (a skill's expansion, a caveat) or a sidechain
+ * one is left out here, on the whole line: its marker sits after the message
+ * body, past the cut. Only the new bytes are read each time, so a big
+ * transcript costs one pass, once.
  */
 const PICK = [
   'tail -c +"$2" "$1" | head -c "$3"',
   `grep -F -e '${TOOL_MARK}' -e '${PROMPT_MARK}'`,
-  `awk '{ if (index($0, "\\"name\\":\\"mcp__ccd_turn__")) print substr($0, 1, 60000); else print substr($0, 1, 2000) }'`,
+  `awk '{ if (index($0, "\\"name\\":\\"mcp__ccd_turn__")) print substr($0, 1, 60000); else if (!index($0, "\\"isMeta\\":true") && !index($0, "\\"isSidechain\\":true")) print substr($0, 1, 2000) }'`,
   'tail -c 3500000',
 ].join(' | ')
 
@@ -92,23 +94,52 @@ const readOne = async ($: EngineInterface, path: string, size: number, mtime: nu
     if (run.exitCode !== 0) return s
     for (const line of run.stdout.split('\n')) if (line) scanLine(s.scan, line)
   }
-  // The app's own title for the session, when it was given one (named, or renamed in the sidebar).
-  const custom = await $.fs
-    .read(`${path.replace(/\.jsonl$/, '')}/custom-title.json`)
-    .then(t => String(JSON.parse(t)?.customTitle ?? ''))
-    .catch(() => '')
+  // A title for a session the app has no record of: its first prompt, cut.
   const first = s.scan.firstPrompt
-  s.title = custom || (first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1)}…` : first) || path.split('/').pop()!.slice(0, 8)
+  s.title = (first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1)}…` : first) || path.split('/').pop()!.slice(0, 8)
   s.size = size
   s.mtime = mtime
   seen.set(path, s)
   return s
 }
 
+/** The Claude app's record of one session (`claude-code-sessions/<org>/<user>/local_<id>.json`): the fields the tab uses. */
+type AppRecord = { sessionId: string; cli: string; title: string; archived: boolean; cwd: string }
+/** Each record file as last read, by path, with its mtime. */
+const records = new Map<string, { mtime: number; rec: AppRecord | null }>()
+
+/** The app's session records, by `cliSessionId` (a transcript's id); a record file is read again only when it moved. */
+const readRecords = async ($: EngineInterface, home: string): Promise<Map<string, AppRecord>> => {
+  const root = `${home}/Library/Application Support/Claude/claude-code-sessions`
+  const dirs = async (path: string) => (await $.fs.list(path).catch(() => [])).filter(x => x.kind === 'dir').map(x => `${path}/${x.name}`)
+  const users = (await Promise.all((await dirs(root)).map(dirs))).flat()
+  const files = (
+    await Promise.all(users.map(async u => (await $.fs.list(u).catch(() => [])).filter(f => f.kind === 'file' && f.name.endsWith('.json')).map(f => ({ path: `${u}/${f.name}`, mtime: f.mtimeMs }))))
+  ).flat()
+  const live = new Set(files.map(f => f.path))
+  for (const p of records.keys()) if (!live.has(p)) records.delete(p)
+  await pool(files, AT_ONCE * 4, async f => {
+    if (records.get(f.path)?.mtime === f.mtime) return
+    let rec: AppRecord | null = null
+    try {
+      const d = JSON.parse(await $.fs.read(f.path))
+      if (d && typeof d.cliSessionId === 'string' && typeof d.sessionId === 'string')
+        rec = { sessionId: d.sessionId, cli: d.cliSessionId, title: String(d.title ?? ''), archived: Boolean(d.isArchived), cwd: String(d.cwd ?? '') }
+    } catch {
+      rec = null
+    }
+    records.set(f.path, { mtime: f.mtime, rec })
+  })
+  const byCli = new Map<string, AppRecord>()
+  for (const { rec } of records.values()) if (rec) byCli.set(rec.cli, rec)
+  return byCli
+}
+
 /** Every session active in the last week, read and drawn into `tasksView`. */
 const refresh = async ($: EngineInterface) => {
   const now = await $.clock.now()
   const home = (await $.env.get('HOME')) ?? ''
+  const apps = await readRecords($, home)
   const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`
   const root = `${config}/projects`
   const dirs = (await $.fs.list(root).catch(() => null))?.filter(x => x.kind === 'dir') ?? null
@@ -126,12 +157,16 @@ const refresh = async ($: EngineInterface) => {
       ),
     )
   ).flat()
-  const sessions = await pool(files, AT_ONCE, async f => {
+  // A session the app archived is left out unread.
+  const id = (path: string) => path.split('/').pop()!.replace(/\.jsonl$/, '')
+  const listed = files.filter(f => !apps.get(id(f.path))?.archived)
+  const sessions = await pool(listed, AT_ONCE, async f => {
     const s = await readOne($, f.path, f.size, f.mtime).catch(() => null)
     if (!s) return { rows: [] as TaskRow[], repo: '' }
-    const id = f.path.split('/').pop()!.replace(/\.jsonl$/, '')
+    const app = apps.get(id(f.path))
     const agent = now - f.mtime < DAY ? await agentOf($, f.path.replace(/\.jsonl$/, ''), now) : ''
-    return { rows: toRows(s.scan, { id, repo: '', title: s.title, agent, at: f.mtime }, now), repo: repoOf(s.cwd, home) || 'elsewhere' }
+    const meta = { id: id(f.path), link: app ? `claude://claude.ai/epitaxy/${app.sessionId}` : '', title: app?.title || s.title, agent, at: f.mtime }
+    return { rows: toRows(s.scan, meta, now), repo: repoOf(s.cwd || app?.cwd || '', home) || 'elsewhere' }
   })
   // Transcripts gone from the week are forgotten.
   const kept = new Set(files.map(f => f.path))
@@ -167,9 +202,10 @@ const drawn = ($: EngineInterface) => {
   })
 }
 
-/** Opens a session in the Claude app. */
+/** Opens a session in the Claude app, by the link from the app's record of it. */
 const openSession = async ($: EngineInterface, r: TaskRow) => {
-  const run = await $.process.run(['open', `claude://claude.ai/epitaxy/local_${r.session}`], { timeoutMs: 10_000 })
+  if (!r.link) return
+  const run = await $.process.run(['open', r.link], { timeoutMs: 10_000 })
   if (run.exitCode !== 0) await $.ui.toast(`${r.title}: could not open the session`)
 }
 

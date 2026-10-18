@@ -477,9 +477,11 @@ export type TaskRow = {
   /** Completed items of its plan, and all of them: the gauge. */
   done: number
   total: number
-  /** The session's id (its transcript's file name). */
+  /** The transcript's id (its file name; the app record's `cliSessionId`). */
   session: string
-  /** The session's title: the app's custom title, else its first prompt, cut. */
+  /** The app's link to the session (`claude://claude.ai/epitaxy/<sessionId>`); empty when the app has no record of it. */
+  link: string
+  /** The session's title: the app record's title, else its first prompt, cut. */
   title: string
   /** The type of a subagent running in the session now; empty when none. */
   agent: string

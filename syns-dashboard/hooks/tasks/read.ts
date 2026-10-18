@@ -27,7 +27,7 @@ export type Scan = {
   wrapSeq: number
   /** The person's last prompt. */
   promptSeq: number
-  /** The first prompt's text, for a title when the app has none. */
+  /** The first prompt's text, for a title when the app has no record of the session. */
   firstPrompt: string
   seq: number
 }
@@ -98,7 +98,8 @@ export const scanLine = (s: Scan, line: string) => {
     }
     return
   }
-  if (!line.includes(PROMPT_MARK) || line.includes('"isMeta":true') || line.includes('"isSidechain":true')) return
+  // Meta and sidechain prompts were left out by the shell, which tests the whole line: the markers sit past the cut.
+  if (!line.includes(PROMPT_MARK)) return
   const text = promptText(line)
   // The app's own lines in the person's voice (a slash command's output, a caveat) aren't a turn of theirs.
   if (!text || /^(Caveat:|\[Request interrupted)/.test(text)) return
@@ -107,7 +108,7 @@ export const scanLine = (s: Scan, line: string) => {
 }
 
 /** What register.tsx knows of a session beside its scan. */
-export type Meta = { id: string; repo: string; title: string; agent: string; at: number }
+export type Meta = { id: string; link: string; title: string; agent: string; at: number }
 
 const RANK: Record<TaskState, number> = { running: 0, waiting: 1, idle: 2, done: 3 }
 
@@ -150,6 +151,7 @@ export const toRows = (s: Scan, m: Meta, now: number): TaskRow[] => {
       done,
       total: items.length,
       session: m.id,
+      link: m.link,
       title: m.title,
       agent: m.agent,
       at: m.at,
