@@ -24,7 +24,7 @@ the reviewer, and this pass only feeds him.
 4. For each one confirmed, add a `kind: "question"` item to the brain file
    (`$SYN_BRAIN`, or `~/.syns/brain.json`), the id continuing from the
    highest in `inbox` and `answered`, with options and the recommended one
-   first, `reversible: true`, `"epic": "<id>"`, `thread` from the epic,
+   first, `reversible: true`, `"epic": "<id>"`, `pod` from the epic,
    `raisedBy: "/syn:review"`, `status: "open"`, `applies` naming the epic.
    Add its id to the epic's `questions`.
 5. End with one line: how many gaps were found and how many went to the

@@ -27,7 +27,7 @@
     {{decided_ids}}    inbox ids of `decisions`, e.g. "32–35, 37" ("none" when empty)
     {{problem}}        one or more <p> from proposal.md's problem
     {{chosen}}         approach.chosen
-    {{thread}} {{mode}} {{parent}} (links.parent or "none") {{raisedBy}} {{raisedAt}}
+    {{pod}} {{mode}} {{parent}} (links.parent or "none") {{raisedBy}} {{raisedAt}}
     {{start_text}}     the Start row (shown only from approved on): "Ready to start · rev N"
                        while approved, "Started · rev N" active, "Done" / "Dropped" after
     {{start_note}}     under it: while approved, "start now, or schedule a time"; once
@@ -243,7 +243,7 @@ footer { border-top: 1px solid var(--line); padding-top: 12px; font: 12px var(--
   </div>
 </details>
 
-<footer><span>{{id}} · rev {{rev}}</span><span>thread {{thread}}</span><span>mode {{mode}}</span><span>parent {{parent}}</span><span>raised by {{raisedBy}} · {{raisedAt}}</span></footer>
+<footer><span>{{id}} · rev {{rev}}</span><span>pod {{pod}}</span><span>mode {{mode}}</span><span>parent {{parent}}</span><span>raised by {{raisedBy}} · {{raisedAt}}</span></footer>
 </div>
 
 <script>

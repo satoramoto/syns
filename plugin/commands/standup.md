@@ -5,7 +5,7 @@ description: Standup - done since last standup, in progress, blockers, and what 
 Give the user a standup, in this shape and nothing else. Short, plain words,
 no preamble, no questions, start no work.
 
-Sources: the brain file (`$SYN_BRAIN`, or `~/.syns/brain.json`): threads,
+Sources: the brain file (`$SYN_BRAIN`, or `~/.syns/brain.json`): pods,
 `done`, the inbox and its answers; open PRs named there (`gh pr view <n>
 --repo <r> --json state,statusCheckRollup`, only if cheap); agents still
 running in this session; and, once it exists, `~/.syns/memory.jsonl` since
@@ -25,8 +25,9 @@ it. If none, say "none".
 **When you have a minute:** open approvals first, then one-time chores and the
 count of open questions (which proceed on recommendations).
 
-After the standup, sweep stale sessions and stale titles in the sidebar with
-the `session-housekeeping` skill (its step 4), and add its one line.
+After the standup, tidy the sidebar (filing, stale titles, done tasks offered
+for closing) with the `session-housekeeping` skill (its step 6), and add its
+one line.
 
 Then append `{ "at": <today>, "note": "standup" }` to the brain file's `done`
 list only if the user asks to record it.

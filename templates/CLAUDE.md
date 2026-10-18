@@ -6,9 +6,10 @@ rules). Agent definitions live in templates/agents/; copy them to
 
 ## Brain state
 
-- `~/.syns/brain.json` holds what I'm working on this month: threads with
-  their why, priority, state and next step, a shelf, done, and the inbox. It's
-  the source of truth; your memory of the session is not.
+- `~/.syns/brain.json` holds what I'm working on this month: pods with
+  their why, priority, state, next step, lead session and task sessions, a
+  shelf, done, and the inbox. It's the source of truth; your memory of the
+  session is not.
 - Read it at the start of a session. Keep it current as work moves: propose
   each change in one line and write it once I accept or correct it.
 

@@ -9,9 +9,9 @@ are in `docs/epics.md`; the example is
 `~/.syns/epics/proposal-system/epic.json`. Read both first.
 
 1. Pick a short kebab-case `id` for the epic (e.g. `bloom-swarm`) that isn't
-   already a folder under `~/.syns/epics/`, and the brain thread it belongs
+   already a folder under `~/.syns/epics/`, and the brain pod it belongs
    to (the brain file is `$SYN_BRAIN`, or `~/.syns/brain.json`).
-2. Brief one `developer` agent (Opus) with the ask, the id, the thread and
+2. Brief one `developer` agent (Opus) with the ask, the id, the pod and
    the two shape files. Its outcome: two or three real approaches explored
    against the code and docs involved, one chosen, and two files written in
    `~/.syns/epics/<id>/`:
@@ -48,7 +48,7 @@ are in `docs/epics.md`; the example is
      Approve recommended), and `applies: "~/.syns/epics/<id>/epic.json
      status"`. Its `question` ends with "Page: <url>" once step 5 has
      published the page.
-   Every item gets `"epic": "<id>"`, `thread`, `raisedBy`, `raisedAt` and
+   Every item gets `"epic": "<id>"`, `pod`, `raisedBy`, `raisedAt` and
    `status: "open"`. Put the question ids in the epic's `questions` and the
    approval's id in its `approval`.
 5. Set the epic's `status` to `"review"` and append the ledger line

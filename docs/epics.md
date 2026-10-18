@@ -19,7 +19,7 @@ Example: `~/.syns/epics/proposal-system/`; keep the shape equal to it.
 
 | Field | Holds |
 | --- | --- |
-| `id`, `thread`, `mode` | kebab-case name, the brain thread, the work mode |
+| `id`, `pod`, `mode` | kebab-case name, the brain pod, the work mode |
 | `rev`, `revisions` | current revision; `{ rev, at, note }` per revision |
 | `status` | see the lifecycle below |
 | `goal`, `why` | what is true when it's done, and why it matters |

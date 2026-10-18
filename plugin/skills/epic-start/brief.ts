@@ -9,7 +9,7 @@ import { join } from "node:path";
 type Outcome_ = { id: string; text: string; by: string; job: string; proof: string; status: string; proofs?: { url?: string; path?: string; note?: string }[] };
 type Job = { id: string; what: string; owner: string; mode: string; state: string; outcomes: string[]; repo?: string; files?: string[]; commit?: string; at?: string };
 type Epic = {
-  id: string; thread?: string; mode?: string; rev?: number; status?: string;
+  id: string; pod?: string; mode?: string; rev?: number; status?: string;
   goal: string; why: string;
   approach?: { chosen?: string; alternatives?: { what: string; whyNot: string }[] };
   assumptions?: string[]; dependencies?: string[];
@@ -43,7 +43,7 @@ const lastRev = (e.revisions ?? []).at(-1);
 
 say(`# Brief: epic ${id}`, "");
 say(`You run epic ${id} as its orchestrator: you start its jobs' agents, record proofs and the ledger; you do not do the jobs yourself.`);
-say(`It is rev ${e.rev ?? 1}, status ${e.status ?? "unknown"}, thread ${e.thread ?? "none"}, mode ${e.mode ?? "normal"}` + (e.approval != null ? `; Ryan's approval is inbox ${e.approval} (its answer and note are in the brain's answered list).` : ".") + (lastRev ? ` The latest revision (rev ${lastRev.rev}, ${lastRev.at}): ${lastRev.note}.` : ""), "");
+say(`It is rev ${e.rev ?? 1}, status ${e.status ?? "unknown"}, pod ${e.pod ?? "none"}, mode ${e.mode ?? "normal"}` + (e.approval != null ? `; Ryan's approval is inbox ${e.approval} (its answer and note are in the brain's answered list).` : ".") + (lastRev ? ` The latest revision (rev ${lastRev.rev}, ${lastRev.at}): ${lastRev.note}.` : ""), "");
 
 say("## Where the files are", "");
 list([

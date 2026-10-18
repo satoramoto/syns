@@ -39,7 +39,7 @@ export type DashData = {
   collapsed: string[]
   /** Whether Pull requests lists what's ignored. */
   ignoredOpen: boolean
-  /** List items unfolded (`thread-<id>`, `decided-<id>`); folded by default. */
+  /** List items unfolded (`pod-<id>`, `decided-<id>`); folded by default. */
   unfolded: string[]
   /** The PR whose ⋮ menu is unfolded, if any. */
   prMenu: string | null
@@ -73,7 +73,7 @@ export type DashActions = {
   menu: (ref: string) => void
   /** Merge's first press (`confirm`), its second (`merge`), or auto-merge on (`auto`) or off (`disable-auto`). */
   merge: (p: PrRow, how: 'confirm' | 'merge' | 'auto' | 'disable-auto') => void
-  /** Folds or unfolds one list item (`thread-<id>`, `decided-<id>`). */
+  /** Folds or unfolds one list item (`pod-<id>`, `decided-<id>`). */
   unfold: (id: string) => void
   flow?: FlowSwitch
 }
@@ -108,7 +108,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     </Text>
   )
   const quiet = (key: string, label: string, onPress: () => void) => k.actions(key, [{ key, label, onPress, quiet: true }])
-  /** A waiting thread's lead: ◌ in grey (a mark), so the prioritised ones' coloured badges stand out. */
+  /** A waiting pod's lead: ◌ in grey (a mark), so the prioritised ones' coloured badges stand out. */
   const waiting = (
     <Text key="waiting" {...k.role('mark')}>
       {GLYPH.pending}
@@ -125,7 +125,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
   const loading = !b
   const failed = b?.error
 
-  // ---- Doing: the threads, each its priority badge (or ◌ waiting), title and next step; what it's about behind its fold ----
+  // ---- Doing: the pods, each its priority badge (or ◌ waiting), title and next step; what it's about behind its fold ----
   const doing = k.collapsibleList({
     id: 'doing',
     icon: 'tasklist',
@@ -134,8 +134,8 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
     right:
       b && !failed
         ? k.summary([
-            [String(b.threads.filter(t => t.tier === 'priority').length), 'prioritised'],
-            [String(b.threads.filter(t => t.tier === 'next').length + b.moreThreads), 'next'],
+            [String(b.pods.filter(t => t.tier === 'priority').length), 'prioritised'],
+            [String(b.pods.filter(t => t.tier === 'next').length + b.morePods), 'next'],
           ])
         : undefined,
     loading,
@@ -145,9 +145,9 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       : failed
         ? [k.note('doing-error', `${failed} · run /syn:onboard to make one`, 'error', { lines: 2 })]
         : [
-            ...b.threads.map(t =>
-              k.listItem(`thread-${t.id}`, {
-                // The badge in its priority's colour, bold; a waiting thread's ◌ grey and its title a step quieter.
+            ...b.pods.map(t =>
+              k.listItem(`pod-${t.id}`, {
+                // The badge in its priority's colour, bold; a waiting pod's ◌ grey and its title a step quieter.
                 // Every next step is secondary (L1): readable.
                 lead:
                   t.tier === 'priority' ? (
@@ -162,12 +162,12 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
                 dim: t.tier === 'next',
                 subtitle: t.next ? `next: ${t.next}` : undefined,
                 subtitleWrap: true,
-                ...(t.about ? { ...itemFold(`thread-${t.id}`), children: [wrapped(`thread-${t.id}-about`, t.about)] } : {}),
+                ...(t.about ? { ...itemFold(`pod-${t.id}`), children: [wrapped(`pod-${t.id}-about`, t.about)] } : {}),
               }),
             ),
-            b.moreThreads ? k.note('more-threads', `and ${plural(b.moreThreads, 'more next thread')}`) : null,
-            b.decidedThreads ? k.note('decided-threads', `${plural(b.decidedThreads, 'decided thread')} not shown`) : null,
-            b.threads.length ? null : k.note('no-threads', 'No prioritised or next threads.'),
+            b.morePods ? k.note('more-pods', `and ${plural(b.morePods, 'more next pod')}`) : null,
+            b.decidedPods ? k.note('decided-pods', `${plural(b.decidedPods, 'decided pod')} not shown`) : null,
+            b.pods.length ? null : k.note('no-pods', 'No prioritised or next pods.'),
           ],
   })
 

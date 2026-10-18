@@ -98,15 +98,17 @@ think out loud, it keeps track, does the legwork and tells you what it decided.
 
 ## Brain state
 
-Brain state is a board of **threads**. Each thread is one idea or workstream
-and carries four things:
+Brain state is a board of **pods**. Each pod is a domain with a crew and a
+standing brief, and carries:
 
 - **why** it matters;
 - its **priority** (its place on the board);
 - its **state** (where it stands now);
-- its **next** step.
+- its **next** step;
+- its **lead** session, the long-lived one you talk to, and the **tasks** it
+  runs, each in its own session.
 
-Below the board sit a **shelf** (parked threads) and **done** (what finished
+Below the board sit a **shelf** (parked pods) and **done** (what finished
 this month). Claude keeps the file current during the session: it proposes
 each change in one line, and you accept or correct it. It exists so you never
 have to re-explain what you're doing or why.
@@ -132,16 +134,16 @@ mid-thought, and nothing stalls waiting for you unless it truly must.
 ## Time bucketing
 
 Buckets instead of time boxes. Anything may happen at any time, but each
-thread has a maximum amount of time it may take, and buckets can give time to
+pod has a maximum amount of time it may take, and buckets can give time to
 each other.
 
-- Each thread on the board has a **bucket**: an **allowance** per period (a
+- Each pod on the board has a **bucket**: an **allowance** per period (a
   week or a month).
 - syn measures **spend** automatically from its log: the main session's
-  active time on the thread's asks, plus agent time and tokens attributed
+  active time on the pod's asks, plus agent time and tokens attributed
   through jobs. You never log time by hand.
-- **Tangents** are free. A tangent draws from its own thread's bucket, and a
-  new idea becomes a shelf thread with a small default bucket, so you can
+- **Tangents** are free. A tangent draws from its own pod's bucket, and a
+  new idea becomes a shelf pod with a small default bucket, so you can
   follow it at once without it eating into something else.
 - When a bucket runs dry, syn never interrupts. It adds an inbox question
   ("X is over its bucket: borrow from Y, raise it, or park X?") with a
@@ -164,10 +166,10 @@ can be re-run whenever your brain state turns over (monthly, say):
 1. **Code.** Where do your repos live? syn scans them as an audit: which have
    an agent setup that fits this approach (an `AGENTS.md` with a check table, a
    base context, tests to a contract) and which deviate, so it can propose
-   normalizing them. Recently active repos become candidate threads.
+   normalizing them. Recently active repos become candidate pods.
 2. **Notes.** Where are your notes (an Obsidian vault, or any folder of
    markdown)? syn reads them, and never writes to them unless you ask, to seed
-   threads, their why, and the vocabulary you already use.
+   pods, their why, and the vocabulary you already use.
 3. **Secrets.** Which 1Password vault holds your project secrets? syn stores
    only the vault name and item references (`op://vault/item/field`), never a
    value. It never reads or prints a secret; tools resolve references at run
@@ -235,7 +237,7 @@ CI on the PR is the final check.
 ## Shared vocabulary: language games
 
 Working well together needs words you both mean the same thing by. The lexicon
-is like music theory: **names, not rules**. It names things (a thread, a job, a
+is like music theory: **names, not rules**. It names things (a pod, a job, a
 mode, a trace) so you can point at them; the rules live elsewhere. One term,
 one meaning. When Claude coins a term it says so, and you accept, rename or
 reject it before it goes in.
@@ -250,7 +252,7 @@ is the simplest thing; a workflow is a graph of loops; a circuit adds modules,
 pins, traces and buses, so the same structure describes an agent workflow, an
 app's node graph and syn's own state machine. The model is defined in zen's
 [Circuit model](https://github.com/satoramoto/zen/blob/main/docs/circuit-model.md).
-In circuit terms, threads are chips, their links are traces, the month is the
+In circuit terms, pods are chips, their links are traces, the month is the
 board, and the base context is a bus every assistant taps.
 
 ## The name
@@ -292,7 +294,7 @@ Each milestone is the smallest, simplest version that works on its own.
 
 - **M1:** `/syn inbox` runs `BRAIN.md`'s inbox as a quiz and writes the
   answers back.
-- **M2:** one line of hidden context on each prompt: the mode, the threads,
+- **M2:** one line of hidden context on each prompt: the mode, the pods,
   the open inbox count.
 - **M3:** one metric, ask → first reply, measured from transcripts, naked vs
   syn on one script.

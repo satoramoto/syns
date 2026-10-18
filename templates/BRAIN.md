@@ -14,22 +14,24 @@ everything an item doesn't block. **Approvals** block their job. **Questions**
 carry Claude's recommendation (★); reversible ones proceed on it and stay here
 as a veto until answered. **Terms** are coined words waiting for the lexicon.
 
-| # | Kind | Thread | Item | ★ Recommendation | Blocks |
+| # | Kind | Pod | Item | ★ Recommendation | Blocks |
 | --- | --- | --- | --- | --- | --- |
 | 1 | question | 1 | Store sessions in Postgres or SQLite for the first release? | SQLite (one file, no service to run) | nothing (proceeding) |
 | 2 | approval | 1 | Create the public GitHub repo `you/example-app`? | private until it works, then public | pushing |
 | 3 | term | lexicon | Accept **slice** for one vertical piece of a feature? | accept | nothing (in use) |
 
-## Board (active threads, by priority)
+## Board (active pods, by priority)
 
-### 1. <Thread title>
+### 1. <Pod title>
 - **Why:** why it matters, in a sentence or two.
 - **State:** where it stands now.
 - **Next:** the next concrete step.
+- **Lead:** the lead session's id, or none yet.
+- **Sessions:** its task session ids (optional)
 - **Repo:** `~/Code/you/example-app` (optional)
 - **Links:** feeds 2; needs 3 (optional)
 
-### 2. <Thread title>
+### 2. <Pod title>
 - **Why:**
 - **State:**
 - **Next:**

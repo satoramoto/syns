@@ -1,15 +1,15 @@
-/** One thread under "What we're doing": a line of title and status, a line of next step. */
-export type ThreadRow = {
+/** One pod under "What we're doing": a line of title and status, a line of next step. */
+export type PodRow = {
   id: string
   /** The title up to its first colon (the rest is `about`). */
   title: string
   about: string
-  /** The thread's priority (1 first); 0 for none. */
+  /** The pod's priority (1 first); 0 for none. */
   priority: number
   status: string
   /** `priority`: worked on now, in priority order; `next`: waiting its turn, drawn dimmer. */
   tier: 'priority' | 'next'
-  /** The first sentence of the thread's `next`. */
+  /** The first sentence of the pod's `next`. */
   next: string
 }
 
@@ -42,12 +42,12 @@ export type BrainView = {
   /** The file's mtime when read (ms since epoch). */
   mtime: number
   outcome: string
-  /** Prioritised threads in priority order, then the few `next` ones. */
-  threads: ThreadRow[]
-  /** `next` threads past the ones listed. */
-  moreThreads: number
-  /** Threads marked `decided`: counted, not listed. */
-  decidedThreads: number
+  /** Prioritised pods in priority order, then the few `next` ones. */
+  pods: PodRow[]
+  /** `next` pods past the ones listed. */
+  morePods: number
+  /** Pods marked `decided`: counted, not listed. */
+  decidedPods: number
   /** Answered inbox items, newest first, the last few. */
   decided: Decision[]
   approvals: Approval[]
@@ -623,7 +623,7 @@ declare module 'claude-code' {
       columns: boolean
       /** Whether Pull requests lists its ignored repos and PRs (the header's "N ignored" pressed). */
       ignoredOpen: boolean
-      /** List items unfolded (`thread-<id>` to what it's about, `decided-<id>` to its note, question and reason); folded by default. */
+      /** List items unfolded (`pod-<id>` to what it's about, `decided-<id>` to its note, question and reason); folded by default. */
       unfolded: string[]
       /** The PR (`owner/repo#n`) whose ⋮ menu is unfolded in Pull requests, if any. */
       prMenu: string | null

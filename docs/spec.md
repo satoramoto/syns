@@ -64,25 +64,27 @@ that could drift.
 type Brain = {
   month: string;              // "2026-10"
   inbox: InboxItem[];
-  board: Thread[];            // in priority order
+  board: Pod[];               // in priority order
   shelf: string[];            // parked, one line each
   done: { date: string; text: string }[];
 };
 
-type Thread = {
+type Pod = {
   id: number;                 // its place on the board when created; stable
   title: string;
   why: string;
   state: string;
   next: string;
+  lead: string | null;        // the lead session's id, or null
+  sessions: string[];         // its task session ids
   links?: string;             // "feeds 2; needs 1"
-  repo?: string;              // path, when the thread has one
+  repo?: string;              // path, when the pod has one
 };
 
 type InboxItem = {
   id: number;
   kind: 'approval' | 'question' | 'term';
-  thread: string;             // a thread id, "lexicon", "brain" or "shelf"
+  pod: string;                // a pod id, "lexicon", "brain" or "shelf"
   text: string;
   recommendation: string;     // required for question and term
   blocks: string;             // a job or step, or "nothing (proceeding)"
@@ -99,23 +101,23 @@ type InboxItem = {
    a veto. When it isn't, it's an approval instead.
 3. **Terms** are coined words awaiting acceptance into the lexicon; accepted,
    they move to `LEXICON.md`.
-4. Claude proposes every change to brain state in one line (a new thread, a
+4. Claude proposes every change to brain state in one line (a new pod, a
    new state or next step, an item answered); the plugin writes it once you
    accept, or immediately for inbox items Claude adds.
-5. An answered item updates what it was about (the thread's state, the spec,
+5. An answered item updates what it was about (the pod's state, the spec,
    the lexicon), then leaves the inbox. A veto that overrides a
    recommendation that work already proceeded on becomes a job of its own.
 
 ### Buckets (draft)
 
 Buckets instead of time boxes: anything may happen at any time, but each
-thread has a maximum it may take, and buckets can give time to each other.
+pod has a maximum it may take, and buckets can give time to each other.
 Proposed terms, awaiting acceptance: **bucket**, **allowance**, **spend**,
 **transfer**, **tangent**.
 
 ```ts
 type Bucket = {
-  thread: number;
+  pod: number;
   allowance: number;          // no period (open question 6), in the unit of open question 7
   spent: number;              // derived from the log, never typed in
   transfers: Transfer[];
@@ -123,7 +125,7 @@ type Bucket = {
 
 type Transfer = {
   id: number;
-  from: number;               // thread id
+  from: number;               // pod id
   to: number;
   amount: number;
   at: string;                 // ISO time
@@ -131,14 +133,14 @@ type Transfer = {
 };
 ```
 
-- **K1.** Every thread on the board or shelf has a bucket. A thread without
+- **K1.** Every pod on the board or shelf has a bucket. A pod without
   an allowance gets the default for where it sits (board or shelf).
 - **K2.** Spend is measured from the log (rule 40): the main session's active
-  time on the thread's asks, plus agent time and tokens attributed through the
-  thread's jobs. The exact formula is open question 7.
-- **K3.** A tangent (an ask about a different thread, or about no thread yet)
-  is never refused or deferred. It's attributed to its own thread; an ask
-  about a new idea creates a shelf thread with the small default bucket.
+  time on the pod's asks, plus agent time and tokens attributed through the
+  pod's jobs. The exact formula is open question 7.
+- **K3.** A tangent (an ask about a different pod, or about no pod yet)
+  is never refused or deferred. It's attributed to its own pod; an ask
+  about a new idea creates a shelf pod with the small default bucket.
 - **K4.** When a bucket's spend passes its allowance, syn adds one inbox
   question ("X is over its bucket: borrow from Y, raise it, or park X?") with
   a recommendation, and work continues. No turn is stopped or sent back for
@@ -148,7 +150,7 @@ type Transfer = {
 - **K6.** Buckets have no period and never reset, so nothing carries over:
   the brain reflects the latest state however long it's been. An allowance
   changes only when it's set or by a transfer.
-- **K7.** The pane shows each thread's bucket as a reading: label, thin flat
+- **K7.** The pane shows each pod's bucket as a reading: label, thin flat
   gauge (spent over allowance), value, unit.
 
 ### The inbox as a quiz
@@ -170,10 +172,10 @@ the brain state turns over). Each step asks before it reads anything.
    context, agent definitions, CI) and recent activity (commits in the last
    weeks). Report it as an audit: which repos fit the approach and which
    deviate, with a proposal to normalize each one that deviates (proposals go
-   to the inbox as approvals). Seed candidate threads from recently active
+   to the inbox as approvals). Seed candidate pods from recently active
    repos.
 9. **Notes.** Ask for an Obsidian vault or any folder of markdown notes. Read
-   it, and never write to it unless asked, to seed threads, their why, and the
+   it, and never write to it unless asked, to seed pods, their why, and the
    vocabulary the user already uses.
 10. **Secrets.** Ask for the 1Password vault. syn stores only the vault name
     and item references (`op://<vault>/<item>/<field>`), never a secret's
@@ -201,7 +203,7 @@ the brain state turns over). Each step asks before it reads anything.
   own turn, and has a set of jobs in flight.
 - **Ask:** one request from the user (a prompt from the composer).
 - **Job:** the unit of work an ask becomes. It has an id, an owner, a mode, a
-  state, the thread it serves (if any), the inbox items blocking it, and a
+  state, the pod it serves (if any), the inbox items blocking it, and a
   history of transitions. Several jobs can be in flight at once.
 - **Owner:** `self` (the main session in its own turn), `assistant`,
   `developer`, `test-engineer` or `workflow:<name>`.
@@ -242,22 +244,34 @@ Bracketed steps exist in every mode. A mode marks each one `required`,
 | merged | GitHub reports the PR merged | local fast-forward |
 | pulled | the checkout is level with origin | done |
 
-When a job is done, the thread it serves gets a proposed state and next-step
+When a job is done, the pod it serves gets a proposed state and next-step
 update (rule 4), and notable results go to `done`.
 
 ### Sessions in the sidebar
 
-Every session a syns-enabled session starts (and the session itself) is filed
-in Claude desktop's sidebar group **syns · in progress**, by moving its family
-root there right after `start_session` or `hand_off_to_session`. A session is
-stale when it is idle, not pinned, and nothing in the brain file names it as
-running or blocked, or when it is already archived; stale ones move to
-**syns · done**, and archiving is only offered. The plugin has no hook for
-another session going quiet, so `/syn:standup` and `/syn:back` run the sweep.
-A session's title names what it is doing now (under 60 characters, `<epic>:
-<job>` for an epic's job): it retitles itself when its scope changes, titles
-the sessions it starts, and the sweep flags stale titles, retitling only the
-sessions it started. The procedure is the `session-housekeeping` skill.
+Each pod has a **lead session**, titled `[LEAD] <pod id>` and recorded in the
+pod's `lead`, and its **task** sessions, titled `[<pod id>] <task name>` and
+recorded in its `sessions`. The lead starts each task and files it, and
+itself, in the sidebar group named after the pod, right after
+`start_session` or `hand_off_to_session`. A task's title names what it is
+doing now (under 60 characters); it retitles itself when its scope changes,
+and the lead titles the tasks it starts.
+
+When a task's report arrives (or on `/syn:close <session>`), the lead
+**closes** it: it checks the work landed (the commit or merged PR the report
+names, nothing uncommitted in its worktree, no process left), writes a
+`task.closed` line to the ledger (session, pod, and what it left: commit, PR,
+page), marks it completed and archives it. A task that didn't land isn't
+closed; the lead raises an inbox question (close or continue). The lead
+itself never closes; when heavy it is cleared and re-reads its pod folder.
+
+The plugin has no hook for another session going quiet, so `/syn:standup`
+and `/syn:back` tidy the sidebar: they file strays, flag stale titles
+(retitling only sessions they started) and offer done tasks for closing.
+`/syn:sweep` is the full audit of the board and the sessions: quiet pods,
+shelf and done, built milestones, long-answered items, and sessions idle more
+than 7 days or whose PR merged, asked as one quiz and applied, each change
+with a ledger line. The procedure is the `session-housekeeping` skill.
 
 ## Events (engine sources)
 
@@ -382,7 +396,7 @@ decision.
 34. **Inbox:** the open items, approvals first. Answering runs the quiz in the
     pane: one item at a time, the recommendation as the first choice (★), the
     alternatives, a free answer, and Skip.
-35. **Board:** one section per active thread, with its state and next step,
+35. **Board:** one section per active pod, with its state and next step,
     and the jobs serving it under it.
 36. **Jobs in flight:** one row each: owner icon (coloured by state), the
     ask's first words, the state, and what it's waiting on. A running job
@@ -400,9 +414,9 @@ It opens on session start (and with `/dashboard`), reads `$SYN_BRAIN` or
 every 2 s while the pane is shown; nothing runs while it's hidden). Sections,
 in awesome-claude's inspector look on the desktop and the terminal:
 
-- **Doing:** the top 3 active threads by priority, each its
+- **Doing:** the top 3 active pods by priority, each its
   title (up to the first colon), priority, and its `next` (first sentence);
-  the rest of the title (what it's about) behind a per-thread fold. Every
+  the rest of the title (what it's about) behind a per-pod fold. Every
   section is a collapsible list (header and items one surface, hairlines
   between items), each item a two-line list item.
 - **Decided:** the last 8 answered inbox items (from `inbox` and `answered`),
@@ -443,7 +457,7 @@ in awesome-claude's inspector look on the desktop and the terminal:
   calls). Refs under `ignored` don't count as PRs brain.json names.
 - **Needs you:** open approvals, then the count of open questions and a button
   that runs `/syn:inbox`.
-- **Next:** brain.json's own `next` if it has one, else the top thread's.
+- **Next:** brain.json's own `next` if it has one, else the top pod's.
 - A footer: **Standup** (`/syn:standup`) and **Brief** (`/syn:back`).
 
 The sections above are the pane's first tab, **Overview**. The other tabs were
@@ -474,7 +488,7 @@ prompt where the pane can't be placed).
 Not built yet, and wanted as the work pulls them in: everything in 33–38
 above (the session state and mode switch in the head, the quiz in the pane,
 jobs as rows with their states, the graph view of the machine, Done), guards
-and modes shown on it, each thread's bucket as a reading (K7), previews
+and modes shown on it, each pod's bucket as a reading (K7), previews
 registered in brain.json listed and launched from it, and events from
 `memory.jsonl` (the ledger) in place of mtime polling.
 
@@ -494,7 +508,7 @@ registered in brain.json listed and launched from it, and events from
 - `/syn`: brain state at a glance: the inbox count, then the board.
 - `/syn onboard`: onboarding (rules 8–12).
 - `/syn quiz`: answer the inbox.
-- `/syn bucket [thread] [set <allowance> | give <amount> to <thread> | revert <id>]`:
+- `/syn bucket [pod] [set <allowance> | give <amount> to <pod> | revert <id>]`:
   show, set or transfer buckets.
 - `/syn mode <name>`: switch mode for new jobs.
 - `/syn feature`: mark the current ask a feature.

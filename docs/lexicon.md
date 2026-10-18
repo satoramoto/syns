@@ -12,11 +12,28 @@ in your `LEXICON.md` (start from [`templates/LEXICON.md`](../templates/LEXICON.m
   brain, with brain state, the inbox, modes, routing and the circuit that runs
   it, shown by the `syn` plugin.
 - **Brain state:** what you're working on this month (`BRAIN.md`): a board of
-  threads, a shelf, done, and the inbox.
-- **Thread:** one idea or workstream on the board, with its **why**,
-  **priority**, **state** and **next** step.
-- **Board:** the active threads, in priority order.
-- **Shelf:** parked threads.
+  pods, a shelf, done, and the inbox.
+- **Pod:** a domain with a why, a crew and a standing brief, on the board
+  (brain.json `pods`, each with its **why**, **priority**, **state**, **next**
+  step, `lead` (a session id or null) and `sessions` (its task session ids)).
+- **Lead session:** a pod's long-lived session, the one you talk to. It owns
+  the pod's brief, backlog and inbox lane, starts each task as its own session
+  and receives each task's report. Titled `[LEAD] <pod id>`. It never closes;
+  when heavy it is cleared and re-reads its pod folder.
+- **Task:** the unit of work a pod owns, running in its own session, started
+  by the lead. Lifecycle: started, working, waiting on you, done, then closed
+  (archived) by the lead. Titled `[<pod id>] <task name>`, filed in a sidebar
+  group named after the pod.
+- **Close:** the lead checks a finished task landed (commit or merged PR,
+  nothing uncommitted, no process left), writes a `task.closed` ledger line to
+  `~/.syns/memory.jsonl`, marks it completed and archives it.
+  `/syn:close <session>`.
+- **Sweep:** `/syn:sweep`, the audit of the board and the sessions: stale
+  pods, shelf, done, built milestones, old answered items, idle or merged
+  sessions, asked as one quiz (keep / shelve / close; archive / keep) and
+  applied.
+- **Board:** the active pods, in priority order.
+- **Shelf:** parked pods.
 - **Inbox:** every open item for you in one place.
   - **Approval:** an item that blocks its job until you say yes.
   - **Question:** an item that carries Claude's **recommendation**; when the
@@ -72,7 +89,7 @@ in brief:
 - **Zone:** a labelled area of a module.
 - **Flatten:** expand every bus into direct traces.
 
-In circuit terms: threads are chips, their links are traces, the month is the
+In circuit terms: pods are chips, their links are traces, the month is the
 board, and the base context is a bus every assistant taps.
 
 ## Proposed (awaiting acceptance)
@@ -80,14 +97,14 @@ board, and the base context is a bus every assistant taps.
 Coined for time bucketing ([spec](spec.md), Buckets). Not accepted yet: each
 is an inbox **term** until it is.
 
-- **Bucket:** a thread's time budget for a period. A maximum, not a time box:
+- **Bucket:** a pod's time budget for a period. A maximum, not a time box:
   the work may happen at any time.
 - **Allowance:** how much a bucket holds per period.
-- **Spend:** what a thread has used of its allowance, measured from the log.
+- **Spend:** what a pod has used of its allowance, measured from the log.
 - **Transfer:** an explicit, logged, reversible move of allowance from one
   bucket to another.
-- **Tangent:** an ask that leaves the current thread; it's free, and draws
-  from its own thread's bucket (a new idea gets a shelf thread).
+- **Tangent:** an ask that leaves the current pod; it's free, and draws
+  from its own pod's bucket (a new idea gets a shelf pod).
 
 ## Inspector (how the pane looks)
 

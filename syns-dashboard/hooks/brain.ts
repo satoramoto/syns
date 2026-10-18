@@ -1,7 +1,7 @@
-import type { Approval, BrainView, Decision, Ignored, ThreadRow } from '../types'
+import type { Approval, BrainView, Decision, Ignored, PodRow } from '../types'
 
-/** How many `next` threads (every prioritised one is listed), decisions and PRs the pane lists. */
-export const NEXT_THREADS = 5
+/** How many `next` pods (every prioritised one is listed), decisions and PRs the pane lists. */
+export const NEXT_PODS = 5
 export const DECIDED = 8
 export const PRS = 8
 
@@ -61,7 +61,7 @@ export const ignoredOf = (v: unknown): Ignored => {
 
 /** brain.json's text, as the pane and the band draw it. */
 export const toView = (text: string, path: string, mtime: number): BrainView => {
-  const empty: BrainView = { path, mtime, outcome: '', threads: [], moreThreads: 0, decidedThreads: 0, decided: [], approvals: [], questions: 0, prs: [], ignored: { repos: [], prs: [] }, updates: [], next: '' }
+  const empty: BrainView = { path, mtime, outcome: '', pods: [], morePods: 0, decidedPods: 0, decided: [], approvals: [], questions: 0, prs: [], ignored: { repos: [], prs: [] }, updates: [], next: '' }
   let d: any
   try {
     d = JSON.parse(text)
@@ -70,16 +70,18 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
   }
   if (!d || typeof d !== 'object') return { ...empty, error: "brain.json isn't an object" }
 
-  // A thread's place: `next` or `decided` (in `status`, or as the whole of `state`), else
+  // A pod's place: `next` or `decided` (in `status`, or as the whole of `state`), else
   // prioritised while it's active with a priority; active without one waits as `next`.
-  const all: any[] = (Array.isArray(d.threads) ? d.threads : []).filter(Boolean)
+  // An older brain file names them `threads`; read that only when `pods` is absent.
+  const source = d.pods !== undefined ? d.pods : d.threads
+  const all: any[] = (Array.isArray(source) ? source : []).filter(Boolean)
   const placeOf = (t: any): 'priority' | 'next' | 'decided' | 'other' => {
     const word = [t.status, t.state].map(v => str(v).trim().toLowerCase()).find(v => v === 'next' || v === 'decided')
     if (word) return word as 'next' | 'decided'
     if ((t.status ?? 'active') !== 'active') return 'other'
     return Number(t.priority) > 0 ? 'priority' : 'next'
   }
-  const row = (t: any, tier: ThreadRow['tier']): ThreadRow => ({
+  const row = (t: any, tier: PodRow['tier']): PodRow => ({
     id: str(t.id),
     ...splitTitle(str(t.title || t.id)),
     priority: Number(t.priority) || 0,
@@ -89,7 +91,7 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
   })
   const prioritised = all.filter(t => placeOf(t) === 'priority').sort((a, b) => Number(a.priority) - Number(b.priority))
   const waiting = all.filter(t => placeOf(t) === 'next')
-  const threads: ThreadRow[] = [...prioritised.map(t => row(t, 'priority')), ...waiting.slice(0, NEXT_THREADS).map(t => row(t, 'next'))]
+  const pods: PodRow[] = [...prioritised.map(t => row(t, 'priority')), ...waiting.slice(0, NEXT_PODS).map(t => row(t, 'next'))]
 
   // Answered items live in `answered`, or stay in `inbox` marked answered; both count.
   const items: any[] = [...(Array.isArray(d.inbox) ? d.inbox : []), ...(Array.isArray(d.answered) ? d.answered : [])].filter(Boolean)
@@ -115,9 +117,9 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
     path,
     mtime,
     outcome: str(d.outcome),
-    threads,
-    moreThreads: Math.max(0, waiting.length - NEXT_THREADS),
-    decidedThreads: all.filter(t => placeOf(t) === 'decided').length,
+    pods,
+    morePods: Math.max(0, waiting.length - NEXT_PODS),
+    decidedPods: all.filter(t => placeOf(t) === 'decided').length,
     decided,
     approvals,
     questions: open.length - approvals.length,
@@ -125,8 +127,8 @@ export const toView = (text: string, path: string, mtime: number): BrainView => 
     prs: prRefs(JSON.stringify({ ...d, ignored: undefined })).slice(0, PRS),
     ignored: ignoredOf(d.ignored),
     updates: (Array.isArray(d.updates) ? d.updates : []).filter((u: unknown) => u != null).map(updateText),
-    // A `next` of its own wins; otherwise the top thread's.
-    next: firstSentence(str(d.next)) || threads[0]?.next || '',
+    // A `next` of its own wins; otherwise the top pod's.
+    next: firstSentence(str(d.next)) || pods[0]?.next || '',
   }
 }
 

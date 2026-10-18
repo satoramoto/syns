@@ -12,7 +12,7 @@ state` per PR) and any agents still running in this session.
 
 Reply in this shape, short, plain words, no preamble:
 
-**What we're doing:** the outcome, then the top one or two threads by
+**What we're doing:** the outcome, then the top one or two pods by
 priority, one line each (title, state).
 
 **What you decided recently:** the inbox items answered in the last day or so
@@ -26,8 +26,9 @@ question.
 
 **Next:** the single next step that would put the user back in flow.
 
-After the brief, sweep stale sessions and stale titles in the sidebar with
-the `session-housekeeping` skill (its step 4), and add its one line.
+After the brief, tidy the sidebar (filing, stale titles, done tasks offered
+for closing) with the `session-housekeeping` skill (its step 6), and add its
+one line.
 
 Don't ask questions. Don't start any other work. If brain.json is missing, say so
 and suggest `/syn:onboard`.
