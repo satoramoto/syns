@@ -29,7 +29,7 @@ const view = atom({ plugin: 'syns-dashboard', key: 'tasksView' } as const, null)
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'tasksCollapsed' } as const, [] as string[])
 /** The dashboard's brain.json view, read by its own timer: the inbox's open approvals. */
 const brain = atom({ plugin: 'syns-dashboard', key: 'brain' } as const, null)
-/** The dashboard's tab shown; `/tasks` writes it to open the pane on this tab. */
+/** The dashboard's tab shown; `/board` writes it to open the pane on this tab. */
 const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
 const isShown = () => shownTab() === 'tasks'
 
@@ -348,5 +348,5 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
   })
 }
 
-/** `/tasks`: the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'tasks', description: "Open the dashboard's Tasks tab: every session's task list of the last week, by repo" }]
+/** `/board`: the dashboard registers it as the session starts. */
+export const COMMANDS: Command[] = [{ name: 'board', description: "Open the dashboard's Tasks tab: every session's task list of the last week, by repo" }]
