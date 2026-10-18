@@ -63,6 +63,8 @@ export type DashActions = {
   openProof: (p: EpicRow, promise: PromiseRow) => void
   /** Runs `/syn:review <id>`. */
   review: (p: EpicRow) => void
+  /** Runs `/syn:start <id> --door dashboard` on an approved epic. */
+  start: (p: EpicRow) => void
   /** Ignores (`ignore`) or stops ignoring a repo (`owner/name`) or PR (`owner/repo#n`): brain.json's `ignored`. */
   ignore: (list: 'repos' | 'prs', value: string, ignore: boolean) => void
   /** Folds or unfolds Pull requests' list of what's ignored. */
@@ -344,7 +346,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         })
       : null
 
-  // ---- Epics: each its status, id, phase and open questions; a proof bar and one line per promise under it; Open and Review beside it ----
+  // ---- Epics: each its status, id, phase and open questions; a proof bar and one line per promise under it; Open, Review and (when approved) Start beside it ----
   const epicRows = d.epics ?? []
   const openQs = epicRows.reduce((n, p) => n + p.questions, 0)
   const inReview = epicRows.filter(p => p.status === 'review').length
@@ -400,6 +402,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         k.actions(`epic-${p.id}-actions`, [
           p.page ? { key: `open-${p.id}`, label: 'Open', onPress: () => act.openEpic(p) } : null,
           { key: `review-${p.id}`, label: 'Review', onPress: () => act.review(p), quiet: true },
+          p.status === 'approved' ? { key: `start-${p.id}`, label: 'Start', onPress: () => act.start(p) } : null,
         ]),
       ],
       subtitle: p.error ?? (p.goal || undefined),
