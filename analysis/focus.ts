@@ -3,8 +3,10 @@
 //   bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week]
 //
 // Reads the person's prompts (never the agent's replies) from Claude Code
-// transcripts (`~/.claude/projects/*/<uuid>.jsonl`) and Codex rollouts
-// (`~/.codex/sessions/<y>/<m>/<d>/rollout-*.jsonl`), buckets them by local day
+// transcripts (`~/.claude/projects/*/<uuid>.jsonl`), Codex rollouts, live and
+// archived (`~/.codex/sessions/**`, `~/.codex/archived_sessions/**`), and chat
+// exports (`~/.syns/files/exports/<harness>/**/conversations.json`, in
+// ChatGPT's or Claude.ai's export format), buckets them by local day
 // or week (weeks start Monday), weighs each bucket's terms by TF-IDF (the
 // bucket is the document, all buckets the corpus), groups co-occurring terms
 // into topics, and writes `~/.syns/files/focus/focus.json` and `focus.html`,
@@ -21,6 +23,7 @@ import { join } from 'node:path'
 
 const HOME = homedir()
 const OUT_DIR = join(HOME, '.syns', 'files', 'focus')
+const EXPORTS_DIR = join(HOME, '.syns', 'files', 'exports')
 
 // ---- arguments ----
 
@@ -28,6 +31,7 @@ type BucketKind = 'day' | 'week'
 
 const usage = () => {
   console.error('usage: bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week]')
+  console.error(`chat exports: put each conversations.json under ${EXPORTS_DIR}/<harness>/ (chatgpt, claude-ai, ...)`)
   process.exit(2)
 }
 
@@ -69,8 +73,26 @@ const nextBucket = (start: string, kind: BucketKind): string => {
 
 // ---- reading prompts ----
 
-type Harness = 'claude' | 'codex'
-type Prompt = { at: number; harness: Harness; repo: string; session: string; text: string }
+/** `claude`, `codex`, or an export folder's name (`chatgpt`, `claude-ai`, ...). */
+type Harness = string
+/** `source`: a Codex thread's `thread_source` (`user`, `agent_created_thread`, ...); empty elsewhere. */
+type Prompt = { at: number; harness: Harness; source: string; repo: string; session: string; text: string }
+
+/** Every `.jsonl` (or other `suffix`) file under `dir`, in sorted path order. */
+const walk = (dir: string, suffix: string, out: string[] = []): string[] => {
+  let entries: { name: string; dir: boolean }[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true }).map(e => ({ name: e.name, dir: e.isDirectory() }))
+  } catch {
+    return out
+  }
+  for (const e of entries.sort((a, b) => cmp(a.name, b.name))) {
+    const path = join(dir, e.name)
+    if (e.dir) walk(path, suffix, out)
+    else if (e.name.endsWith(suffix)) out.push(path)
+  }
+  return out
+}
 
 const sortedDir = (dir: string): string[] => {
   try {
@@ -170,6 +192,7 @@ const readClaude = (since: number, out: Prompt[]) => {
         out.push({
           at,
           harness: 'claude',
+          source: '',
           repo: repoOf(typeof d.cwd === 'string' ? d.cwd : ''),
           session: typeof d.sessionId === 'string' ? d.sessionId : f.slice(0, -6),
           text: clean,
@@ -184,14 +207,12 @@ const CODEX_MARK = '"type":"UserMessage"'
 const CODEX_SKIP = new Set(['guardian_review', 'subagent'])
 
 const readCodex = (since: number, out: Prompt[]) => {
-  const root = join(HOME, '.codex', 'sessions')
+  // Archived rollouts are the same files moved; an item id seen twice (a fork, a re-archived copy) counts once.
   const seen = new Set<string>()
-  for (const y of sortedDir(root))
-    for (const m of sortedDir(join(root, y)))
-      for (const day of sortedDir(join(root, y, m)))
-        for (const f of sortedDir(join(root, y, m, day))) {
-          if (!f.startsWith('rollout-') || !f.endsWith('.jsonl')) continue
-          const path = join(root, y, m, day, f)
+  const paths = [join(HOME, '.codex', 'sessions'), join(HOME, '.codex', 'archived_sessions')].flatMap(root => walk(root, '.jsonl'))
+  for (const path of paths) {
+          const f = path.slice(path.lastIndexOf('/') + 1)
+          if (!f.startsWith('rollout-')) continue
           if (mtime(path) < since) continue
           const text = readFileSync(path, 'utf8')
           let meta: any
@@ -204,6 +225,7 @@ const readCodex = (since: number, out: Prompt[]) => {
           const p = meta.payload ?? {}
           if (CODEX_SKIP.has(p.thread_source)) continue
           const session = typeof p.id === 'string' ? p.id : f
+          const source = typeof p.thread_source === 'string' ? p.thread_source : '(none)'
           const repo = repoOf(typeof p.cwd === 'string' ? p.cwd : '')
           for (const { line } of linesWith(text, CODEX_MARK)) {
             let d: any
@@ -230,9 +252,55 @@ const readCodex = (since: number, out: Prompt[]) => {
               .replace(/<([a-zA-Z][\w-]*)\b[^>]*>[\s\S]*?<\/\1>/g, ' ')
               .replace(/<\/?[a-zA-Z][\w-]*\b[^>]*>/g, ' ')
               .trim()
-            if (clean) out.push({ at, harness: 'codex', repo, session, text: clean })
+            if (clean) out.push({ at, harness: 'codex', source, repo, session, text: clean })
           }
         }
+}
+
+/**
+ * Chat exports: every `conversations.json` under `<exports>/<harness>/`, in
+ * ChatGPT's format (conversations with a `mapping` of nodes; user messages'
+ * `content.parts` strings, `create_time` in seconds) or Claude.ai's
+ * (conversations with `chat_messages`; `sender: "human"`, `text`,
+ * `created_at`). The harness is the folder's name; a chat has no repo.
+ */
+const readExports = (since: number, out: Prompt[]) => {
+  const seen = new Set<string>()
+  for (const harness of sortedDir(EXPORTS_DIR)) {
+    for (const path of walk(join(EXPORTS_DIR, harness), 'conversations.json')) {
+      if (!path.endsWith('/conversations.json')) continue
+      let data: any
+      try {
+        data = JSON.parse(readFileSync(path, 'utf8'))
+      } catch {
+        continue
+      }
+      if (!Array.isArray(data)) continue
+      const push = (id: string, at: number, session: string, text: string) => {
+        const clean = text.trim()
+        if (!clean || !(at >= since) || seen.has(`${harness}:${id}`)) return
+        seen.add(`${harness}:${id}`)
+        out.push({ at, harness, source: '', repo: `${harness} chat`, session, text: clean })
+      }
+      for (const c of data) {
+        if (c?.mapping && typeof c.mapping === 'object') {
+          const session = String(c.conversation_id ?? c.id ?? '')
+          for (const key of Object.keys(c.mapping).sort()) {
+            const m = c.mapping[key]?.message
+            if (m?.author?.role !== 'user' || typeof m.create_time !== 'number') continue
+            const parts = Array.isArray(m.content?.parts) ? m.content.parts.filter((x: unknown) => typeof x === 'string') : []
+            push(String(m.id ?? key), m.create_time * 1000, session, parts.join('\n'))
+          }
+        } else if (Array.isArray(c?.chat_messages)) {
+          const session = String(c.uuid ?? '')
+          c.chat_messages.forEach((m: any, i: number) => {
+            if (m?.sender !== 'human' || typeof m.text !== 'string') return
+            push(String(m.uuid ?? `${session}:${i}`), Date.parse(m.created_at), session, m.text)
+          })
+        }
+      }
+    }
+  }
 }
 
 // ---- terms ----
@@ -321,25 +389,10 @@ const round = (x: number, d = 4) => {
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
-/** Sizes of the intersection and union of two ascending index lists. */
-const jaccard = (a: Int32Array, b: Int32Array): number => {
-  let i = 0
-  let j = 0
-  let both = 0
-  while (i < a.length && j < b.length) {
-    if (a[i]! === b[j]!) both++, i++, j++
-    else if (a[i]! < b[j]!) i++
-    else j++
-  }
-  return both / (a.length + b.length - both)
-}
-
-/** Terms a topic can hold: seen in at least this many prompts... */
-const VOCAB_MIN_PROMPTS = 5
-/** ...across at least this many sessions (one long thread's jargon isn't a focus of its own)... */
-const VOCAB_MIN_SESSIONS = 3
-/** ...the most salient of them (summed TF-IDF over buckets). */
-const VOCAB_SIZE = 500
+/** A term a topic can hold is seen in at least this many prompts. */
+const VOCAB_MIN_PROMPTS = 2
+/** Two terms are linked only when they share at least this many prompts (once is a coincidence of one prompt). */
+const MIN_SHARED = 2
 /** Average-linkage merges stop below this mean Jaccard between two groups' terms. */
 const MERGE_MIN = 0.03
 /** A topic holds at most this many terms. */
@@ -347,41 +400,92 @@ const TOPIC_MAX = 25
 /** A topic counts as present in a bucket from this share up (for first and last seen). */
 const PRESENT = 0.01
 
+/** A max-heap of candidate merges: highest average first, then the lowest pair of indices. */
+type Cand = { avg: number; i: number; j: number; vi: number; vj: number }
+const before = (a: Cand, b: Cand) => a.avg > b.avg || (a.avg === b.avg && (a.i < b.i || (a.i === b.i && a.j < b.j)))
+const heapPush = (h: Cand[], c: Cand) => {
+  h.push(c)
+  for (let k = h.length - 1; k > 0; ) {
+    const p = (k - 1) >> 1
+    if (!before(h[k]!, h[p]!)) break
+    ;[h[k], h[p]] = [h[p]!, h[k]!]
+    k = p
+  }
+}
+const heapPop = (h: Cand[]): Cand | undefined => {
+  const top = h[0]
+  const last = h.pop()
+  if (!h.length || !last) return top
+  h[0] = last
+  for (let k = 0; ; ) {
+    const l = 2 * k + 1
+    const r = l + 1
+    let m = k
+    if (l < h.length && before(h[l]!, h[m]!)) m = l
+    if (r < h.length && before(h[r]!, h[m]!)) m = r
+    if (m === k) break
+    ;[h[k], h[m]] = [h[m]!, h[k]!]
+    k = m
+  }
+  return top
+}
+
 /**
- * Group terms whose prompts overlap: start with one group per term, then
- * repeatedly merge the two groups with the highest average pairwise Jaccard
- * (ties to the lowest indices, terms in a fixed order) until none reaches
- * MERGE_MIN or every candidate would exceed TOPIC_MAX.
+ * Group terms whose prompts overlap, by average linkage on Jaccard. Candidate
+ * pairs come only through shared prompts (a term's prompts, then those
+ * prompts' terms), linked when they share MIN_SHARED prompts and reach
+ * MERGE_MIN; pairs never linked count as 0 in a group's average. Then the
+ * two groups with the highest average merge, ties to the lowest indices
+ * (terms in a fixed order), until none reaches MERGE_MIN or every candidate
+ * would exceed TOPIC_MAX.
  */
-const cluster = (sets: Int32Array[]): number[][] => {
+const cluster = (sets: Int32Array[], byPrompt: Int32Array[]): number[][] => {
   const n = sets.length
-  const sim = Array.from({ length: n }, () => new Float64Array(n))
-  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) sim[i]![j] = sim[j]![i] = jaccard(sets[i]!, sets[j]!)
+  // sum[a]: group a's summed pairwise Jaccard with each linked group.
+  const sum: Map<number, number>[] = Array.from({ length: n }, () => new Map())
+  const co = new Int32Array(n)
+  const touched: number[] = []
+  for (let a = 0; a < n; a++) {
+    for (const p of sets[a]!) for (const b of byPrompt[p]!) if (b > a && co[b]!++ === 0) touched.push(b)
+    touched.sort((x, y) => x - y)
+    for (const b of touched) {
+      const c = co[b]!
+      co[b] = 0
+      if (c < MIN_SHARED) continue
+      const j = c / (sets[a]!.length + sets[b]!.length - c)
+      if (j < MERGE_MIN) continue
+      sum[a]!.set(b, j)
+      sum[b]!.set(a, j)
+    }
+    touched.length = 0
+  }
   const members: (number[] | null)[] = Array.from({ length: n }, (_, i) => [i])
-  for (;;) {
-    let best = MERGE_MIN
-    let bi = -1
-    let bj = -1
-    for (let i = 0; i < n; i++) {
-      const mi = members[i]
-      if (!mi) continue
-      const row = sim[i]!
-      for (let j = i + 1; j < n; j++) {
-        const mj = members[j]
-        if (!mj || mi.length + mj.length > TOPIC_MAX) continue
-        if (row[j]! > best || (bi < 0 && row[j]! >= best)) (best = row[j]!), (bi = i), (bj = j)
-      }
+  const version = new Int32Array(n)
+  const heap: Cand[] = []
+  const offer = (x: number, y: number, s: number) => {
+    const [i, j] = x < y ? [x, y] : [y, x]
+    const size = members[i]!.length + members[j]!.length
+    const avg = s / (members[i]!.length * members[j]!.length)
+    if (size <= TOPIC_MAX && avg >= MERGE_MIN) heapPush(heap, { avg, i, j, vi: version[i]!, vj: version[j]! })
+  }
+  for (let a = 0; a < n; a++) for (const [b, s] of sum[a]!) if (b > a) offer(a, b, s)
+  for (let c = heapPop(heap); c; c = heapPop(heap)) {
+    const { i, j } = c
+    if (!members[i] || !members[j] || version[i] !== c.vi || version[j] !== c.vj) continue
+    // j folds into i: i's links become the sums of both groups' links.
+    for (const [k, s] of sum[j]!) {
+      if (k === i) continue
+      const t = (sum[i]!.get(k) ?? 0) + s
+      sum[i]!.set(k, t)
+      sum[k]!.delete(j)
+      sum[k]!.set(i, t)
     }
-    if (bi < 0) break
-    const a = members[bi]!
-    const b = members[bj]!
-    for (let k = 0; k < n; k++) {
-      if (!members[k] || k === bi || k === bj) continue
-      const v = (a.length * sim[bi]![k]! + b.length * sim[bj]![k]!) / (a.length + b.length)
-      sim[bi]![k] = sim[k]![bi] = v
-    }
-    members[bi] = [...a, ...b]
-    members[bj] = null
+    sum[i]!.delete(j)
+    sum[j] = new Map()
+    members[i] = [...members[i]!, ...members[j]!]
+    members[j] = null
+    version[i]!++
+    for (const k of [...sum[i]!.keys()].sort((x, y) => x - y)) offer(i, k, sum[i]!.get(k)!)
   }
   return members.filter((m): m is number[] => !!m)
 }
@@ -396,7 +500,21 @@ type BucketOut = {
   terms: { term: string; tfidf: number; count: number }[]
   topics: { id: string; share: number }[]
 }
-type TopicOut = { id: string; name: string; terms: string[]; first: string | null; peak: string | null; last: string | null; total: number }
+type TopicOut = {
+  id: string
+  name: string
+  terms: string[]
+  first: string | null
+  peak: string | null
+  last: string | null
+  total: number
+  /** Sessions with a prompt holding two of its terms; 1 is a topic noticed once. */
+  sessions: number
+  /** Those prompts per harness. */
+  harnesses: Record<string, number>
+  /** For a topic noticed once: its session's first prompt (200 characters at most). */
+  firstPrompt?: string
+}
 type Focus = { generatedAt: string | null; since: string | null; bucket: BucketKind; buckets: BucketOut[]; topics: TopicOut[] }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -447,12 +565,16 @@ const html = (f: Focus): string => {
     .map(s => `<span class="key"><i class="${s.cls}"></i>${esc(s.name)}</span>`)
     .join('')
     .concat(f.topics.length > shown.length ? `<span class="key dim">the rest of each ${f.bucket}: ${f.topics.length - shown.length} smaller topics</span>` : '')
-  const topicRows = f.topics
-    .map(t => {
-      const sw = `<i class="${color.get(t.id) ?? 'co'}"></i>`
-      return `<tr><td>${sw}${esc(t.name)}</td><td class="num">${t.total.toFixed(2)}</td><td>${t.first ?? '–'}</td><td>${t.peak ?? '–'}</td><td>${t.last ?? '–'}</td><td class="terms">${esc(t.terms.slice(0, 8).join(', '))}</td></tr>`
-    })
-    .join('')
+  const row = (t: TopicOut, caption: boolean) => {
+    const sw = `<i class="${color.get(t.id) ?? 'co'}"></i>`
+    const terms = esc(t.terms.slice(0, 8).join(', '))
+    const sub = caption && t.firstPrompt ? `<div class="cap">“${esc(t.firstPrompt)}”</div>` : ''
+    return `<tr><td>${sw}${esc(t.name)}</td><td class="num">${t.total.toFixed(2)}</td><td class="num">${t.sessions}</td><td>${t.first ?? '–'}</td><td>${t.peak ?? '–'}</td><td>${t.last ?? '–'}</td><td class="terms">${terms}${sub}</td></tr>`
+  }
+  const head = '<thead><tr><th>Topic</th><th>Total</th><th>Sessions</th><th>First</th><th>Peak</th><th>Last</th><th>Terms</th></tr></thead>'
+  const topicRows = f.topics.filter(t => t.sessions > 1).map(t => row(t, false)).join('')
+  const onceTopics = f.topics.filter(t => t.sessions === 1)
+  const onceRows = onceTopics.map(t => row(t, true)).join('')
   const names = new Map(f.topics.map(t => [t.id, t.name]))
   const bucketRows = [...f.buckets]
     .reverse()
@@ -487,6 +609,7 @@ th{font-weight:600;color:var(--dim);font-size:12px}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
 td{white-space:nowrap}
 td.terms{color:var(--dim);white-space:normal;min-width:16em}
+.cap{color:var(--fg);font-style:italic;margin-top:2px}
 </style></head><body><main>
 <h1>Focus timeline</h1>
 <div class="dim">${f.buckets.length} ${f.bucket === 'week' ? 'weeks' : 'days'}${f.since ? ` since ${f.since}` : ''} · ${f.buckets.reduce((s, b) => s + b.prompts, 0)} prompts · newest ${esc(f.generatedAt ?? '–')}</div>
@@ -494,7 +617,10 @@ td.terms{color:var(--dim);white-space:normal;min-width:16em}
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Stacked topic share over time">${grid}${paths.join('')}${ticks}</svg>
 <div class="legend">${legend}</div>
 <h2>Topics by total share</h2>
-<div class="wrap"><table><thead><tr><th>Topic</th><th>Total</th><th>First</th><th>Peak</th><th>Last</th><th>Terms</th></tr></thead><tbody>${topicRows}</tbody></table></div>
+<div class="wrap"><table>${head}<tbody>${topicRows}</tbody></table></div>
+<h2>Noticed once</h2>
+<div class="dim">${onceTopics.length} topics that showed in a single session, with that session's first prompt.</div>
+<div class="wrap"><table>${head}<tbody>${onceRows}</tbody></table></div>
 <h2>${f.bucket === 'week' ? 'Weeks' : 'Days'}</h2>
 <div class="wrap"><table><thead><tr><th>Start</th><th>Prompts</th><th>Sessions</th><th>Top topic</th><th>Top terms</th></tr></thead><tbody>${bucketRows}</tbody></table></div>
 </main></body></html>
@@ -509,6 +635,7 @@ const main = () => {
   const read: Prompt[] = []
   readClaude(sinceMs, read)
   readCodex(sinceMs, read)
+  readExports(sinceMs, read)
   read.sort((a, b) => a.at - b.at || cmp(a.harness, b.harness) || cmp(a.session, b.session) || cmp(a.text, b.text))
   const sent = new Set<string>()
   const prompts = read.filter(p => {
@@ -564,20 +691,45 @@ const main = () => {
   const score = new Map<string, number>()
   for (const w of weights) for (const [t, v] of w) score.set(t, (score.get(t) ?? 0) + v)
 
-  // Topics over the most salient terms.
+  // Topics over every term seen in two prompts or more.
   const vocab = [...promptsOf.entries()]
-    .filter(([, ps]) => ps.length >= VOCAB_MIN_PROMPTS && new Set(ps.map(i => prompts[i]!.session)).size >= VOCAB_MIN_SESSIONS)
+    .filter(([, ps]) => ps.length >= VOCAB_MIN_PROMPTS)
     .map(([t]) => t)
-    .sort((a, b) => score.get(b)! - score.get(a)! || cmp(a, b))
-    .slice(0, VOCAB_SIZE)
     .sort(cmp)
-  const groups = cluster(vocab.map(t => Int32Array.from(promptsOf.get(t)!)))
+  const termsByPrompt: number[][] = prompts.map(() => [])
+  vocab.forEach((t, i) => {
+    for (const p of promptsOf.get(t)!) termsByPrompt[p]!.push(i)
+  })
+  const groups = cluster(
+    vocab.map(t => Int32Array.from(promptsOf.get(t)!)),
+    termsByPrompt.map(ts => Int32Array.from(ts)),
+  )
   const slug = (s: string) => s.replace(/[^\w~./:-]+/g, '-')
+  const ids = new Set<string>()
+  // A session's first prompt, the caption of a topic noticed only there.
+  const firstPrompt = new Map<string, string>()
+  for (const p of prompts) if (!firstPrompt.has(`${p.harness}:${p.session}`)) firstPrompt.set(`${p.harness}:${p.session}`, p.text)
   const topicsRaw = groups
     .filter(g => g.length >= 2)
     .map(g => {
       const terms = g.map(i => vocab[i]!).sort((a, b) => score.get(b)! - score.get(a)! || cmp(a, b))
-      return { id: slug(terms[0]!), name: terms[0]!, terms }
+      return { terms, members: g }
+    })
+    .sort((a, b) => cmp(a.terms[0]!, b.terms[0]!))
+    .map(({ terms, members }) => {
+      let id = slug(terms[0]!)
+      for (let k = 2; ids.has(id); k++) id = `${slug(terms[0]!)}~${k}`
+      ids.add(id)
+      // Where the topic shows: prompts holding at least two of its terms.
+      const hits = new Map<number, number>()
+      for (const i of members) for (const p of promptsOf.get(vocab[i]!)!) hits.set(p, (hits.get(p) ?? 0) + 1)
+      const where = [...hits.entries()].filter(([, c]) => c >= 2).map(([p]) => prompts[p]!)
+      const sessionKeys = [...new Set(where.map(p => `${p.harness}:${p.session}`))].sort(cmp)
+      const harnesses: Record<string, number> = {}
+      for (const p of where) harnesses[p.harness] = (harnesses[p.harness] ?? 0) + 1
+      const sorted = Object.fromEntries(Object.entries(harnesses).sort((x, y) => cmp(x[0], y[0])))
+      const caption = sessionKeys.length === 1 ? firstPrompt.get(sessionKeys[0]!)!.replace(/\s+/g, ' ').slice(0, 200) : null
+      return { id, name: terms[0]!, terms, sessions: sessionKeys.length, harnesses: sorted, caption }
     })
   // A bucket's total is the weight of every topic's terms in it, so its topic shares sum to 1.
   const shares = weights.map(w => {
@@ -601,7 +753,9 @@ const main = () => {
         }
         if (v > peakV) (peakV = v), (peak = starts[b]!)
       }
-      return { id: tp.id, name: tp.name, terms: tp.terms, first, peak, last, total: round(total) }
+      const out: TopicOut = { id: tp.id, name: tp.name, terms: tp.terms, first, peak, last, total: round(total), sessions: tp.sessions, harnesses: tp.harnesses }
+      if (tp.caption !== null) out.firstPrompt = tp.caption
+      return out
     })
     .sort((a, b) => b.total - a.total || cmp(a.id, b.id))
 
@@ -632,8 +786,15 @@ const main = () => {
   writeFileSync(join(OUT_DIR, 'focus.html'), html(focus))
 
   const names = new Map(topics.map(t => [t.id, t.name]))
-  const claude = prompts.filter(p => p.harness === 'claude').length
-  console.log(`${prompts.length} prompts (${claude} claude, ${prompts.length - claude} codex), ${nb} ${bucket}s, ${topics.length} topics`)
+  const tally = (list: Prompt[], key: (p: Prompt) => string) => {
+    const m = new Map<string, number>()
+    for (const p of list) m.set(key(p), (m.get(key(p)) ?? 0) + 1)
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || cmp(a[0], b[0])).map(([k, v]) => `${v} ${k}`).join(', ')
+  }
+  const once = topics.filter(t => t.sessions === 1).length
+  console.log(`${prompts.length} prompts (${tally(prompts, p => p.harness)}), ${nb} ${bucket}s, ${topics.length} topics (${once} noticed once)`)
+  const codex = prompts.filter(p => p.harness === 'codex')
+  if (codex.length) console.log(`codex by thread source: ${tally(codex, p => p.source)}`)
   for (const b of buckets) {
     const top = b.topics[0]
     const what = top ? `${names.get(top.id)} (${(top.share * 100).toFixed(0)}%)` : '-'
