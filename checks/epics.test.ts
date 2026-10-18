@@ -1,6 +1,9 @@
 // Contract checks for epics, to docs/epics.md. Promises under test
 // (proposal-system): P2, every job names at least one of its epic's promises;
 // P3, every status change of an epic is one ledger line with the epic as parent.
+// (epic-start): P2, every start and every schedule is in the ledger: a schedule
+// as one epic.scheduled line, a start as one epic.status line approved → active
+// naming the door and session, never without an approved line before it.
 // Run: bun test checks/
 
 import { describe, expect, test } from "bun:test";
@@ -40,6 +43,10 @@ describe("live", () => {
     expect(of(live, "status-parent")).toEqual([]);
   });
 
+  test("epic-start P2: every epic.scheduled line has fireAt, task, door and via, on an existing epic", () => {
+    expect(of(live, "scheduled-line")).toEqual([]);
+  });
+
   for (const id of live.epics) {
     describe(id, () => {
       test("P2: every job names promises, all of this epic", () => {
@@ -50,6 +57,9 @@ describe("live", () => {
       });
       test("P3: status lines chain from null to the current status", () => {
         expect(of(live, "status-chain", id)).toEqual([]);
+      });
+      test("epic-start P2: every start line is approved → active after an approved line, with via, door and session", () => {
+        expect(of(live, "start-line", id)).toEqual([]);
       });
     });
   }
@@ -181,5 +191,119 @@ describe("edges", () => {
     const r = fixture("malformed");
     expect(of(r, "epic-json", "bad-json").length).toBe(1);
     expect(r.epics).toEqual(["ok"]);
+  });
+});
+
+// ---- Fixtures: (c) starts and schedules in the ledger (epic-start P2) ------
+
+describe("epic-start P2 (c) every start and schedule is in the ledger", () => {
+  const r = fixture("start");
+  const at = (check: CheckName, lineId: string) => of(r, check).filter((f) => f.detail.startsWith(`${lineId}:`));
+
+  describe("scheduled-line", () => {
+    test("fireAt with Z, with +hh:mm, with fractional seconds and -hh:mm; every schedule door; a re-schedule: passes", () => {
+      for (const n of ["0002", "0003", "0004", "0005"]) expect(at("scheduled-line", `sched-${n}`)).toEqual([]);
+    });
+
+    test("a schedule followed by its start line: both pass", () => {
+      expect(at("start-line", "sched-0006")).toEqual([]);
+    });
+
+    const once: [string, string][] = [
+      ["0010", "no fireAt"],
+      ["0011", "fireAt without an offset"],
+      ["0012", "fireAt that isn't an ISO time"],
+      ["0013", "fireAt that names no real date"],
+      ["0014", "fireAt as a number"],
+      ["0015", "no task"],
+      ["0016", "an empty task"],
+      ["0017", "no door"],
+      ["0018", "door hand (a start door, not a schedule door)"],
+      ["0019", "an unknown door"],
+      ["0020", "no via"],
+      ["0021", "a blank via"],
+    ];
+    for (const [n, what] of once) {
+      test(`a schedule with ${what} fails, once`, () => {
+        const f = at("scheduled-line", `sched-${n}`);
+        expect(f.length).toBe(1);
+        expect(f[0].epic).toBe("sched");
+      });
+    }
+
+    test("a schedule whose parent is no epic fails", () => {
+      const f = of(r, "scheduled-line", "nobody");
+      expect(f.length).toBe(1);
+      expect(f[0].detail).toContain("nobody-0001");
+    });
+  });
+
+  describe("start-line", () => {
+    test("a start with no schedule before it: passes", () => {
+      expect(of(r, "start-line", "go")).toEqual([]);
+    });
+
+    test("every start door (words, page, dashboard, schedule, hand): passes", () => {
+      expect(of(r, "start-line", "doors")).toEqual([]);
+    });
+
+    const once: [string, string][] = [
+      ["0010", "from review instead of approved"],
+      ["0011", "no via"],
+      ["0012", "an empty via"],
+      ["0013", "no door"],
+      ["0014", "an unknown door"],
+      ["0015", "no session"],
+      ["0016", "an empty session"],
+    ];
+    for (const [n, what] of once) {
+      test(`a start with ${what} fails, once`, () => {
+        const f = at("start-line", `start-bad-${n}`);
+        expect(f.length).toBe(1);
+        expect(f[0].epic).toBe("start-bad");
+      });
+    }
+
+    test("a note that only contains \"started by hand\" is not grandfathered: no door or session fails", () => {
+      expect(at("start-line", "start-bad-0017").length).toBeGreaterThan(0);
+    });
+
+    test("a start line before the rule, its note starting \"started by hand\", passes without door and session", () => {
+      expect(at("start-line", "grand-0002")).toEqual([]);
+    });
+
+    test("the grandfathered note excuses only door and session: no via still fails, once", () => {
+      const f = at("start-line", "grand-0003");
+      expect(f.length).toBe(1);
+      expect(f[0].detail).toContain("via");
+    });
+
+    test("a start with no approved line of its own epic (others' came before) fails", () => {
+      const f = of(r, "start-line", "no-approval");
+      expect(f.length).toBe(1);
+      expect(f[0].detail).toContain("no-approval-0002");
+    });
+
+    test("a start whose approved line comes after it in the ledger fails", () => {
+      const f = of(r, "start-line", "late-approval");
+      expect(f.length).toBe(1);
+      expect(f[0].detail).toContain("late-approval-0001");
+    });
+
+    test("a legacy proposal.status approved line counts as the approval", () => {
+      expect(of(r, "start-line", "legacy-approved")).toEqual([]);
+    });
+
+    test("a job going active and a legacy proposal.status start are not start lines", () => {
+      expect(of(r, "start-line", "not-start")).toEqual([]);
+    });
+  });
+
+  test("the other fixtures' ledgers raise no start or schedule failure they don't hold", () => {
+    for (const name of ["jobs", "empty", "malformed"]) {
+      const other = fixture(name);
+      expect(of(other, "scheduled-line")).toEqual([]);
+      expect(of(other, "start-line")).toEqual([]);
+    }
   });
 });

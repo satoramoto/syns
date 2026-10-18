@@ -1,0 +1,47 @@
+{"id":"sched-0001","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"sched-0002","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0003","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T11:00:00+02:00","task":"epic-start-sched","door":"words","via":"inbox 1","by":"fixture"}
+{"id":"sched-0004","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00.000-05:30","task":"epic-start-sched","door":"page","via":"inbox 1","by":"fixture"}
+{"id":"sched-0005","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"dashboard","via":"inbox 1","by":"fixture"}
+{"id":"sched-0006","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"schedule","session":"sched-run"}
+{"id":"sched-0010","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0011","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00","task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0012","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"tomorrow at 9","task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0013","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-13-40T09:00:00Z","task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0014","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":1760864400000,"task":"epic-start-sched","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0015","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0016","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"sched-0017","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","via":"inbox 1","by":"fixture"}
+{"id":"sched-0018","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"hand","via":"inbox 1","by":"fixture"}
+{"id":"sched-0019","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"inbox","via":"inbox 1","by":"fixture"}
+{"id":"sched-0020","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"schedule","by":"fixture"}
+{"id":"sched-0021","parent":"sched","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-sched","door":"schedule","via":"  ","by":"fixture"}
+{"id":"nobody-0001","parent":"nobody","at":"2026-10-18T00:00:00Z","event":"epic.scheduled","fireAt":"2026-10-19T09:00:00Z","task":"epic-start-nobody","door":"schedule","via":"inbox 1","by":"fixture"}
+{"id":"go-0001","parent":"go","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"go-0002","parent":"go","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"go-run"}
+{"id":"doors-0001","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"doors-0002","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"doors-run"}
+{"id":"doors-0003","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"page","session":"doors-run"}
+{"id":"doors-0004","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"dashboard","session":"doors-run"}
+{"id":"doors-0005","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"schedule","session":"doors-run"}
+{"id":"doors-0006","parent":"doors","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"hand","session":"doors-run"}
+{"id":"start-bad-0001","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"start-bad-0010","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"start-bad-run"}
+{"id":"start-bad-0011","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","door":"words","session":"start-bad-run"}
+{"id":"start-bad-0012","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"","door":"words","session":"start-bad-run"}
+{"id":"start-bad-0013","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","session":"start-bad-run"}
+{"id":"start-bad-0014","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"inbox","session":"start-bad-run"}
+{"id":"start-bad-0015","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words"}
+{"id":"start-bad-0016","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":""}
+{"id":"start-bad-0017","parent":"start-bad","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","note":"was started by hand, session x"}
+{"id":"grand-0001","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"grand-0002","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","note":"started by hand from the approval, session grand"}
+{"id":"grand-0003","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","note":"started by hand, session grand"}
+{"id":"no-approval-0001","parent":"no-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
+{"id":"no-approval-0002","parent":"no-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"no-approval-run"}
+{"id":"late-approval-0001","parent":"late-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"late-approval-run"}
+{"id":"late-approval-0002","parent":"late-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"legacy-approved-0001","parent":"legacy-approved","at":"2026-10-18T00:00:00Z","event":"proposal.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
+{"id":"legacy-approved-0002","parent":"legacy-approved","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"legacy-approved-run"}
+{"id":"not-start-0001","parent":"not-start","at":"2026-10-18T00:00:00Z","event":"job.state","job":"j1","to":"active","owner":"developer","promises":["P1"]}
+{"id":"not-start-0002","parent":"not-start","at":"2026-10-18T00:00:00Z","event":"proposal.status","from":"approved","to":"active","by":"fixture","note":"M1 lanes started"}
