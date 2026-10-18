@@ -7,6 +7,7 @@ import { band } from './band'
 import { ignoredOf, toView, updateText } from './brain'
 import { toSnap } from './context'
 import { openInbox, sortEpics, toEpic } from './epics'
+import { attach as attachAnalysis, COMMANDS as ANALYSIS_COMMANDS } from './analysis/register'
 import { attach as attachBlast } from './blast-radius/register'
 import { attach, COMMANDS as FILES_COMMANDS, hideTree } from './filetree/register'
 import { attach as attachIssues, COMMANDS as ISSUES_COMMANDS } from './issues/register'
@@ -47,11 +48,12 @@ const TABS: { id: DashTab; label: string }[] = [
   { id: 'files', label: 'Files' },
   { id: 'issues', label: 'Issues' },
   { id: 'launcher', label: 'Launcher' },
+  { id: 'analysis', label: 'Analysis' },
   // For mod authors: the engine experiments.
   { id: 'lab', label: 'Lab' },
 ]
 /** The mods' slash commands (each opens the pane on its tab); registered as the session starts. */
-const commands = [...SESSION_COMMANDS, ...TASKS_COMMANDS, ...FILES_COMMANDS, ...ISSUES_COMMANDS, ...LAUNCHER_COMMANDS, ...LAB_COMMANDS]
+const commands = [...SESSION_COMMANDS, ...TASKS_COMMANDS, ...FILES_COMMANDS, ...ISSUES_COMMANDS, ...LAUNCHER_COMMANDS, ...ANALYSIS_COMMANDS, ...LAB_COMMANDS]
 /** The rows the tab row takes above a tab's body (its row and the room under it). */
 const TAB_ROWS = 2
 
@@ -515,5 +517,6 @@ export const register: Register = (on, options) => {
   attach(on, options, PANE)
   attachIssues(on, options, PANE)
   attachLauncher(on, options, PANE)
+  attachAnalysis(on, options, PANE)
   attachLab(on, options, PANE)
 }

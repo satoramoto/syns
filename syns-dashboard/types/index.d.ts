@@ -141,10 +141,10 @@ export type EpicRow = {
  * The pane's tabs: Overview (the sections above), Session (the session's context,
  * limits, activity, cost and git), Files (filetree's tree of the session's cwd),
  * Tasks (every session's task list, by repo), Issues (the repo's open GitHub
- * issues), Launcher (launch.json's dev servers) and Lab (the engine experiments,
- * for mod authors).
+ * issues), Launcher (launch.json's dev servers), Analysis (the focus analyzer's
+ * last run) and Lab (the engine experiments, for mod authors).
  */
-export type DashTab = 'overview' | 'session' | 'tasks' | 'files' | 'issues' | 'launcher' | 'lab'
+export type DashTab = 'overview' | 'session' | 'tasks' | 'files' | 'issues' | 'launcher' | 'analysis' | 'lab'
 
 // ---- filetree types (the Files tab, hooks/filetree/) ----
 
@@ -520,6 +520,53 @@ export type TaskView = {
 
 // ---- end tasks types ----
 
+// ---- analysis types (the Analysis tab, hooks/analysis/) ----
+
+/** A term's closest neighbour: the stem, its surface form, and their npmi. */
+export type AnalysisNeighbour = { term: string; surface: string; npmi: number }
+
+/** One of the run's top terms by count, with its closest neighbours by npmi. */
+export type AnalysisTerm = { term: string; surface: string; count: number; neighbours: AnalysisNeighbour[] }
+
+/** One day or week of the run, with its top terms by TF-IDF. */
+export type AnalysisBucket = {
+  /** The bucket's first day, `YYYY-MM-DD`. */
+  start: string
+  prompts: number
+  sessions: number
+  terms: { term: string; surface: string; count: number; tfidf: number }[]
+}
+
+/** One topic: its total across the buckets, that as a share of all topics', and its lifespan (`YYYY-MM-DD`). */
+export type AnalysisTopic = { id: string; name: string; total: number; share: number; first: string; last: string }
+
+/** focus.json as the Analysis tab draws it; a missing field reads as empty. */
+export type AnalysisView = {
+  /** focus.json's mtime when read (ms since epoch); 0 when it wasn't there. */
+  mtime: number
+  generatedAt: string
+  since: string
+  /** `day` or `week`, as the file says. */
+  bucket: string
+  /** Prompts across the buckets. */
+  prompts: number
+  /** Terms the run kept (0 before the run wrote `terms`). */
+  termCount: number
+  topicCount: number
+  /** The top terms; null when the file has no `terms`. */
+  terms: AnalysisTerm[] | null
+  /** Newest first. */
+  buckets: AnalysisBucket[]
+  topics: AnalysisTopic[]
+  /** Why there's nothing to draw (no file yet, not JSON). */
+  note?: string
+}
+
+/** The Run action's state: running since `startedAt`, or how the last run ended. */
+export type AnalysisRun = { running: boolean; startedAt: number; error: string }
+
+// ---- end analysis types ----
+
 // ---- launcher types (the Launcher tab, hooks/launcher/) ----
 
 /** One entry of `.claude/launch.json`'s `configurations`, as the desktop app reads it. */
@@ -689,6 +736,18 @@ declare module 'claude-code' {
       tasksView: TaskView | null
       /** Sections the person folded: `needs`, or `repo-<owner/name>`. */
       tasksCollapsed: string[]
+
+      // The Analysis tab (hooks/analysis/), each key prefixed `analysis`.
+      /** focus.json's last run; null before the first read. */
+      analysisView: AnalysisView | null
+      /** The Run action: running, or the last run's error. */
+      analysisRun: AnalysisRun
+      /** Sections folded (`terms`, `weeks`, `topics`, `bucket-<start>`) or terms unfolded (`term-<stem>`), by id. */
+      analysisFolds: string[]
+      /** The next run's `--since` (`YYYY-MM-DD`); null takes the file's. */
+      analysisSince: string | null
+      /** The next run's `--bucket`; null takes the file's. */
+      analysisBucket: 'day' | 'week' | null
 
       // The Launcher tab (hooks/launcher/), each key prefixed `launcher`.
       launcherFile: LaunchFile | null
