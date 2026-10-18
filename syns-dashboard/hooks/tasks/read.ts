@@ -155,9 +155,112 @@ export const toRows = (s: Scan, m: Meta, now: number): TaskRow[] => {
       title: m.title,
       agent: m.agent,
       at: m.at,
+      harness: 'claude',
     })
   })
   return rows
+}
+
+// ---- Codex: `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<timestamp>-<uuid>.jsonl` ----
+
+/** The rollout lines the Tasks tab reads: the person's prompts and the agent's messages, as completed items. */
+export const CODEX_PROMPT_MARK = '"type":"UserMessage"'
+export const CODEX_REPLY_MARK = '"type":"AgentMessage"'
+
+/** A Codex session's first line (`session_meta`): its id, its cwd, and whether it's one the person started. */
+export type CodexMeta = { id: string; cwd: string; skip: boolean }
+
+/** Threads Codex starts on its own (an approval reviewer, a subagent) aren't sessions of the person's. */
+const CODEX_SKIP = new Set(['guardian_review', 'subagent'])
+
+export const codexMeta = (line: string): CodexMeta | null => {
+  let d: any
+  try {
+    d = JSON.parse(line)
+  } catch {
+    return null
+  }
+  if (d?.type !== 'session_meta') return null
+  const p = d.payload ?? {}
+  return { id: str(p.id), cwd: str(p.cwd), skip: CODEX_SKIP.has(str(p.thread_source)) }
+}
+
+/** One Codex session so far: its first prompt and its last message. */
+export type CodexScan = { firstPrompt: string; reply: string }
+
+export const emptyCodexScan = (): CodexScan => ({ firstPrompt: '', reply: '' })
+
+/** The first `"text":"…"` string after `mark` in a (maybe cut) line, decoded. */
+const textAfter = (line: string, mark: string): string => {
+  const at = line.indexOf(mark)
+  if (at < 0) return ''
+  const t = line.indexOf('"text":"', at)
+  if (t < 0) return ''
+  // Escapes come in whole pairs here; only a `\u` escape can be cut short.
+  const raw = (/^((?:[^"\\]|\\.)*)/.exec(line.slice(t + 8))?.[1] ?? '').replace(/\\u[0-9a-fA-F]{0,3}$/, '')
+  try {
+    return JSON.parse(`"${raw}"`)
+  } catch {
+    return raw.replace(/\\[nrt]/g, ' ').replace(/\\(.)/g, '$1')
+  }
+}
+
+/** Tags (a heartbeat, an app's context block) left out, spaces collapsed. */
+const plain = (text: string) => text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** The Codex app's names for its threads (`~/.codex/session_index.jsonl`, one `{id, thread_name}` per line, the last one standing). */
+export const codexNames = (text: string): Map<string, string> => {
+  const names = new Map<string, string>()
+  for (const line of text.split('\n')) {
+    try {
+      const d = JSON.parse(line)
+      if (typeof d?.id === 'string' && typeof d.thread_name === 'string' && d.thread_name.trim()) names.set(d.id, d.thread_name.trim())
+    } catch {
+      continue
+    }
+  }
+  return names
+}
+
+/** One rollout line the shell picked out (a prompt or a message), applied to the scan. */
+export const scanCodexLine = (s: CodexScan, line: string) => {
+  if (line.includes(CODEX_REPLY_MARK)) {
+    const text = plain(textAfter(line, CODEX_REPLY_MARK))
+    if (text) s.reply = text
+    return
+  }
+  if (s.firstPrompt || !line.includes(CODEX_PROMPT_MARK)) return
+  let text = textAfter(line, CODEX_PROMPT_MARK)
+  // Attached files or a ChatGPT conversation come first; the person's words follow this heading.
+  const ask = text.indexOf('## My request:')
+  if (ask >= 0) text = text.slice(ask + 14)
+  s.firstPrompt = plain(text)
+}
+
+/** A Codex session moved this recently is running. */
+export const CODEX_LIVE = 10 * 60_000
+
+/**
+ * A Codex session's one row (Codex keeps no task list or wrap-up): running
+ * while its rollout moved in the last 10 minutes, idle after a day, done
+ * between; the recap is the first sentence of its last message.
+ */
+export const codexRow = (s: CodexScan, m: Meta, now: number): TaskRow => {
+  const state: TaskState = now - m.at < CODEX_LIVE ? 'running' : now - m.at > DAY ? 'idle' : 'done'
+  return {
+    key: `${m.id}-0`,
+    text: m.title,
+    state,
+    recap: s.reply ? firstSentence(s.reply) : '',
+    done: state === 'done' ? 1 : 0,
+    total: 1,
+    session: m.id,
+    link: '',
+    title: m.title,
+    agent: '',
+    at: m.at,
+    harness: 'codex',
+  }
 }
 
 /** `owner/name` for a cwd under `<home>/Code/`, else its last two segments. */

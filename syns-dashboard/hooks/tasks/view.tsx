@@ -38,7 +38,8 @@ const cut = (text: string, n: number) => ([...text].length > n ? `${[...text].sl
  * first, its figures on the heading (running · waiting · idle · done) and one
  * reading per task under it: the state's mark, the task, the session's recap on
  * its current row, a gauge of its plan, the session (pressed, it opens there)
- * with the subagent running in it, and the age.
+ * with the subagent running in it, and the age. A Codex session is one row,
+ * labelled `codex`, with no link.
  */
 export const renderTasks = (els: Els, surface: RenderSurface, columns: number, rows: number | undefined, d: TasksData, act: TasksActions, focused?: boolean): RenderElement => {
   const { Box } = els
@@ -62,7 +63,8 @@ export const renderTasks = (els: Els, surface: RenderSurface, columns: number, r
       dim: r.state === 'done',
       subtitle: r.recap || undefined,
       subtitleRole: r.state === 'waiting' || r.state === 'running' ? 'secondary' : 'meta',
-      meta: r.state === 'waiting' ? ['waiting on you'] : undefined,
+      // A Codex session says so; a Claude one, the usual case, shows nothing extra.
+      meta: r.state === 'waiting' ? ['waiting on you'] : r.harness === 'codex' ? ['codex'] : undefined,
       right: [
         roomy ? gauge(r, `${prefix}-${r.key}-gauge`) : null,
         // The app opens a session on the desktop only (`open` is macOS's), and only one it has a record of: plain text otherwise.

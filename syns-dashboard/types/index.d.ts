@@ -487,6 +487,8 @@ export type TaskRow = {
   agent: string
   /** The session's last activity (its transcript's mtime, ms since epoch). */
   at: number
+  /** Which agent ran the session: a Claude transcript, or a Codex rollout (`~/.codex/sessions/…`, one row per session). */
+  harness: 'claude' | 'codex'
 }
 
 /** One repo's tasks, running first, then waiting, idle and done. */

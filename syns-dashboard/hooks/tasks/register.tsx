@@ -5,8 +5,24 @@ import { holdButtons } from '../../kit/ui'
 import type { DashTab, TaskRow } from '../../types'
 import { type Command, TITLE, shownTab } from '../tabs'
 import type { Els } from '../view'
-import { DAY, emptyScan, PROMPT_MARK, repoOf, scanLine, TOOL_MARK, toRows, toView } from './read'
-import type { Scan } from './read'
+import {
+  CODEX_PROMPT_MARK,
+  CODEX_REPLY_MARK,
+  codexMeta,
+  codexNames,
+  codexRow,
+  DAY,
+  emptyCodexScan,
+  emptyScan,
+  PROMPT_MARK,
+  repoOf,
+  scanCodexLine,
+  scanLine,
+  TOOL_MARK,
+  toRows,
+  toView,
+} from './read'
+import type { CodexMeta, CodexScan, Scan } from './read'
 import { renderTasks } from './view'
 
 const view = atom({ plugin: 'syns-dashboard', key: 'tasksView' } as const, null)
@@ -103,6 +119,87 @@ const readOne = async ($: EngineInterface, path: string, size: number, mtime: nu
   return s
 }
 
+/**
+ * The lines of a Codex rollout from byte `$2` (1-based), `$3` bytes of it, that
+ * the tab reads: the person's prompts' first 20k characters (a ChatGPT
+ * conversation or attached files come before their words) and the agent's
+ * messages' first 4k (enough for a first sentence).
+ */
+const CODEX_PICK = [
+  'tail -c +"$2" "$1" | head -c "$3"',
+  `grep -F -e '${CODEX_PROMPT_MARK}' -e '${CODEX_REPLY_MARK}'`,
+  `awk '{ if (index($0, "\\"type\\":\\"UserMessage\\"")) print substr($0, 1, 20000); else print substr($0, 1, 4000) }'`,
+].join(' | ')
+
+/** One rollout as last read: how far, what it said, and its first line's meta. */
+type CodexSeen = { size: number; mtime: number; scan: CodexScan; meta: CodexMeta | null; title: string }
+const codexSeen = new Map<string, CodexSeen>()
+
+/** Reads what's new in one rollout (all of it the first time, or when it shrank); a thread Codex started itself is read no further than its first line. */
+const readCodex = async ($: EngineInterface, path: string, size: number, mtime: number): Promise<CodexSeen> => {
+  let s = codexSeen.get(path)
+  if (s && s.size === size && s.mtime === mtime) return s
+  if (!s || size < s.size) s = { size: 0, mtime: 0, scan: emptyCodexScan(), meta: null, title: '' }
+  if (!s.meta) {
+    const run = await $.process.run(['head', '-n', '1', path], { timeoutMs: 20_000 }).catch(() => null)
+    s.meta = codexMeta(run?.stdout.trim() ?? '')
+    // No meta line yet (a rollout just made): try again next time.
+    if (!s.meta) return s
+  }
+  if (!s.meta.skip && size > s.size) {
+    const run = await $.process.run(['sh', '-c', CODEX_PICK, 'pick', path, String(s.size + 1), String(size - s.size)], { timeoutMs: 60_000 })
+    if (run.exitCode !== 0) return s
+    for (const line of run.stdout.split('\n')) if (line) scanCodexLine(s.scan, line)
+  }
+  const first = s.scan.firstPrompt
+  s.title = (first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1)}…` : first) || (s.meta.id || path.split('/').pop()!).slice(0, 8)
+  s.size = size
+  s.mtime = mtime
+  codexSeen.set(path, s)
+  return s
+}
+
+/** The Codex app's thread names as last read, with the index's mtime: read again only when it moved. */
+let names: { mtime: number; byId: Map<string, string> } = { mtime: 0, byId: new Map() }
+
+const readNames = async ($: EngineInterface, codex: string): Promise<Map<string, string>> => {
+  const path = `${codex}/session_index.jsonl`
+  const st = (await $.fs.list(codex).catch(() => [])).find(f => f.kind === 'file' && f.name === 'session_index.jsonl')
+  if (!st) return new Map()
+  if (st.mtimeMs !== names.mtime) names = { mtime: st.mtimeMs, byId: codexNames(await $.fs.read(path).catch(() => '')) }
+  return names.byId
+}
+
+/** Every Codex session of the person's that moved in the last week, as rows by repo (`~/.codex/archived_sessions/` isn't read). */
+const readCodexSessions = async ($: EngineInterface, home: string, now: number): Promise<{ rows: TaskRow[]; repo: string }[]> => {
+  const codex = (await $.env.get('CODEX_HOME')) || `${home}/.codex`
+  const root = `${codex}/sessions`
+  const byId = await readNames($, codex)
+  const dirs = async (path: string) => (await $.fs.list(path).catch(() => [])).filter(x => x.kind === 'dir').map(x => `${path}/${x.name}`)
+  // A rollout stays in its start day's folder, so every day is listed: a session started long ago may have moved this week.
+  const days = (await Promise.all((await Promise.all((await dirs(root)).map(dirs))).flat().map(dirs))).flat()
+  const files = (
+    await Promise.all(
+      days.map(async d =>
+        (await $.fs.list(d).catch(() => []))
+          .filter(f => f.kind === 'file' && f.name.startsWith('rollout-') && f.name.endsWith('.jsonl') && now - f.mtimeMs < WEEK)
+          .map(f => ({ path: `${d}/${f.name}`, size: f.size, mtime: f.mtimeMs })),
+      ),
+    )
+  ).flat()
+  const kept = new Set(files.map(f => f.path))
+  for (const p of codexSeen.keys()) if (!kept.has(p)) codexSeen.delete(p)
+  return pool(files, AT_ONCE, async f => {
+    const s = await readCodex($, f.path, f.size, f.mtime).catch(() => null)
+    if (!s?.meta || s.meta.skip) return { rows: [] as TaskRow[], repo: '' }
+    // The app's name for the thread, as the Claude app's record names a session; else the first prompt, cut.
+    const name = byId.get(s.meta.id)
+    const title = name ? (name.length > TITLE_CHARS ? `${name.slice(0, TITLE_CHARS - 1)}…` : name) : s.title
+    const meta = { id: s.meta.id || f.path, link: '', title, agent: '', at: f.mtime }
+    return { rows: [codexRow(s.scan, meta, now)], repo: repoOf(s.meta.cwd, home) || 'elsewhere' }
+  })
+}
+
 /** The Claude app's record of one session (`claude-code-sessions/<org>/<user>/local_<id>.json`): the fields the tab uses. */
 type AppRecord = { sessionId: string; cli: string; title: string; archived: boolean; cwd: string }
 /** Each record file as last read, by path, with its mtime. */
@@ -171,7 +268,8 @@ const refresh = async ($: EngineInterface) => {
   // Transcripts gone from the week are forgotten.
   const kept = new Set(files.map(f => f.path))
   for (const p of seen.keys()) if (!kept.has(p)) seen.delete(p)
-  const fresh = toView(sessions, now)
+  const codex = await readCodexSessions($, home, now).catch(() => [])
+  const fresh = toView([...sessions, ...codex], now)
   const old = await read($, view)
   // Only the read time moved: leave the state be, so the pane doesn't redraw for nothing.
   if (!old || !same({ ...old, at: 0 }, { ...fresh, at: 0 })) await update($, view, () => fresh)
