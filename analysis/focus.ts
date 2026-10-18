@@ -1,6 +1,6 @@
 // What Ryan was focused on, over time, from his own prompts across harnesses.
 //
-//   bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week]
+//   bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week] [--seed]
 //
 // Reads the person's prompts (never the agent's replies) from Claude Code
 // transcripts (`~/.claude/projects/*/<uuid>.jsonl`), Codex rollouts, live and
@@ -10,10 +10,11 @@
 // or week (weeks start Monday), stems words (Snowball/Porter2), joins
 // adjacent stems that go together (PMI) into phrases, weighs each bucket's
 // concepts by TF-IDF (the bucket is the document, all buckets the corpus),
-// groups co-occurring concepts into topics and topics into categories, and
-// writes `~/.syns/files/focus/focus.json` and `focus.html` (a share chart, a
-// relationship cloud, the tables), plus a one-line-per-bucket summary on
-// stdout.
+// links concepts by normalized PMI over prompts (the raw term view), groups
+// co-occurring concepts into topics and topics into categories (seeded with
+// `--seed`), and writes `~/.syns/files/focus/focus.json` and `focus.html` (the
+// term view with search and term cards, a share chart, a topic cloud, the
+// tables), plus a one-line-per-bucket summary on stdout.
 //
 // Deterministic: no randomness, no model calls, every list sorted with a
 // fixed tie-break, `generatedAt` is the newest prompt's time (not the clock).
@@ -33,22 +34,25 @@ const EXPORTS_DIR = join(HOME, '.syns', 'files', 'exports')
 type BucketKind = 'day' | 'week'
 
 const usage = () => {
-  console.error('usage: bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week]')
+  console.error('usage: bun analysis/focus.ts [--since YYYY-MM-DD] [--bucket day|week] [--seed]')
+  console.error('  --seed  seed categories from ~/.syns/brain.json ids and ~/.syns/LEXICON.md terms (off by default)')
   console.error(`chat exports: put each conversations.json under ${EXPORTS_DIR}/<harness>/ (chatgpt, claude-ai, ...)`)
   process.exit(2)
 }
 
-const parseArgs = (argv: string[]): { since: string | null; bucket: BucketKind } => {
+const parseArgs = (argv: string[]): { since: string | null; bucket: BucketKind; seed: boolean } => {
   let since: string | null = null
   let bucket: BucketKind = 'week'
+  let seed = false
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const v = argv[i + 1]
     if (a === '--since' && v && /^\d{4}-\d{2}-\d{2}$/.test(v)) (since = v), i++
     else if (a === '--bucket' && (v === 'day' || v === 'week')) (bucket = v), i++
+    else if (a === '--seed') seed = true
     else usage()
   }
-  return { since, bucket }
+  return { since, bucket, seed }
 }
 
 /** Local midnight of a `YYYY-MM-DD`. */
@@ -792,10 +796,219 @@ type Focus = {
   generatedAt: string | null
   since: string | null
   bucket: BucketKind
+  /** The least prompts a concept needs to be in `terms`. */
+  termMin: number
   buckets: BucketOut[]
+  terms: TermOut[]
+  edges: EdgeOut[]
   categories: CategoryOut[]
   topics: TopicOut[]
 }
+
+// ---- the raw term view ----
+
+/** A concept is a term in the view from this many prompts (raised until focus.json fits FOCUS_MAX_BYTES). */
+const TERM_MIN = 3
+const FOCUS_MAX_BYTES = 5_000_000
+/** Two terms are neighbours from this many shared prompts; each keeps its closest NEIGHBOURS. */
+const NEIGHBOUR_SHARED = 2
+const NEIGHBOURS = 30
+/** An edge is drawn (and listed in `edges`) from this NPMI and shared-prompt count, and only among each end's EDGE_TOP closest. */
+const EDGE_NPMI = 0.3
+const EDGE_SHARED = 3
+const EDGE_TOP = 3
+const TERM_W = 1200
+const TERM_H = 900
+const TERM_ITERATIONS = 200
+/** Card details: closest terms shown, latest prompts shown and how much of each. */
+const CARD_NEIGHBOURS = 15
+const CARD_PROMPTS = 5
+const CARD_CHARS = 160
+
+type Neighbour = { term: string; npmi: number; jaccard: number; shared: number }
+type TermOut = { term: string; surface: string; count: number; perBucket: number[]; harnesses: Record<string, number>; neighbours: Neighbour[] }
+type EdgeOut = { a: string; b: string; npmi: number; jaccard: number; shared: number }
+type TermView = { terms: TermOut[]; edges: EdgeOut[]; draw: CloudEdge[]; recent: number[][] }
+
+/**
+ * Every concept in at least `min` prompts (largest first, then by key), its
+ * prompts per bucket and per harness, its closest terms by normalized PMI
+ * over prompts (sharing at least NEIGHBOUR_SHARED; ties to more shared, then
+ * the key), the edges drawn, and its latest prompts.
+ */
+const termView = (
+  prompts: Prompt[],
+  promptsOf: Map<string, number[]>,
+  bucketIndex: number[],
+  nb: number,
+  show: (k: string) => string,
+  min: number,
+): TermView => {
+  const keys = [...promptsOf.entries()]
+    .filter(([, ps]) => ps.length >= min)
+    .sort((a, b) => b[1].length - a[1].length || cmp(a[0], b[0]))
+    .map(([k]) => k)
+  const n = keys.length
+  const N = prompts.length
+  const sets = keys.map(k => promptsOf.get(k)!)
+  const byPrompt: number[][] = prompts.map(() => [])
+  sets.forEach((ps, i) => {
+    for (const p of ps) byPrompt[p]!.push(i)
+  })
+  const near: { b: number; npmi: number; jaccard: number; shared: number }[][] = keys.map(() => [])
+  const co = new Int32Array(n)
+  const touched: number[] = []
+  for (let a = 0; a < n; a++) {
+    for (const p of sets[a]!) for (const b of byPrompt[p]!) if (b > a && co[b]!++ === 0) touched.push(b)
+    touched.sort((x, y) => x - y)
+    for (const b of touched) {
+      const s = co[b]!
+      co[b] = 0
+      if (s < NEIGHBOUR_SHARED) continue
+      const ca = sets[a]!.length
+      const cb = sets[b]!.length
+      const pab = s / N
+      const npmi = pab >= 1 ? 1 : Math.log((s * N) / (ca * cb)) / -Math.log(pab)
+      const jaccard = s / (ca + cb - s)
+      near[a]!.push({ b, npmi: round(npmi), jaccard: round(jaccard), shared: s })
+      near[b]!.push({ b: a, npmi: round(npmi), jaccard: round(jaccard), shared: s })
+    }
+    touched.length = 0
+  }
+  for (const list of near) list.sort((x, y) => y.npmi - x.npmi || y.shared - x.shared || cmp(keys[x.b]!, keys[y.b]!))
+  const top = near.map(list => new Set(list.filter(x => x.shared >= EDGE_SHARED && x.npmi >= EDGE_NPMI).slice(0, EDGE_TOP).map(x => x.b)))
+  const edges: EdgeOut[] = []
+  const draw: CloudEdge[] = []
+  for (let a = 0; a < n; a++)
+    for (const x of near[a]!)
+      if (x.b > a && x.shared >= EDGE_SHARED && x.npmi >= EDGE_NPMI && (top[a]!.has(x.b) || top[x.b]!.has(a))) {
+        edges.push({ a: keys[a]!, b: keys[x.b]!, npmi: x.npmi, jaccard: x.jaccard, shared: x.shared })
+        draw.push({ a, b: x.b, w: x.npmi })
+      }
+  edges.sort((x, y) => cmp(x.a, y.a) || cmp(x.b, y.b))
+  draw.sort((x, y) => x.a - y.a || x.b - y.b)
+  const terms: TermOut[] = keys.map((k, i) => {
+    const perBucket = new Array<number>(nb).fill(0)
+    const h: Record<string, number> = {}
+    for (const p of sets[i]!) {
+      perBucket[bucketIndex[p]!]!++
+      h[prompts[p]!.harness] = (h[prompts[p]!.harness] ?? 0) + 1
+    }
+    const harnesses = Object.fromEntries(Object.entries(h).sort((x, y) => cmp(x[0], y[0])))
+    const neighbours = near[i]!.slice(0, NEIGHBOURS).map(x => ({ term: keys[x.b]!, npmi: x.npmi, jaccard: x.jaccard, shared: x.shared }))
+    return { term: k, surface: show(k), count: sets[i]!.length, perBucket, harnesses, neighbours }
+  })
+  const recent = sets.map(ps => ps.slice(-CARD_PROMPTS).reverse())
+  return { terms, edges, draw, recent }
+}
+
+/** The term view's page section: an SVG drawn from inline data, a search box and a card for the clicked term. */
+const termSection = (f: Focus, tv: TermView & { pos: [number, number][] }, prompts: Prompt[]): string => {
+  const idx = new Map(tv.terms.map((t, i) => [t.term, i]))
+  const used = [...new Set(tv.recent.flat())].sort((a, b) => a - b)
+  const pAt = new Map(used.map((p, i) => [p, i]))
+  const data = {
+    weeks: f.buckets.map(b => b.start),
+    nodes: tv.terms.map((t, i) => [t.surface, t.count, tv.pos[i]![0], tv.pos[i]![1]]),
+    per: tv.terms.map(t => t.perBucket),
+    harness: tv.terms.map(t => t.harnesses),
+    near: tv.terms.map(t => t.neighbours.slice(0, CARD_NEIGHBOURS).map(x => [idx.get(x.term)!, x.npmi, x.shared])),
+    recent: tv.recent.map(ps => ps.map(p => pAt.get(p)!)),
+    prompts: used.map(p => [ymd(new Date(prompts[p]!.at)), prompts[p]!.harness, prompts[p]!.text.replace(/\s+/g, ' ').slice(0, CARD_CHARS)]),
+    edges: tv.draw.map(e => [e.a, e.b, e.w]),
+  }
+  const json = JSON.stringify(data).replace(/</g, '\\u003c')
+  return `<h2>Terms</h2>
+<div class="dim">${tv.terms.length} concepts (stemmed words and phrases in at least ${f.termMin} prompts), sized by prompt count; a line joins two that go together (normalized PMI ≥ ${EDGE_NPMI} over ≥ ${EDGE_SHARED} shared prompts, each term's ${EDGE_TOP} closest). Click a term for its card.</div>
+<div class="tools"><input id="q" type="search" placeholder="Search terms" aria-label="Search terms"><span id="qn" class="dim"></span></div>
+<div class="termwrap"><svg id="terms" viewBox="0 0 ${TERM_W} ${TERM_H}" role="img" aria-label="Term relationship view"></svg>
+<div id="card" class="card dim">Click a term.</div></div>
+<script id="termdata" type="application/json">${json}</script>`
+}
+
+/** The page's script for the term view, the shared week slider and the topic cloud. */
+const pageScript = (bucket: BucketKind): string => `<script>
+(() => {
+  const D = JSON.parse(document.getElementById('termdata').textContent)
+  const NS = 'http://www.w3.org/2000/svg'
+  const svg = document.getElementById('terms')
+  const el = (name, attrs, parent) => {
+    const e = document.createElementNS(NS, name)
+    for (const k in attrs) e.setAttribute(k, attrs[k])
+    parent.appendChild(e)
+    return e
+  }
+  const max = Math.max(1, ...D.nodes.map(n => n[1]))
+  const r = c => 1.5 + 11 * Math.sqrt(c / max)
+  const ge = el('g', { class: 'edges' }, svg)
+  const lines = D.edges.map(([a, b, w]) => el('line', { x1: D.nodes[a][2], y1: D.nodes[a][3], x2: D.nodes[b][2], y2: D.nodes[b][3], 'stroke-width': (0.3 + 2 * w).toFixed(2) }, ge))
+  const gn = el('g', {}, svg)
+  const dots = D.nodes.map(([s, c, x, y], i) => {
+    const d = el('circle', { cx: x, cy: y, r: r(c).toFixed(1), 'data-i': i }, gn)
+    el('title', {}, d).textContent = s + ' (' + c + ')'
+    return d
+  })
+  const gl = el('g', { class: 'labels' }, svg)
+  const labels = D.nodes.slice(0, 60).map(([s, c, x, y]) => {
+    const t = el('text', { x, y: (y - r(c) - 2).toFixed(1), 'text-anchor': 'middle' }, gl)
+    t.textContent = s
+    return t
+  })
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  const card = document.getElementById('card')
+  let picked = -1
+  const show = i => {
+    picked = i
+    dots.forEach((d, j) => d.classList.toggle('pick', j === i))
+    const [s, c] = D.nodes[i]
+    const per = D.per[i]
+    const pm = Math.max(1, ...per)
+    const w = 220, h = 36
+    const pts = per.map((v, k) => (per.length < 2 ? w / 2 : (k * w) / (per.length - 1)).toFixed(1) + ',' + (h - 2 - (v / pm) * (h - 4)).toFixed(1)).join(' ')
+    const harn = Object.entries(D.harness[i]).map(([k, v]) => esc(k) + ' ' + v).join(' · ')
+    const near = D.near[i].map(([j, npmi, shared]) => '<tr><td><a href="#" data-i="' + j + '">' + esc(D.nodes[j][0]) + '</a></td><td class="bar"><span style="width:' + Math.max(0, npmi * 100).toFixed(0) + '%"></span></td><td class="num">' + npmi.toFixed(2) + '</td><td class="num">' + shared + '</td></tr>').join('')
+    const recent = D.recent[i].map(p => { const [d, hn, t] = D.prompts[p]; return '<li><span class="dim">' + d + ' · ' + esc(hn) + '</span> ' + esc(t) + '</li>' }).join('')
+    card.classList.remove('dim')
+    card.innerHTML = '<h3>' + esc(s) + '</h3><div class="dim">' + c + ' prompts · ' + harn + '</div>' +
+      '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '"><polyline points="' + pts + '"/></svg><div class="dim">prompts per ${bucket}, ' + esc(D.weeks[0] || '') + ' to ' + esc(D.weeks[D.weeks.length - 1] || '') + '</div>' +
+      '<h4>Closest</h4><table><thead><tr><th>Term</th><th>NPMI</th><th></th><th>Shared</th></tr></thead><tbody>' + near + '</tbody></table>' +
+      '<h4>Latest prompts</h4><ul>' + recent + '</ul>'
+  }
+  svg.addEventListener('click', e => { const i = e.target.getAttribute && e.target.getAttribute('data-i'); if (i !== null && i !== undefined) show(+i) })
+  card.addEventListener('click', e => { const i = e.target.getAttribute('data-i'); if (i !== null) { e.preventDefault(); show(+i) } })
+  const q = document.getElementById('q')
+  const qn = document.getElementById('qn')
+  const input = document.getElementById('wk')
+  const label = document.getElementById('wkl')
+  const nodes = [...document.querySelectorAll('#cloud .node')]
+  const shares = nodes.map(n => n.dataset.s.split(',').map(Number))
+  const cloudLines = [...document.querySelectorAll('#cloud .edges line')]
+  const update = () => {
+    const w = Number(input.value)
+    const all = w >= D.weeks.length
+    label.textContent = all ? 'all ${bucket}s' : '${bucket} of ' + D.weeks[w]
+    const on = shares.map(s => all || s[w] >= ${PRESENT})
+    nodes.forEach((n, i) => n.classList.toggle('off', !on[i]))
+    cloudLines.forEach(l => l.classList.toggle('off', !(on[+l.dataset.a] && on[+l.dataset.b])))
+    const needle = q.value.trim().toLowerCase()
+    let hits = 0
+    const vis = D.nodes.map(([s], i) => {
+      const inWeek = all || D.per[i][w] > 0
+      const match = !needle || s.toLowerCase().includes(needle)
+      if (needle && match) hits++
+      dots[i].classList.toggle('off', !inWeek || !match)
+      dots[i].classList.toggle('hit', !!needle && match)
+      return inWeek && match
+    })
+    labels.forEach((t, i) => t.classList.toggle('off', !vis[i]))
+    lines.forEach((l, k) => { const [a, b] = D.edges[k]; l.classList.toggle('off', !(vis[a] && vis[b])) })
+    qn.textContent = needle ? hits + ' match' + (hits === 1 ? '' : 'es') : ''
+  }
+  input.addEventListener('input', update)
+  q.addEventListener('input', update)
+  update()
+})()
+</script>`
 
 /** The relationship cloud's topics drawn (the largest by total) and the least overlap drawn as an edge (Jaccard of their prompts). */
 const CLOUD_NODES = 120
@@ -805,6 +1018,75 @@ type Cloud = { nodes: string[]; edges: CloudEdge[]; pos: [number, number][] }
 const CLOUD_W = 960
 const CLOUD_H = 640
 const LAYOUT_ITERATIONS = 400
+/** Above this many nodes the layout approximates far repulsion (Barnes–Hut, opening angle BH_THETA), so it stays fast. */
+const GRID_FROM = 400
+const BH_THETA = 0.8
+
+type Quad = { x0: number; y0: number; size: number; mass: number; mx: number; my: number; bodies: number[]; kids: (Quad | null)[] | null; depth: number }
+
+const quad = (x: Float64Array, y: Float64Array, n: number, W: number, H: number): Quad => {
+  const make = (x0: number, y0: number, size: number, depth: number): Quad => ({ x0, y0, size, mass: 0, mx: 0, my: 0, bodies: [], kids: null, depth })
+  const root = make(0, 0, Math.max(W, H), 0)
+  const insert = (q: Quad, i: number) => {
+    q.mx = (q.mx * q.mass + x[i]!) / (q.mass + 1)
+    q.my = (q.my * q.mass + y[i]!) / (q.mass + 1)
+    q.mass++
+    if (!q.kids) {
+      q.bodies.push(i)
+      if (q.bodies.length === 1 || q.depth >= 24) return
+      q.kids = [null, null, null, null]
+      const held = q.bodies
+      q.bodies = []
+      for (const j of held) place(q, j)
+      return
+    }
+    place(q, i)
+  }
+  const place = (q: Quad, i: number) => {
+    const h = q.size / 2
+    const right = x[i]! >= q.x0 + h ? 1 : 0
+    const down = y[i]! >= q.y0 + h ? 1 : 0
+    const at = down * 2 + right
+    const kid = (q.kids![at] ??= make(q.x0 + right * h, q.y0 + down * h, h, q.depth + 1))
+    insert(kid, i)
+  }
+  for (let i = 0; i < n; i++) insert(root, i)
+  return root
+}
+
+/** The repulsion on body i at (px, py) from the tree: k²/d per unit of mass, far cells as their centre of mass. */
+const farForce = (q: Quad, i: number, x: Float64Array, y: Float64Array, kk: number): [number, number] => {
+  const px = x[i]!
+  const py = y[i]!
+  let fx = 0
+  let fy = 0
+  const stack: Quad[] = [q]
+  while (stack.length) {
+    const c = stack.pop()!
+    if (!c.mass) continue
+    if (!c.kids) {
+      for (const j of c.bodies) {
+        if (j === i) continue
+        const ex = px - x[j]!
+        const ey = py - y[j]!
+        const d = Math.max(0.01, Math.hypot(ex, ey))
+        fx += (ex / d) * (kk / d)
+        fy += (ey / d) * (kk / d)
+      }
+      continue
+    }
+    const ex = px - c.mx
+    const ey = py - c.my
+    const d = Math.hypot(ex, ey)
+    if (d > 0 && c.size / d < BH_THETA) {
+      fx += (ex / d) * ((kk * c.mass) / d)
+      fy += (ey / d) * ((kk * c.mass) / d)
+      continue
+    }
+    for (let k = 3; k >= 0; k--) if (c.kids[k]) stack.push(c.kids[k]!)
+  }
+  return [fx, fy]
+}
 
 /**
  * A deterministic force layout (Fruchterman–Reingold): nodes start on a
@@ -812,35 +1094,51 @@ const LAYOUT_ITERATIONS = 400
  * each other, pull along edges by weight and gently toward the middle, and
  * cool linearly over a fixed number of iterations.
  */
-const layout = (n: number, edges: CloudEdge[]): [number, number][] => {
+const layout = (n: number, edges: CloudEdge[], W = CLOUD_W, H = CLOUD_H, iterations = LAYOUT_ITERATIONS): [number, number][] => {
+  const CLOUD_W = W
+  const CLOUD_H = H
   const cx = CLOUD_W / 2
   const cy = CLOUD_H / 2
-  const k = Math.sqrt((CLOUD_W * CLOUD_H) / Math.max(1, n)) * 0.75
+  // A big graph is mostly loose terms: a shorter spring and firmer gravity keep them off the border.
+  const big = n > GRID_FROM
+  const k = Math.sqrt((CLOUD_W * CLOUD_H) / Math.max(1, n)) * (big ? 0.45 : 0.75)
+  // Gravity g·k·d balances the whole graph's repulsion k²·n/d at d = √(k·n/g): about 380 for 2,200 terms.
+  const g = big ? 0.15 : 0.012
   const x = new Float64Array(n)
   const y = new Float64Array(n)
   for (let i = 0; i < n; i++) {
-    const r = 12 * Math.sqrt(i + 1)
+    const r = (Math.min(W, H) / 2 - 30) * Math.sqrt((i + 1) / n)
     const t = i * 2.399963229728653
     x[i] = cx + r * Math.cos(t)
     y[i] = cy + r * Math.sin(t)
   }
   const dx = new Float64Array(n)
   const dy = new Float64Array(n)
-  for (let it = 0; it < LAYOUT_ITERATIONS; it++) {
-    const temp = 40 * (1 - it / LAYOUT_ITERATIONS) + 0.5
+  for (let it = 0; it < iterations; it++) {
+    const temp = 40 * (1 - it / iterations) + 0.5
     dx.fill(0)
     dy.fill(0)
-    for (let i = 0; i < n; i++)
-      for (let j = i + 1; j < n; j++) {
-        const ex = x[i]! - x[j]!
-        const ey = y[i]! - y[j]!
-        const d = Math.max(0.01, Math.hypot(ex, ey))
-        const f = (k * k) / d
-        dx[i]! += (ex / d) * f
-        dy[i]! += (ey / d) * f
-        dx[j]! -= (ex / d) * f
-        dy[j]! -= (ey / d) * f
+    const repel = (i: number, j: number) => {
+      const ex = x[i]! - x[j]!
+      const ey = y[i]! - y[j]!
+      const d = Math.max(0.01, Math.hypot(ex, ey))
+      const f = (k * k) / d
+      dx[i]! += (ex / d) * f
+      dy[i]! += (ey / d) * f
+      dx[j]! -= (ex / d) * f
+      dy[j]! -= (ey / d) * f
+    }
+    if (n <= GRID_FROM) {
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) repel(i, j)
+    } else {
+      // Many nodes: Barnes–Hut, a quadtree built in node order whose far cells repel as one mass.
+      const root = quad(x, y, n, W, H)
+      for (let i = 0; i < n; i++) {
+        const [fx, fy] = farForce(root, i, x, y, k * k)
+        dx[i]! += fx
+        dy[i]! += fy
       }
+    }
     for (const e of edges) {
       const ex = x[e.a]! - x[e.b]!
       const ey = y[e.a]! - y[e.b]!
@@ -852,8 +1150,8 @@ const layout = (n: number, edges: CloudEdge[]): [number, number][] => {
       dy[e.b]! += (ey / d) * f
     }
     for (let i = 0; i < n; i++) {
-      dx[i]! += (cx - x[i]!) * 0.012 * k
-      dy[i]! += (cy - y[i]!) * 0.012 * k
+      dx[i]! += (cx - x[i]!) * g * k
+      dy[i]! += (cy - y[i]!) * g * k
       const d = Math.max(0.01, Math.hypot(dx[i]!, dy[i]!))
       const step = Math.min(d, temp)
       x[i] = Math.min(CLOUD_W - 30, Math.max(30, x[i]! + (dx[i]! / d) * step))
@@ -868,7 +1166,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 /** Topics drawn in the chart: every bucket's leader, then the largest totals. */
 const CHART_TOPICS = 10
 
-const html = (f: Focus, cloud: Cloud): string => {
+const html = (f: Focus, cloud: Cloud, tv: TermView & { pos: [number, number][] }, prompts: Prompt[]): string => {
   const byId = new Map(f.topics.map(t => [t.id, t]))
   const chosen: string[] = []
   for (const b of f.buckets) if (b.topics[0] && !chosen.includes(b.topics[0].id) && chosen.length < CHART_TOPICS) chosen.push(b.topics[0].id)
@@ -960,17 +1258,18 @@ const html = (f: Focus, cloud: Cloud): string => {
     .filter(c => c.topics.length > 1 || c.seed !== null)
     .map(c => `<tr><td><i class="${catColor.get(c.id) ?? 'co'}"></i>${esc(c.name)}${c.seed !== null ? ' <span class="dim">seed</span>' : ''}</td><td class="num">${c.total.toFixed(2)}</td><td class="num">${c.topics.length}</td><td class="terms">${esc(c.topics.slice(0, 12).map(id => byTopic.get(id)!.name).join(', '))}</td></tr>`)
     .join('')
-  const weeks = JSON.stringify(f.buckets.map(b => b.start))
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Focus Timeline</title>
 <style>
 :root{--bg:#fbfbfa;--fg:#1d1d1f;--dim:#6e6e73;--rule:#e2e2e0;
 --c0:#4e79a7;--c1:#f28e2b;--c2:#59a14f;--c3:#e15759;--c4:#76b7b2;--c5:#edc948;--c6:#b07aa1;--c7:#ff9da7;--c8:#9c755f;--c9:#3b9ab2;--co:#c9c9c6;
---k0:#0e7c7b;--k1:#c2410c;--k2:#6d28d9;--k3:#be185d;--k4:#4d7c0f;--k5:#a16207;--k6:#0369a1;--k7:#7c2d12;--k8:#a21caf;--k9:#334155}
+--k0:#0e7c7b;--k1:#c2410c;--k2:#6d28d9;--k3:#be185d;--k4:#4d7c0f;--k5:#a16207;--k6:#0369a1;--k7:#7c2d12;--k8:#a21caf;--k9:#334155;
+--node:#5b6b7f;--hit:#d97706}
 @media (prefers-color-scheme:dark){:root{--bg:#161618;--fg:#ececec;--dim:#9a9aa0;--rule:#2c2c30;
 --c0:#6f9fd0;--c1:#f5a55a;--c2:#7cc271;--c3:#ee7a7c;--c4:#8fd0cb;--c5:#f2d76b;--c6:#c99bc0;--c7:#ffb6be;--c8:#b8937c;--c9:#5bb6cc;--co:#4a4a4e;
---k0:#2dd4bf;--k1:#fb923c;--k2:#a78bfa;--k3:#f472b6;--k4:#a3e635;--k5:#facc15;--k6:#38bdf8;--k7:#d6a26a;--k8:#e879f9;--k9:#cbd5e1}}
+--k0:#2dd4bf;--k1:#fb923c;--k2:#a78bfa;--k3:#f472b6;--k4:#a3e635;--k5:#facc15;--k6:#38bdf8;--k7:#d6a26a;--k8:#e879f9;--k9:#cbd5e1;
+--node:#9aa8b8;--hit:#fbbf24}}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 main{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
 h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:32px 0 8px}
@@ -996,15 +1295,34 @@ td.terms{color:var(--dim);white-space:normal;min-width:16em}
 #cloud .off{opacity:.12}
 .slider{display:flex;gap:10px;align-items:center;margin:8px 0}
 .slider input{flex:1;max-width:420px}
+.slider{position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:1}
+.tools{display:flex;gap:10px;align-items:center;margin:8px 0}
+.tools input{flex:1;max-width:320px;font:inherit;padding:4px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--fg)}
+.termwrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+#terms{flex:1 1 560px;min-width:0}
+#terms .edges line{stroke:var(--dim);stroke-opacity:.3}
+#terms circle{fill:var(--node);stroke:var(--bg);stroke-width:.5;cursor:pointer}
+#terms circle.hit{fill:var(--hit)}
+#terms circle.pick{stroke:var(--fg);stroke-width:2}
+#terms text{fill:var(--fg);font-size:10px;pointer-events:none}
+#terms .off{opacity:.08}
+.card{flex:0 1 320px;min-width:260px;font-size:13px}
+.card h3{font-size:15px;margin:0 0 2px}.card h4{font-size:12px;color:var(--dim);margin:12px 0 4px}
+.card ul{margin:0;padding-left:16px}.card li{margin:0 0 6px}
+.card a{color:var(--fg)}
+.card td{padding:2px 6px}
+.card td.bar{width:90px}.card td.bar span{display:block;height:6px;border-radius:3px;background:var(--node)}
+.spark{width:220px;height:36px;margin-top:6px}.spark polyline{fill:none;stroke:var(--node);stroke-width:1.5}
 </style></head><body><main>
 <h1>Focus timeline</h1>
 <div class="dim">${f.buckets.length} ${f.bucket === 'week' ? 'weeks' : 'days'}${f.since ? ` since ${f.since}` : ''} · ${f.buckets.reduce((s, b) => s + b.prompts, 0)} prompts · newest ${esc(f.generatedAt ?? '–')}</div>
+<div class="slider"><input id="wk" type="range" min="0" max="${f.buckets.length}" value="${f.buckets.length}" aria-label="${f.bucket}"><span id="wkl">all ${f.bucket}s</span></div>
+${termSection(f, tv, prompts)}
 <h2>Topic share per ${f.bucket}</h2>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Stacked topic share over time">${grid}${paths.join('')}${ticks}</svg>
 <div class="legend">${legend}</div>
-<h2>Relationship cloud</h2>
-<div class="dim">The ${cloud.nodes.length} largest topics, sized by total share and coloured by category (the ${CHART_TOPICS} largest; grey for the rest); a line joins two that show in the same prompts (Jaccard ≥ ${CLOUD_EDGE_MIN}). Pick a ${f.bucket} to dim the topics under ${PRESENT * 100}% of it.</div>
-<div class="slider"><input id="wk" type="range" min="0" max="${f.buckets.length}" value="${f.buckets.length}" aria-label="${f.bucket}"><span id="wkl">all ${f.bucket}s</span></div>
+<h2>Topic cloud</h2>
+<div class="dim">The ${cloud.nodes.length} largest topics, sized by total share and coloured by category (the ${CHART_TOPICS} largest; grey for the rest); a line joins two that show in the same prompts (Jaccard ≥ ${CLOUD_EDGE_MIN}). The ${f.bucket} slider at the top dims the topics under ${PRESENT * 100}% of that ${f.bucket}.</div>
 <svg id="cloud" viewBox="0 0 ${CLOUD_W} ${CLOUD_H}" role="img" aria-label="Topic relationship cloud"><g class="edges">${lines}</g>${dots}</svg>
 <div class="legend">${catLegend}</div>
 <h2>Categories</h2>
@@ -1017,26 +1335,7 @@ td.terms{color:var(--dim);white-space:normal;min-width:16em}
 <h2>${f.bucket === 'week' ? 'Weeks' : 'Days'}</h2>
 <div class="wrap"><table><thead><tr><th>Start</th><th>Prompts</th><th>Sessions</th><th>Top topic</th><th>Top terms</th></tr></thead><tbody>${bucketRows}</tbody></table></div>
 </main>
-<script>
-(() => {
-  const weeks = ${weeks}
-  const input = document.getElementById('wk')
-  const label = document.getElementById('wkl')
-  const nodes = [...document.querySelectorAll('#cloud .node')]
-  const shares = nodes.map(n => n.dataset.s.split(',').map(Number))
-  const lines = [...document.querySelectorAll('#cloud .edges line')]
-  const update = () => {
-    const w = Number(input.value)
-    const all = w >= weeks.length
-    label.textContent = all ? 'all ${f.bucket}s' : '${f.bucket} of ' + weeks[w]
-    const on = shares.map(s => all || s[w] >= ${PRESENT})
-    nodes.forEach((n, i) => n.classList.toggle('off', !on[i]))
-    lines.forEach(l => l.classList.toggle('off', !(on[+l.dataset.a] && on[+l.dataset.b])))
-  }
-  input.addEventListener('input', update)
-  update()
-})()
-</script>
+${pageScript(f.bucket)}
 </body></html>
 `
 }
@@ -1044,7 +1343,7 @@ td.terms{color:var(--dim);white-space:normal;min-width:16em}
 // ---- main ----
 
 const main = () => {
-  const { since, bucket } = parseArgs(process.argv.slice(2))
+  const { since, bucket, seed } = parseArgs(process.argv.slice(2))
   const sinceMs = since ? localDay(since).getTime() : 0
   const read: Prompt[] = []
   readClaude(sinceMs, read)
@@ -1211,7 +1510,7 @@ const main = () => {
     { mergeMin: CATEGORY_MERGE_MIN, maxSize: CATEGORY_MAX },
   )
   // Seeds first: a topic joins the seed it matches best (ties to the seed read first); the rest keep their discovered category.
-  const seeds = readSeeds()
+  const seeds = seed ? readSeeds() : []
   const topicKeys = new Map(topicsRaw.map(tp => [tp.id, tp.terms]))
   const seedOf = topics.map(t => {
     // Only a topic's leading terms count, so a generic seed word deep in a big topic doesn't claim it.
@@ -1280,17 +1579,33 @@ const main = () => {
     return { start, prompts: promptCount[b]!, sessions: sessions[b]!.size, repos: rc, terms, topics: ts }
   })
 
-  const focus: Focus = {
+  // The raw term view; its floor rises until focus.json fits FOCUS_MAX_BYTES.
+  const bucketIndex = prompts.map(p => index.get(bucketOf(p.at, bucket))!)
+  let termMin = TERM_MIN
+  let tv = termView(prompts, promptsOf, bucketIndex, nb, show, termMin)
+  const build = (): Focus => ({
     generatedAt: prompts.length ? new Date(prompts[prompts.length - 1]!.at).toISOString() : null,
     since,
     bucket,
+    termMin,
     buckets,
+    terms: tv.terms,
+    edges: tv.edges,
     categories,
     topics,
+  })
+  let focus = build()
+  let json = `${JSON.stringify(focus)}\n`
+  while (json.length > FOCUS_MAX_BYTES && tv.terms.length) {
+    termMin++
+    tv = termView(prompts, promptsOf, bucketIndex, nb, show, termMin)
+    focus = build()
+    json = `${JSON.stringify(focus)}\n`
   }
+  const pos = layout(tv.terms.length, tv.draw, TERM_W, TERM_H, TERM_ITERATIONS)
   mkdirSync(OUT_DIR, { recursive: true })
-  writeFileSync(join(OUT_DIR, 'focus.json'), `${JSON.stringify(focus, null, 2)}\n`)
-  writeFileSync(join(OUT_DIR, 'focus.html'), html(focus, cloud))
+  writeFileSync(join(OUT_DIR, 'focus.json'), json)
+  writeFileSync(join(OUT_DIR, 'focus.html'), html(focus, cloud, { ...tv, pos }, prompts))
 
   const names = new Map(topics.map(t => [t.id, t.name]))
   const tally = (list: Prompt[], key: (p: Prompt) => string) => {
@@ -1313,6 +1628,9 @@ const main = () => {
   )
   for (const c of categories.slice(0, 12))
     console.log(`  ${c.name} (${c.topics.length} topics, ${c.total.toFixed(2)}): ${c.topics.slice(0, 6).map(id => names.get(id)).join(', ')}`)
+  console.log(
+    `${tv.terms.length} terms (in ${termMin}+ prompts${termMin > TERM_MIN ? `, floor raised from ${TERM_MIN} to fit ${FOCUS_MAX_BYTES / 1e6} MB` : ''}), ${tv.edges.length} edges; focus.json ${(json.length / 1e6).toFixed(1)} MB${seed ? '' : '; categories unseeded (--seed seeds them)'}`,
+  )
   console.log(`wrote ${join(OUT_DIR, 'focus.json')} and focus.html`)
 }
 
