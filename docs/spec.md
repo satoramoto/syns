@@ -254,7 +254,10 @@ stale when it is idle, not pinned, and nothing in the brain file names it as
 running or blocked, or when it is already archived; stale ones move to
 **syns · done**, and archiving is only offered. The plugin has no hook for
 another session going quiet, so `/syn:standup` and `/syn:back` run the sweep.
-The procedure is the `session-groups` skill.
+A session's title names what it is doing now (under 60 characters, `<epic>:
+<job>` for an epic's job): it retitles itself when its scope changes, titles
+the sessions it starts, and the sweep flags stale titles, retitling only the
+sessions it started. The procedure is the `session-housekeeping` skill.
 
 ## Events (engine sources)
 
