@@ -474,8 +474,9 @@ const tokenize = (text: string, repos: Set<string>): Tokens => {
   for (const clause of t.toLowerCase().split(/[.,;:!?()[\]{}"`|\n]+/)) {
     for (const w of clause.split(/[^\w-]+/)) {
       if (!w) continue
+      // A hyphenated word is one token ("multi-band" → "multiband"); a repo name keeps its hyphen.
       const whole = repos.has(w)
-      for (const x of whole ? [w] : w.split(/-+/)) {
+      for (const x of [whole ? w : w.replace(/-+/g, '')]) {
         // Ids, hashes and timestamp shards (`26t17`, `4a02`, `01m`) have as many digits as letters.
         const digits = x.replace(/\D/g, '').length
         const ok = x.length >= 3 && digits * 2 < x.length && !STOPWORDS.has(x) && !/^_|_$/.test(x)
@@ -731,7 +732,62 @@ type TopicOut = {
   /** For a topic noticed once: its session's first prompt (200 characters at most). */
   firstPrompt?: string
 }
-type CategoryOut = { id: string; name: string; topics: string[]; total: number }
+/** `seed`: the brain id or lexicon term the category was seeded from; null for one the merge discovered. */
+type CategoryOut = { id: string; name: string; seed: string | null; topics: string[]; total: number }
+
+/**
+ * Category seeds, read at run time from `~/.syns/brain.json` (`pods`, then
+ * `shelf`, then `done` ids) and `~/.syns/LEXICON.md` (each `**Term:**`, the
+ * part before any parenthesis), in that order, first spelling of a name kept.
+ * Each is stemmed like a prompt: `parts` are its words' stems, `joined` its
+ * hyphen-joined stem, `phrase` its stems as a phrase key.
+ */
+type Seed = { name: string; parts: string[]; joined: string; phrase: string }
+/** A seed matches against a topic's leading terms only (its highest-weight ones). */
+const SEED_TERMS = 8
+
+const readSeeds = (): Seed[] => {
+  const names: string[] = []
+  try {
+    const brain = JSON.parse(readFileSync(join(HOME, '.syns', 'brain.json'), 'utf8'))
+    for (const list of [brain?.pods, brain?.shelf, brain?.done])
+      if (Array.isArray(list)) for (const x of list) if (typeof x?.id === 'string' && x.id.trim()) names.push(x.id.trim())
+  } catch {
+    // No brain: no pod seeds.
+  }
+  try {
+    const lex = readFileSync(join(HOME, '.syns', 'LEXICON.md'), 'utf8')
+    for (const m of lex.matchAll(/\*\*([^*\n]+?):\*\*/g)) names.push(m[1]!.replace(/\s*\(.*$/, '').trim())
+  } catch {
+    // No lexicon: no term seeds.
+  }
+  const seen = new Set<string>()
+  const out: Seed[] = []
+  for (const name of names) {
+    const lower = name.toLowerCase()
+    if (!lower || seen.has(lower)) continue
+    seen.add(lower)
+    // Stopwords stay in `parts`: a name like "the-source" then matches only as a whole, never by its one content word.
+    const words = lower.split(/[^a-z0-9]+/).filter(w => w.length >= 3)
+    if (!words.some(w => !STOPWORDS.has(w))) continue
+    const parts = words.map(stem)
+    const joinedWord = lower.replace(/[^a-z0-9]+/g, '')
+    out.push({ name, parts, joined: stem(joinedWord), phrase: parts.join(' ') })
+  }
+  return out
+}
+
+/**
+ * How well a topic (its concept keys, and the words in them) matches a seed:
+ * the seed's whole name as a concept (joined or as a phrase) scores its part
+ * count plus one; otherwise every part present scores the part count; less
+ * than every part scores 0, so one generic word of a long name doesn't claim
+ * a topic.
+ */
+const seedScore = (s: Seed, keys: Set<string>, words: Set<string>): number => {
+  if (keys.has(s.joined) || keys.has(s.phrase)) return s.parts.length + 1
+  return s.parts.every(p => words.has(p)) ? s.parts.length : 0
+}
 type Focus = {
   generatedAt: string | null
   since: string | null
@@ -876,7 +932,8 @@ const html = (f: Focus, cloud: Cloud): string => {
 
   // The relationship cloud: topics sized by total, coloured by category, edges by shared prompts.
   const byTopic = new Map(f.topics.map(t => [t.id, t]))
-  const catColor = new Map(f.categories.slice(0, CHART_TOPICS).map((c, k) => [c.id, `c${k}`]))
+  // Categories have their own palette (k0–k9), so a colour never means a topic in the chart and a category here.
+  const catColor = new Map(f.categories.slice(0, CHART_TOPICS).map((c, k) => [c.id, `k${k}`]))
   const maxTotal = Math.max(1e-9, ...cloud.nodes.map(id => byTopic.get(id)!.total))
   const radius = (id: string) => 3 + 15 * Math.sqrt(byTopic.get(id)!.total / maxTotal)
   const lines = cloud.edges
@@ -897,11 +954,11 @@ const html = (f: Focus, cloud: Cloud): string => {
     .join('')
   const catLegend = f.categories
     .slice(0, CHART_TOPICS)
-    .map((c, k) => `<span class="key"><i class="c${k}"></i>${esc(c.name)}</span>`)
+    .map((c, k) => `<span class="key"><i class="k${k}"></i>${esc(c.name)}</span>`)
     .join('')
   const catRows = f.categories
-    .filter(c => c.topics.length > 1)
-    .map(c => `<tr><td><i class="${catColor.get(c.id) ?? 'co'}"></i>${esc(c.name)}</td><td class="num">${c.total.toFixed(2)}</td><td class="num">${c.topics.length}</td><td class="terms">${esc(c.topics.slice(0, 12).map(id => byTopic.get(id)!.name).join(', '))}</td></tr>`)
+    .filter(c => c.topics.length > 1 || c.seed !== null)
+    .map(c => `<tr><td><i class="${catColor.get(c.id) ?? 'co'}"></i>${esc(c.name)}${c.seed !== null ? ' <span class="dim">seed</span>' : ''}</td><td class="num">${c.total.toFixed(2)}</td><td class="num">${c.topics.length}</td><td class="terms">${esc(c.topics.slice(0, 12).map(id => byTopic.get(id)!.name).join(', '))}</td></tr>`)
     .join('')
   const weeks = JSON.stringify(f.buckets.map(b => b.start))
   return `<!doctype html>
@@ -909,9 +966,11 @@ const html = (f: Focus, cloud: Cloud): string => {
 <title>Focus Timeline</title>
 <style>
 :root{--bg:#fbfbfa;--fg:#1d1d1f;--dim:#6e6e73;--rule:#e2e2e0;
---c0:#4e79a7;--c1:#f28e2b;--c2:#59a14f;--c3:#e15759;--c4:#76b7b2;--c5:#edc948;--c6:#b07aa1;--c7:#ff9da7;--c8:#9c755f;--c9:#3b9ab2;--co:#c9c9c6}
+--c0:#4e79a7;--c1:#f28e2b;--c2:#59a14f;--c3:#e15759;--c4:#76b7b2;--c5:#edc948;--c6:#b07aa1;--c7:#ff9da7;--c8:#9c755f;--c9:#3b9ab2;--co:#c9c9c6;
+--k0:#0e7c7b;--k1:#c2410c;--k2:#6d28d9;--k3:#be185d;--k4:#4d7c0f;--k5:#a16207;--k6:#0369a1;--k7:#7c2d12;--k8:#a21caf;--k9:#334155}
 @media (prefers-color-scheme:dark){:root{--bg:#161618;--fg:#ececec;--dim:#9a9aa0;--rule:#2c2c30;
---c0:#6f9fd0;--c1:#f5a55a;--c2:#7cc271;--c3:#ee7a7c;--c4:#8fd0cb;--c5:#f2d76b;--c6:#c99bc0;--c7:#ffb6be;--c8:#b8937c;--c9:#5bb6cc;--co:#4a4a4e}}
+--c0:#6f9fd0;--c1:#f5a55a;--c2:#7cc271;--c3:#ee7a7c;--c4:#8fd0cb;--c5:#f2d76b;--c6:#c99bc0;--c7:#ffb6be;--c8:#b8937c;--c9:#5bb6cc;--co:#4a4a4e;
+--k0:#2dd4bf;--k1:#fb923c;--k2:#a78bfa;--k3:#f472b6;--k4:#a3e635;--k5:#facc15;--k6:#38bdf8;--k7:#d6a26a;--k8:#e879f9;--k9:#cbd5e1}}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 main{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
 h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:32px 0 8px}
@@ -919,7 +978,7 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:32px 0 8px}
 svg{width:100%;height:auto;display:block}
 svg text{fill:var(--dim);font-size:11px}svg line{stroke:var(--rule)}
 svg path{stroke:var(--bg);stroke-width:.5}
-${[...Array(CHART_TOPICS).keys()].map(k => `.c${k}{fill:var(--c${k});background:var(--c${k})}`).join('')}.co{fill:var(--co);background:var(--co)}
+${[...Array(CHART_TOPICS).keys()].map(k => `.c${k}{fill:var(--c${k});background:var(--c${k})}.k${k}{fill:var(--k${k});background:var(--k${k})}`).join('')}.co{fill:var(--co);background:var(--co)}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0}
 .key{white-space:nowrap}
 i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -1151,17 +1210,40 @@ const main = () => {
     topics.map(t => topicMembers.get(t.id)!),
     { mergeMin: CATEGORY_MERGE_MIN, maxSize: CATEGORY_MAX },
   )
-  const catIds = new Set<string>()
-  const categories: CategoryOut[] = catGroups
-    .map(g => [...new Set(g.map(m => topicOfTerm.get(m)!))].sort((x, y) => x - y).map(i => topics[i]!))
-    .map(ts => {
-      let id = ts[0]!.id
-      for (let k = 2; catIds.has(id); k++) id = `${ts[0]!.id}~${k}`
-      catIds.add(id)
-      for (const t of ts) t.category = id
-      return { id, name: ts[0]!.name, topics: ts.map(t => t.id), total: round(ts.reduce((s, t) => s + t.total, 0)) }
+  // Seeds first: a topic joins the seed it matches best (ties to the seed read first); the rest keep their discovered category.
+  const seeds = readSeeds()
+  const topicKeys = new Map(topicsRaw.map(tp => [tp.id, tp.terms]))
+  const seedOf = topics.map(t => {
+    // Only a topic's leading terms count, so a generic seed word deep in a big topic doesn't claim it.
+    const keys = new Set(topicKeys.get(t.id)!.slice(0, SEED_TERMS))
+    const words = new Set([...keys].flatMap(k => k.split(' ')))
+    let best = -1
+    let bestScore = 0
+    seeds.forEach((s, i) => {
+      const score = seedScore(s, keys, words)
+      if (score > bestScore) (best = i), (bestScore = score)
     })
-    .sort((a, b) => b.total - a.total || cmp(a.id, b.id))
+    return best
+  })
+  const catIds = new Set<string>()
+  const category = (ts: TopicOut[], name: string, seed: string | null): CategoryOut => {
+    const base = seed === null ? ts[0]!.id : `seed:${slug(seed.toLowerCase())}`
+    let id = base
+    for (let k = 2; catIds.has(id); k++) id = `${base}~${k}`
+    catIds.add(id)
+    for (const t of ts) t.category = id
+    return { id, name, seed, topics: ts.map(t => t.id), total: round(ts.reduce((s, t) => s + t.total, 0)) }
+  }
+  const seeded: CategoryOut[] = seeds
+    .map((s, si) => ({ s, ts: topics.filter((_, i) => seedOf[i] === si) }))
+    .filter(x => x.ts.length)
+    .map(x => category(x.ts, x.s.name, x.s.name))
+  const discovered: CategoryOut[] = catGroups
+    .map(g => [...new Set(g.map(m => topicOfTerm.get(m)!))].filter(i => seedOf[i]! < 0).sort((x, y) => x - y).map(i => topics[i]!))
+    .filter(ts => ts.length)
+    .map(ts => category(ts, ts[0]!.name, null))
+  const categories = [...seeded, ...discovered].sort((a, b) => b.total - a.total || cmp(a.id, b.id))
+  const seededTopics = seedOf.filter(s => s >= 0).length
 
   // The relationship cloud: the largest topics, linked by how often they show in the same prompts.
   const cloudTopics = topics.slice(0, CLOUD_NODES)
@@ -1226,7 +1308,9 @@ const main = () => {
     console.log(`${b.start}  ${String(b.prompts).padStart(4)} prompts  ${what}  · ${b.terms.slice(0, 5).map(t => t.term).join(', ')}`)
   }
   const big = categories.filter(c => c.topics.length > 1)
-  console.log(`${categories.length} categories (${big.length} with more than one topic); largest:`)
+  console.log(
+    `${categories.length} categories (${big.length} with more than one topic): ${seededTopics} topics seeded into ${seeded.length} seed categories (of ${seeds.length} seeds), ${topics.length - seededTopics} discovered; largest:`,
+  )
   for (const c of categories.slice(0, 12))
     console.log(`  ${c.name} (${c.topics.length} topics, ${c.total.toFixed(2)}): ${c.topics.slice(0, 6).map(id => names.get(id)).join(', ')}`)
   console.log(`wrote ${join(OUT_DIR, 'focus.json')} and focus.html`)
