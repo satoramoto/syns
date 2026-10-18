@@ -165,6 +165,6 @@ name). It never comes without an `approved` line before it. A schedule is
 one `epic.scheduled` line, `via` the approval, with `fireAt` (ISO time with
 offset), `task` (the scheduled task's id) and `door`; when it fires, the
 start line follows it and the gap between its `at` and the `fireAt` is the
-scheduler's lag. A start line written before this rule (`epic-start-0004`)
-carries the door and session in `note` instead ("started by hand …, session
-…").
+scheduler's lag. A start line written before this rule (`bloom-swarm-0009`,
+`epic-start-0004`) carries the door and session in `note` instead ("started
+by hand …, session …") and may lack `via`.
