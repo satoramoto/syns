@@ -16,6 +16,15 @@ syn: the smallest version of the approval loop.
    with the `epic-decision` skill (door `page`) without asking, and leave
    the item out of the quiz. Anything else (no document, an earlier
    approval's, no ArtifactData tool) leaves the item for the quiz.
+2b. Then, still before asking: for every epic in `~/.syns/epics/*/epic.json`
+   with `status: "approved"` and a proposal page under `evidence`, read
+   `starts/<epic id>` from that page's db (ArtifactData, `action: "get"`,
+   `collection: "starts"`, `doc_id` the epic id). A document with `state:
+   "requested"` and `by: "page"` is Ryan's Start: apply it with the
+   `epic-start` skill (door `page`; `action: "schedule"` with its `fireAt`
+   is a schedule, `start` a start) without asking. Any other state, no
+   document, or no ArtifactData tool: leave it. Epics approved in step 2
+   are swept too.
 3. Ask with the question tool, up to 4 items per call, using each item exactly
    as stored:
    - the question is its `question`;
@@ -38,4 +47,5 @@ syn: the smallest version of the approval loop.
 5. Keep going batch by batch until the inbox is empty or the user stops.
    Never ask anything outside the inbox during the run.
 6. End with one line: how many were answered (and how many on a page),
-   what's left, and what each answer unblocked.
+   what's left, what each answer unblocked, and any epic started or
+   scheduled from its page.

@@ -28,6 +28,10 @@
     {{problem}}        one or more <p> from proposal.md's problem
     {{chosen}}         approach.chosen
     {{thread}} {{mode}} {{parent}} (links.parent or "none") {{raisedBy}} {{raisedAt}}
+    {{start_text}}     the Start row (shown only from approved on): "Ready to start · rev N"
+                       while approved, "Started · rev N" active, "Done" / "Dropped" after
+    {{start_note}}     under it: while approved, "start now, or schedule a time"; once
+                       started, when and through which door (the epic.status → active line)
 
   Repeated blocks, between <!-- EACH x --> and <!-- /EACH x -->: copy the block
   once per entry, in epic.json order, and delete the markers.
@@ -47,7 +51,10 @@
   proposal needs (background, a diagram, a cost table), in the same shape.
 
   The Approval row writes approvals/{{id}} in the artifact's db; the session
-  applies it with plugin/skills/epic-decision/SKILL.md. Republish this page
+  applies it with plugin/skills/epic-decision/SKILL.md. The Start row writes
+  starts/{{id}} ({action, fireAt?, rev, at, by: "page", state: "requested"});
+  the next /syn:inbox or /syn:start applies it with
+  plugin/skills/epic-start/SKILL.md and sets its state. Republish this page
   (same file path or url) whenever the epic changes.
 -->
 <title>{{title}}</title>
@@ -116,6 +123,8 @@ button { font: 500 12px var(--mono); border: 0; border-radius: 4px; padding: 3px
 button:hover { color: var(--ink) }
 button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
 button[hidden], .n[hidden] { display: none }
+input[type="datetime-local"] { font: 12px var(--mono); color: var(--ink-2); background: var(--head); border: 0; border-radius: 4px; padding: 2px 6px; color-scheme: inherit; min-width: 0 }
+#start-n { flex-wrap: wrap; justify-content: flex-end }
 footer { border-top: 1px solid var(--line); padding-top: 12px; font: 12px var(--mono); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 6px 18px }
 @media (prefers-reduced-motion: reduce) { summary .fold { transition: none } }
 </style>
@@ -141,6 +150,16 @@ footer { border-top: 1px solid var(--line); padding-top: 12px; font: 12px var(--
       <div class="i" id="approval-row" style="--c: {{approval_colour}}"><span class="g" id="approval-g">{{approval_glyph}}</span><span class="x"><b id="approval-b">{{approval_text}}</b><small id="approval-s">{{approval_note}}</small></span><span class="n" id="approval-n" hidden><button class="decide" data-d="approve">approve</button><button class="decide" data-d="revise">revise</button><button class="decide" data-d="reject">reject</button></span></div>
     </div>
     <p class="dim">Approve and reject ask for a second click, then save; the session applies the decision to the epic, the ledger and inbox {{approval}}. Revise opens a comment on this row: say what to change.</p>
+  </div>
+</details>
+
+<details open id="start" hidden>
+  <summary><span class="g">▷</span><span class="t">Start</span><span class="f" id="start-f">{{status}}</span><span class="fold">›</span></summary>
+  <div class="body">
+    <div class="items">
+      <div class="i" id="start-row" style="--c: var(--blue)"><span class="g" id="start-g">▷</span><span class="x"><b id="start-b">{{start_text}}</b><small id="start-s">{{start_note}}</small></span><span class="n" id="start-n" hidden><input type="datetime-local" id="start-at" aria-label="start at"><button class="go" data-a="start">start</button><button class="go" data-a="schedule">schedule</button></span></div>
+    </div>
+    <p class="dim">Start and schedule ask for a second click, then save; schedule takes the time beside it. The next /syn:inbox or /syn:start applies it: a fresh session from the epic's brief, the epic set active, the ledger line.</p>
   </div>
 </details>
 
@@ -286,6 +305,74 @@ footer { border-top: 1px solid var(--line); padding-top: 12px; font: 12px var(--
         } catch (e) {
           document.getElementById("approval-s").textContent = "could not save the decision (" + (e?.code ?? e?.message ?? "error") + "); answer inbox " + APPROVAL + " instead";
         }
+      });
+    }
+  }
+  // Start: an approved epic's start lives at starts/<id> ({action, state,
+  // fireAt?, rev, at, by, session?, note?}). The page writes state requested;
+  // a session applies it with plugin/skills/epic-start and sets started,
+  // scheduled or refused. Sessions that start another way write it too.
+  const STATUS = "{{status}}";
+  const startBox = document.getElementById("start");
+  if (["approved", "active", "done", "dropped"].includes(STATUS)) startBox.hidden = false;
+  const sn = document.getElementById("start-n"), ss = document.getElementById("start-s");
+  const startFaces = {
+    requested: { g: "◐", c: "var(--warn)", b: "Requested" },
+    started: { g: "●", c: "var(--blue)", b: "Started" },
+    scheduled: { g: "◷", c: "var(--blue)", b: "Scheduled" },
+    refused: { g: "✕", c: "var(--bad)", b: "Refused" },
+  };
+  const isoWithOffset = (local) => {
+    const d = new Date(local);
+    if (isNaN(d)) return null;
+    const p = (x) => String(Math.floor(Math.abs(x))).padStart(2, "0");
+    const off = -d.getTimezoneOffset();
+    return local.length === 16 ? local + ":00" + (off >= 0 ? "+" : "-") + p(off / 60) + ":" + p(off % 60) : null;
+  };
+  let startOpen = STATUS === "approved";
+  const showStart = (d) => {
+    const face = startFaces[d?.state];
+    if (!face) return;
+    const row = document.getElementById("start-row");
+    row.style.setProperty("--c", face.c);
+    document.getElementById("start-g").textContent = face.g;
+    const what = d.action === "schedule" ? "schedule" : "start";
+    document.getElementById("start-b").textContent = face.b + " · " + what + " · rev " + (d.rev ?? REV) + (d.by ? " (" + d.by + ")" : "");
+    ss.textContent =
+      d.state === "requested" ? "requested" + (d.fireAt ? " for " + d.fireAt : "") + "; the next /syn:inbox or /syn:start applies it" :
+      d.state === "started" ? "started " + (d.at ?? "") + " · session " + (d.session ?? "?") :
+      d.state === "scheduled" ? "scheduled for " + (d.fireAt ?? "?") :
+      "refused" + (d.note ? ": " + d.note : "");
+    document.getElementById("start-f").textContent = face.b.toLowerCase();
+    if (d.state === "requested" || d.state === "started") { startOpen = false; sn.hidden = true; }
+  };
+  if (db && !startBox.hidden) {
+    const sref = db.doc("starts/" + EPIC);
+    sref.onSnapshot((snap) => { if (snap.exists) showStart(snap.data()); }, () => {});
+    const canEdit = await (user?.canEdit?.() ?? Promise.resolve(false));
+    if (canEdit && startOpen) {
+      sn.hidden = false;
+      for (const b of sn.querySelectorAll(".go")) b.addEventListener("click", async () => {
+        const a = b.dataset.a;
+        let fireAt = null;
+        if (a === "schedule") {
+          fireAt = isoWithOffset(document.getElementById("start-at").value);
+          if (!fireAt) { ss.textContent = "pick a time beside schedule first"; return; }
+        }
+        // Arm on the first click, write on the second, as the Approval row does.
+        if (b.dataset.armed !== "1") {
+          for (const x of sn.querySelectorAll(".go")) { x.dataset.armed = ""; x.textContent = x.dataset.a; }
+          b.dataset.armed = "1";
+          b.textContent = a + "? click again";
+          setTimeout(() => { if (b.dataset.armed === "1") { b.dataset.armed = ""; b.textContent = a; } }, 6000);
+          return;
+        }
+        b.dataset.armed = ""; b.textContent = a;
+        ss.textContent = "saving…";
+        const doc = { action: a, state: "requested", rev: REV, at: new Date().toISOString(), by: "page" };
+        if (fireAt) doc.fireAt = fireAt;
+        try { await sref.set(doc); }
+        catch (e) { ss.textContent = "could not save (" + (e?.code ?? e?.message ?? "error") + "); say \"start " + EPIC + "\" in a session instead"; }
       });
     }
   }
