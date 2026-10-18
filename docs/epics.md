@@ -83,6 +83,21 @@ one ledger line.
   ledger line. It first takes any decision already made on the page.
 - `epic-decision` (a skill, no command): "approve <id>", "reject <id>" or
   "revise <id>: <note>" in any session applies the same decision.
+- `/syn:start <id> [at <time>]`: starts an approved epic now, or schedules
+  the start. It first takes any Start requested on the page (`starts/<id>`,
+  below), as `/syn:inbox` does.
+- `epic-start` (the skill behind `/syn:start`): "start <id>" or "schedule
+  <id> for <time>" in any session, Start on the epic's page and Start on the
+  dashboard all run it. A start is, in order: the guard (`status` must be
+  `approved`; anything else is refused in one line and nothing changes), the
+  brief (`brief.md` in the epic's folder, generated from `epic.json` alone),
+  the session (fresh, local, in the first job's `repo`, else `~/.syns`, on
+  the starting session's model), and the record (`status: "active"`, one
+  `epic.status` line, the page's `starts/<id>` doc). A schedule is the guard
+  and the brief now, one one-time desktop scheduled task (`fireAt`, task id
+  `epic-start-<id>`) whose prompt is `/syn:start <id>` with the door
+  `schedule`, one `epic.scheduled` line, and the doc; scheduling the same
+  epic again replaces its task and writes another `epic.scheduled` line.
 
 ## Deciding on the page
 
@@ -107,6 +122,25 @@ skill: `status` and `decisions` in `epic.json`, one ledger line (`via:
 "inbox <id>"`, the door in `note`), the approval item answered, and, for the
 quiz and words, the db document written so the page shows it.
 
+## Starting on the page
+
+An approved epic's page has a Start row (start now, or at a time). It arms
+on the first click and saves on the second, to the db document
+`starts/<epic id>`; the next `/syn:inbox` or `/syn:start` reads it and runs
+`epic-start` with the door `page`. A session that starts another way writes
+the same document so the page shows it:
+
+| Field | Holds |
+| --- | --- |
+| `action` | `start` or `schedule` |
+| `state` | `requested` (the page wrote it), `started` or `scheduled` (a session applied it), `refused` (with `note`) |
+| `fireAt` | for a schedule: when, ISO time with offset |
+| `rev` | the epic's rev |
+| `at` | when, ISO time |
+| `by` | the door: `page`, `words`, `dashboard`, `schedule` |
+| `session` | once started: the started session's name |
+| `note` | optional |
+
 ## Ledger lines
 
 `~/.syns/memory.jsonl` is append-only, one JSON object per line:
@@ -121,4 +155,16 @@ seven lines, `ps-0001`…`ps-0007`, predate this); `parent` is the epic id;
 `at` is UTC; `via` names the inbox item that caused it; `note` is optional
 (for a dropped promise, the reason). Events: `epic.status`, `epic.revised`
 (adds `rev`), `job.state` (`job`, `owner`, `promises`), `promise.status`
-(`promise`, `from`, `to`, `proof`: the artifact's url or path).
+(`promise`, `from`, `to`, `proof`: the artifact's url or path),
+`epic.scheduled` (`fireAt`, `task`, `door`).
+
+A start is the `epic.status` line `approved` → `active`, `via` the epic's
+approval, with `door` (`words`, `page`, `dashboard`, `schedule`, or `hand`
+for a start made without the skill) and `session` (the started session's
+name). It never comes without an `approved` line before it. A schedule is
+one `epic.scheduled` line, `via` the approval, with `fireAt` (ISO time with
+offset), `task` (the scheduled task's id) and `door`; when it fires, the
+start line follows it and the gap between its `at` and the `fireAt` is the
+scheduler's lag. A start line written before this rule (`epic-start-0004`)
+carries the door and session in `note` instead ("started by hand …, session
+…").
