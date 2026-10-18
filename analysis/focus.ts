@@ -7,10 +7,13 @@
 // archived (`~/.codex/sessions/**`, `~/.codex/archived_sessions/**`), and chat
 // exports (`~/.syns/files/exports/<harness>/**/conversations.json`, in
 // ChatGPT's or Claude.ai's export format), buckets them by local day
-// or week (weeks start Monday), weighs each bucket's terms by TF-IDF (the
-// bucket is the document, all buckets the corpus), groups co-occurring terms
-// into topics, and writes `~/.syns/files/focus/focus.json` and `focus.html`,
-// plus a one-line-per-bucket summary on stdout.
+// or week (weeks start Monday), stems words (Snowball/Porter2), joins
+// adjacent stems that go together (PMI) into phrases, weighs each bucket's
+// concepts by TF-IDF (the bucket is the document, all buckets the corpus),
+// groups co-occurring concepts into topics and topics into categories, and
+// writes `~/.syns/files/focus/focus.json` and `focus.html` (a share chart, a
+// relationship cloud, the tables), plus a one-line-per-bucket summary on
+// stdout.
 //
 // Deterministic: no randomness, no model calls, every list sorted with a
 // fixed tie-break, `generatedAt` is the newest prompt's time (not the clock).
@@ -330,9 +333,115 @@ const PATH = /(?:~|\.{1,2})?\/?(?:[\w.@-]+\/)+[\w.@-]+/g
 const URL = /\b(?:https?|file):\/\/\S+/g
 const SLASH = /(^|[\s("'`])(\/[a-z][\w:-]*)(?=$|[\s,.;:!?)"'`])/g
 
-/** A prompt's terms: unigrams, bigrams of adjacent kept words, and file paths, repo names and slash commands as single terms. */
-const termsOf = (text: string, repos: Set<string>): Set<string> => {
-  const out = new Set<string>()
+// ---- Snowball (Porter2) English stemmer ----
+
+const VOWEL = /[aeiouy]/
+const isV = (c: string | undefined) => c !== undefined && VOWEL.test(c)
+const STEM_EXCEPTIONS: Record<string, string> = {
+  skis: 'ski', skies: 'sky', dying: 'die', lying: 'lie', tying: 'tie', idly: 'idl', gently: 'gentl', ugly: 'ugli', early: 'earli',
+  only: 'onli', singly: 'singl', sky: 'sky', news: 'news', howe: 'howe', atlas: 'atlas', cosmos: 'cosmos', bias: 'bias', andes: 'andes',
+}
+const AFTER_1A = new Set(['inning', 'outing', 'canning', 'herring', 'earring', 'proceed', 'exceed', 'succeed'])
+const DOUBLES = new Set(['bb', 'dd', 'ff', 'gg', 'mm', 'nn', 'pp', 'rr', 'tt'])
+const LI_ENDING = new Set(['c', 'd', 'e', 'g', 'h', 'k', 'm', 'n', 'r', 't'])
+const STEP2: [string, string][] = [
+  ['ization', 'ize'], ['ational', 'ate'], ['fulness', 'ful'], ['ousness', 'ous'], ['iveness', 'ive'], ['tional', 'tion'], ['biliti', 'ble'],
+  ['lessli', 'less'], ['entli', 'ent'], ['ation', 'ate'], ['alism', 'al'], ['aliti', 'al'], ['ousli', 'ous'], ['iviti', 'ive'], ['fulli', 'ful'],
+  ['enci', 'ence'], ['anci', 'ance'], ['abli', 'able'], ['izer', 'ize'], ['ator', 'ate'], ['alli', 'al'], ['bli', 'ble'], ['ogi', 'og'], ['li', ''],
+]
+const STEP3: [string, string][] = [
+  ['ational', 'ate'], ['tional', 'tion'], ['alize', 'al'], ['icate', 'ic'], ['iciti', 'ic'], ['ative', ''], ['ical', 'ic'], ['ness', ''], ['ful', ''],
+]
+const STEP4 = ['ement', 'ance', 'ence', 'able', 'ible', 'ment', 'ant', 'ent', 'ism', 'ate', 'iti', 'ous', 'ive', 'ize', 'ion', 'al', 'er', 'ic']
+
+/** Where R1 or R2 starts: after the first non-vowel that follows a vowel, from `from`. */
+const region = (w: string, from: number): number => {
+  for (let i = from + 1; i < w.length; i++) if (!isV(w[i]) && isV(w[i - 1])) return i + 1
+  return w.length
+}
+
+/** A short syllable ends at `i` (inclusive). */
+const shortSyllableAt = (w: string, i: number): boolean =>
+  (i === 1 && isV(w[0]) && !isV(w[1])) ||
+  (i >= 2 && !isV(w[i - 2]) && isV(w[i - 1]) && !isV(w[i]) && !'wxY'.includes(w[i]!))
+
+const stem = (word: string): string => {
+  if (word.length <= 2) return word
+  if (STEM_EXCEPTIONS[word]) return STEM_EXCEPTIONS[word]!
+  let w = word.replace(/^'/, '')
+  w = w.replace(/^y/, 'Y').replace(/([aeiouy])y/g, '$1Y')
+  const r1 = /^(gener|commun|arsen)/.test(w) ? (/^(gener|arsen)/.test(w) ? 5 : 6) : region(w, 0)
+  // R1 and R2 are fixed positions; later steps only shorten the word (or add back an `e`).
+  const R2 = region(w, r1)
+  const r2 = () => R2
+  // Step 0
+  for (const s of ["'s'", "'s", "'"]) if (w.endsWith(s)) {
+    w = w.slice(0, -s.length)
+    break
+  }
+  // Step 1a
+  if (w.endsWith('sses')) w = w.slice(0, -2)
+  else if (w.endsWith('ied') || w.endsWith('ies')) w = w.length > 4 ? w.slice(0, -2) : w.slice(0, -1)
+  else if (w.endsWith('us') || w.endsWith('ss')) {
+    // unchanged
+  } else if (w.endsWith('s') && /[aeiouy]/.test(w.slice(0, -2))) w = w.slice(0, -1)
+  if (AFTER_1A.has(w)) return w
+  // Step 1b
+  const s1b = ['eedly', 'ingly', 'edly', 'eed', 'ing', 'ed'].find(s => w.endsWith(s))
+  if (s1b === 'eed' || s1b === 'eedly') {
+    if (w.length - s1b.length >= r1) w = `${w.slice(0, -s1b.length)}ee`
+  } else if (s1b) {
+    const stemPart = w.slice(0, -s1b.length)
+    if (/[aeiouy]/.test(stemPart)) {
+      w = stemPart
+      if (/(at|bl|iz)$/.test(w)) w += 'e'
+      else if (DOUBLES.has(w.slice(-2))) w = w.slice(0, -1)
+      else if (r1 >= w.length && shortSyllableAt(w, w.length - 1)) w += 'e'
+    }
+  }
+  // Step 1c
+  if (/[yY]$/.test(w) && w.length > 2 && !isV(w[w.length - 2])) w = `${w.slice(0, -1)}i`
+  // Step 2
+  const s2 = STEP2.find(([s]) => w.endsWith(s))
+  if (s2 && w.length - s2[0].length >= r1) {
+    const [s, r] = s2
+    const before = w[w.length - s.length - 1]
+    if (s === 'ogi') {
+      if (before === 'l') w = w.slice(0, -s.length) + r
+    } else if (s === 'li') {
+      if (before && LI_ENDING.has(before)) w = w.slice(0, -2)
+    } else w = w.slice(0, -s.length) + r
+  }
+  // Step 3
+  const s3 = STEP3.find(([s]) => w.endsWith(s))
+  if (s3 && w.length - s3[0].length >= r1) {
+    const [s, r] = s3
+    if (s === 'ative') {
+      if (w.length - s.length >= r2()) w = w.slice(0, -s.length)
+    } else w = w.slice(0, -s.length) + r
+  }
+  // Step 4
+  const s4 = STEP4.find(s => w.endsWith(s))
+  if (s4 && w.length - s4.length >= r2()) {
+    if (s4 !== 'ion') w = w.slice(0, -s4.length)
+    else if (/[st]$/.test(w.slice(0, -3))) w = w.slice(0, -3)
+  }
+  // Step 5
+  if (w.endsWith('e')) {
+    const at = w.length - 1
+    if (at >= r2() || (at >= r1 && !shortSyllableAt(w, at - 1))) w = w.slice(0, -1)
+  } else if (w.endsWith('ll') && w.length - 1 >= r2()) w = w.slice(0, -1)
+  return w.replace(/Y/g, 'y')
+}
+
+/** One kept word: its stem (the key it's counted under) and its surface form (what's shown). */
+type Word = { stem: string; surface: string }
+/** A prompt cut into runs of adjacent kept words (a dropped word or punctuation ends a run), plus its paths, repos and slash commands. */
+type Tokens = { runs: Word[][]; specials: string[] }
+
+/** A prompt's tokens: words lowercased and stemmed, and file paths, repo names and slash commands kept whole. */
+const tokenize = (text: string, repos: Set<string>): Tokens => {
+  const specials = new Set<string>()
   let t = text
     .slice(0, MAX_PROMPT_CHARS)
     .replace(/```[\s\S]*?(```|$)/g, ' ')
@@ -346,38 +455,110 @@ const termsOf = (text: string, repos: Set<string>): Set<string> => {
     const anchored = /^(~|\.|\/)/.test(p)
     const file = /\.[a-z][a-z0-9]{0,5}$/.test(segs[segs.length - 1] ?? '')
     if (repos.has(p) || anchored || file || segs.length >= 3) {
-      out.add(p)
+      specials.add(p)
       return ' . '
     }
     return m.replace(/\//g, ' ')
   })
   t = t.replace(SLASH, (_m: string, pre: string, cmd: string) => {
-    out.add(cmd.toLowerCase())
+    specials.add(cmd.toLowerCase())
     return `${pre} . `
   })
-  // A null breaks bigrams: a dropped word, or punctuation between clauses (the `.` left where a path or command was).
-  const raw: (string | null)[] = []
+  // A run ends at a dropped word or at punctuation between clauses (the `.` left where a path or command was).
+  const runs: Word[][] = []
+  let run: Word[] = []
+  const end = () => {
+    if (run.length) runs.push(run)
+    run = []
+  }
   for (const clause of t.toLowerCase().split(/[.,;:!?()[\]{}"`|\n]+/)) {
     for (const w of clause.split(/[^\w-]+/)) {
       if (!w) continue
-      const parts = repos.has(w) ? [w] : w.split(/-+/)
-      for (const x of parts) {
+      const whole = repos.has(w)
+      for (const x of whole ? [w] : w.split(/-+/)) {
         // Ids, hashes and timestamp shards (`26t17`, `4a02`, `01m`) have as many digits as letters.
         const digits = x.replace(/\D/g, '').length
         const ok = x.length >= 3 && digits * 2 < x.length && !STOPWORDS.has(x) && !/^_|_$/.test(x)
-        raw.push(ok ? x : null)
+        if (ok) run.push({ stem: whole ? x : stem(x), surface: x })
+        else end()
       }
     }
-    raw.push(null)
+    end()
   }
-  for (let i = 0; i < raw.length; i++) {
-    const w = raw[i]
-    if (!w) continue
-    out.add(w)
-    const n = raw[i + 1]
-    if (n && n !== w) out.add(`${w} ${n}`)
+  return { runs, specials: [...specials].sort(cmp) }
+}
+
+/** Phrases: adjacent stems that go together more than chance (normalized PMI over prompts) become one concept. */
+const PHRASE_MIN_PROMPTS = 3
+const PHRASE_NPMI = 0.35
+
+/**
+ * Each prompt's concepts, keyed by stems (`multiband compress`), with every
+ * key's surface forms counted. A pair of adjacent stems seen in at least
+ * PHRASE_MIN_PROMPTS prompts whose normalized PMI reaches PHRASE_NPMI is a
+ * phrase; a passing pair plus its neighbour is a trigram when that triple
+ * passes the same test against the pair. Runs are read left to right,
+ * longest phrase first, and a phrase replaces its words in that prompt.
+ */
+const concepts = (all: Tokens[]): { perPrompt: Set<string>[]; surfaces: Map<string, Map<string, number>> } => {
+  const n = all.length
+  const df = new Map<string, number>()
+  const bump = (keys: Set<string>) => {
+    for (const k of keys) df.set(k, (df.get(k) ?? 0) + 1)
   }
-  return out
+  for (const tk of all) {
+    const keys = new Set<string>()
+    for (const r of tk.runs)
+      for (let i = 0; i < r.length; i++) {
+        keys.add(r[i]!.stem)
+        if (i + 1 < r.length) keys.add(`${r[i]!.stem} ${r[i + 1]!.stem}`)
+        if (i + 2 < r.length) keys.add(`${r[i]!.stem} ${r[i + 1]!.stem} ${r[i + 2]!.stem}`)
+      }
+    bump(keys)
+  }
+  const npmi = (x: string, y: string, xy: string): number => {
+    const cxy = df.get(xy) ?? 0
+    if (cxy < PHRASE_MIN_PROMPTS) return -1
+    const pxy = cxy / n
+    if (pxy >= 1) return 1
+    return Math.log(pxy / (((df.get(x) ?? 0) / n) * ((df.get(y) ?? 0) / n))) / -Math.log(pxy)
+  }
+  const pair = new Map<string, boolean>()
+  const pairOk = (a: string, b: string) => {
+    const k = `${a} ${b}`
+    let v = pair.get(k)
+    if (v === undefined) pair.set(k, (v = a !== b && npmi(a, b, k) >= PHRASE_NPMI))
+    return v
+  }
+  const triOk = (a: string, b: string, c: string) => {
+    const k = `${a} ${b} ${c}`
+    return (pairOk(a, b) && npmi(`${a} ${b}`, c, k) >= PHRASE_NPMI) || (pairOk(b, c) && npmi(a, `${b} ${c}`, k) >= PHRASE_NPMI)
+  }
+  const surfaces = new Map<string, Map<string, number>>()
+  const see = (key: string, surface: string) => {
+    const m = surfaces.get(key) ?? new Map<string, number>()
+    m.set(surface, (m.get(surface) ?? 0) + 1)
+    surfaces.set(key, m)
+  }
+  const perPrompt = all.map(tk => {
+    const out = new Set<string>()
+    for (const s of tk.specials) {
+      out.add(s)
+      see(s, s)
+    }
+    for (const r of tk.runs) {
+      for (let i = 0; i < r.length; ) {
+        const len = i + 2 < r.length && triOk(r[i]!.stem, r[i + 1]!.stem, r[i + 2]!.stem) ? 3 : i + 1 < r.length && pairOk(r[i]!.stem, r[i + 1]!.stem) ? 2 : 1
+        const ws = r.slice(i, i + len)
+        const key = ws.map(w => w.stem).join(' ')
+        out.add(key)
+        see(key, ws.map(w => w.surface).join(' '))
+        i += len
+      }
+    }
+    return out
+  })
+  return { perPrompt, surfaces }
 }
 
 // ---- weighting and topics ----
@@ -391,12 +572,18 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 /** A term a topic can hold is seen in at least this many prompts. */
 const VOCAB_MIN_PROMPTS = 2
-/** Two terms are linked only when they share at least this many prompts (once is a coincidence of one prompt). */
+/** Two terms are linked only when they share at least this many prompts (once is a coincidence of one prompt)... */
 const MIN_SHARED = 2
-/** Average-linkage merges stop below this mean Jaccard between two groups' terms. */
+/** ...and average-linkage merges stop below this mean Jaccard between two groups' terms. */
 const MERGE_MIN = 0.03
 /** A topic holds at most this many terms. */
 const TOPIC_MAX = 25
+/** Categories: the same merge run again from the topics (each topic one group), looser and with room for more terms. */
+const CATEGORY_MERGE_MIN = 0.01
+const CATEGORY_MAX = 250
+/** Term links are kept from the looser of the two thresholds. */
+const LINK_MIN = Math.min(MERGE_MIN, CATEGORY_MERGE_MIN)
+type Merge = { mergeMin: number; maxSize: number }
 /** A topic counts as present in a bucket from this share up (for first and last seen). */
 const PRESENT = 0.01
 
@@ -431,18 +618,15 @@ const heapPop = (h: Cand[]): Cand | undefined => {
 }
 
 /**
- * Group terms whose prompts overlap, by average linkage on Jaccard. Candidate
- * pairs come only through shared prompts (a term's prompts, then those
- * prompts' terms), linked when they share MIN_SHARED prompts and reach
- * MERGE_MIN; pairs never linked count as 0 in a group's average. Then the
- * two groups with the highest average merge, ties to the lowest indices
- * (terms in a fixed order), until none reaches MERGE_MIN or every candidate
- * would exceed TOPIC_MAX.
+ * Each term's Jaccard (over the prompts holding it) with the terms it shares
+ * prompts with. Candidates come only through shared prompts (a term's
+ * prompts, then those prompts' terms), so no all-pairs pass; pairs never
+ * linked count as 0 in a group's average.
  */
-const cluster = (sets: Int32Array[], byPrompt: Int32Array[]): number[][] => {
+/** Each term's Jaccard with every term it shares at least `minShared` prompts with, from `linkMin` up. */
+const links = (sets: Int32Array[], byPrompt: Int32Array[], minShared: number, linkMin: number): Map<number, number>[] => {
   const n = sets.length
-  // sum[a]: group a's summed pairwise Jaccard with each linked group.
-  const sum: Map<number, number>[] = Array.from({ length: n }, () => new Map())
+  const out: Map<number, number>[] = Array.from({ length: n }, () => new Map())
   const co = new Int32Array(n)
   const touched: number[] = []
   for (let a = 0; a < n; a++) {
@@ -451,15 +635,45 @@ const cluster = (sets: Int32Array[], byPrompt: Int32Array[]): number[][] => {
     for (const b of touched) {
       const c = co[b]!
       co[b] = 0
-      if (c < MIN_SHARED) continue
+      if (c < minShared) continue
       const j = c / (sets[a]!.length + sets[b]!.length - c)
-      if (j < MERGE_MIN) continue
-      sum[a]!.set(b, j)
-      sum[b]!.set(a, j)
+      if (j < linkMin) continue
+      out[a]!.set(b, j)
+      out[b]!.set(a, j)
     }
     touched.length = 0
   }
-  const members: (number[] | null)[] = Array.from({ length: n }, (_, i) => [i])
+  return out
+}
+
+/**
+ * Average-linkage merge of `groups` (lists of term indices) over term links:
+ * a pair of groups' average is their summed links over the product of their
+ * sizes. Repeatedly merge the pair with the highest average (ties to the
+ * lower group indices) until none reaches `mergeMin` or every candidate would
+ * hold more than `maxSize` terms. Groups come back in their merged order.
+ */
+const cluster = (link: Map<number, number>[], groups: number[][], opt: Merge): number[][] => {
+  const MERGE_MIN = opt.mergeMin
+  const TOPIC_MAX = opt.maxSize
+  const n = groups.length
+  const groupOf = new Map<number, number>()
+  groups.forEach((g, gi) => {
+    for (const t of g) groupOf.set(t, gi)
+  })
+  // sum[a]: group a's summed pairwise Jaccard with each linked group.
+  const sum: Map<number, number>[] = Array.from({ length: n }, () => new Map())
+  for (let a = 0; a < link.length; a++) {
+    const ga = groupOf.get(a)
+    if (ga === undefined) continue
+    for (const [b, j] of link[a]!) {
+      const gb = groupOf.get(b)
+      if (b <= a || gb === undefined || gb === ga) continue
+      sum[ga]!.set(gb, (sum[ga]!.get(gb) ?? 0) + j)
+      sum[gb]!.set(ga, (sum[gb]!.get(ga) ?? 0) + j)
+    }
+  }
+  const members: (number[] | null)[] = groups.map(g => [...g])
   const version = new Int32Array(n)
   const heap: Cand[] = []
   const offer = (x: number, y: number, s: number) => {
@@ -468,7 +682,7 @@ const cluster = (sets: Int32Array[], byPrompt: Int32Array[]): number[][] => {
     const avg = s / (members[i]!.length * members[j]!.length)
     if (size <= TOPIC_MAX && avg >= MERGE_MIN) heapPush(heap, { avg, i, j, vi: version[i]!, vj: version[j]! })
   }
-  for (let a = 0; a < n; a++) for (const [b, s] of sum[a]!) if (b > a) offer(a, b, s)
+  for (let a = 0; a < n; a++) for (const b of [...sum[a]!.keys()].sort((x, y) => x - y)) if (b > a) offer(a, b, sum[a]!.get(b)!)
   for (let c = heapPop(heap); c; c = heapPop(heap)) {
     const { i, j } = c
     if (!members[i] || !members[j] || version[i] !== c.vi || version[j] !== c.vj) continue
@@ -503,6 +717,8 @@ type BucketOut = {
 type TopicOut = {
   id: string
   name: string
+  /** The category it was merged into (`categories[].id`). */
+  category: string
   terms: string[]
   first: string | null
   peak: string | null
@@ -515,14 +731,88 @@ type TopicOut = {
   /** For a topic noticed once: its session's first prompt (200 characters at most). */
   firstPrompt?: string
 }
-type Focus = { generatedAt: string | null; since: string | null; bucket: BucketKind; buckets: BucketOut[]; topics: TopicOut[] }
+type CategoryOut = { id: string; name: string; topics: string[]; total: number }
+type Focus = {
+  generatedAt: string | null
+  since: string | null
+  bucket: BucketKind
+  buckets: BucketOut[]
+  categories: CategoryOut[]
+  topics: TopicOut[]
+}
+
+/** The relationship cloud's topics drawn (the largest by total) and the least overlap drawn as an edge (Jaccard of their prompts). */
+const CLOUD_NODES = 120
+const CLOUD_EDGE_MIN = 0.08
+type CloudEdge = { a: number; b: number; w: number }
+type Cloud = { nodes: string[]; edges: CloudEdge[]; pos: [number, number][] }
+const CLOUD_W = 960
+const CLOUD_H = 640
+const LAYOUT_ITERATIONS = 400
+
+/**
+ * A deterministic force layout (Fruchterman–Reingold): nodes start on a
+ * golden-angle spiral in their fixed order (no random seed needed), repel
+ * each other, pull along edges by weight and gently toward the middle, and
+ * cool linearly over a fixed number of iterations.
+ */
+const layout = (n: number, edges: CloudEdge[]): [number, number][] => {
+  const cx = CLOUD_W / 2
+  const cy = CLOUD_H / 2
+  const k = Math.sqrt((CLOUD_W * CLOUD_H) / Math.max(1, n)) * 0.75
+  const x = new Float64Array(n)
+  const y = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    const r = 12 * Math.sqrt(i + 1)
+    const t = i * 2.399963229728653
+    x[i] = cx + r * Math.cos(t)
+    y[i] = cy + r * Math.sin(t)
+  }
+  const dx = new Float64Array(n)
+  const dy = new Float64Array(n)
+  for (let it = 0; it < LAYOUT_ITERATIONS; it++) {
+    const temp = 40 * (1 - it / LAYOUT_ITERATIONS) + 0.5
+    dx.fill(0)
+    dy.fill(0)
+    for (let i = 0; i < n; i++)
+      for (let j = i + 1; j < n; j++) {
+        const ex = x[i]! - x[j]!
+        const ey = y[i]! - y[j]!
+        const d = Math.max(0.01, Math.hypot(ex, ey))
+        const f = (k * k) / d
+        dx[i]! += (ex / d) * f
+        dy[i]! += (ey / d) * f
+        dx[j]! -= (ex / d) * f
+        dy[j]! -= (ey / d) * f
+      }
+    for (const e of edges) {
+      const ex = x[e.a]! - x[e.b]!
+      const ey = y[e.a]! - y[e.b]!
+      const d = Math.max(0.01, Math.hypot(ex, ey))
+      const f = ((d * d) / k) * Math.min(1, e.w * 5)
+      dx[e.a]! -= (ex / d) * f
+      dy[e.a]! -= (ey / d) * f
+      dx[e.b]! += (ex / d) * f
+      dy[e.b]! += (ey / d) * f
+    }
+    for (let i = 0; i < n; i++) {
+      dx[i]! += (cx - x[i]!) * 0.012 * k
+      dy[i]! += (cy - y[i]!) * 0.012 * k
+      const d = Math.max(0.01, Math.hypot(dx[i]!, dy[i]!))
+      const step = Math.min(d, temp)
+      x[i] = Math.min(CLOUD_W - 30, Math.max(30, x[i]! + (dx[i]! / d) * step))
+      y[i] = Math.min(CLOUD_H - 20, Math.max(20, y[i]! + (dy[i]! / d) * step))
+    }
+  }
+  return Array.from({ length: n }, (_, i) => [round(x[i]!, 1), round(y[i]!, 1)] as [number, number])
+}
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** Topics drawn in the chart: every bucket's leader, then the largest totals. */
 const CHART_TOPICS = 10
 
-const html = (f: Focus): string => {
+const html = (f: Focus, cloud: Cloud): string => {
   const byId = new Map(f.topics.map(t => [t.id, t]))
   const chosen: string[] = []
   for (const b of f.buckets) if (b.topics[0] && !chosen.includes(b.topics[0].id) && chosen.length < CHART_TOPICS) chosen.push(b.topics[0].id)
@@ -583,6 +873,37 @@ const html = (f: Focus): string => {
       return `<tr><td>${b.start}</td><td class="num">${b.prompts}</td><td class="num">${b.sessions}</td><td>${top ? `${esc(names.get(top.id) ?? top.id)} <span class="dim">${(top.share * 100).toFixed(0)}%</span>` : ''}</td><td class="terms">${esc(b.terms.slice(0, 8).map(t => t.term).join(', '))}</td></tr>`
     })
     .join('')
+
+  // The relationship cloud: topics sized by total, coloured by category, edges by shared prompts.
+  const byTopic = new Map(f.topics.map(t => [t.id, t]))
+  const catColor = new Map(f.categories.slice(0, CHART_TOPICS).map((c, k) => [c.id, `c${k}`]))
+  const maxTotal = Math.max(1e-9, ...cloud.nodes.map(id => byTopic.get(id)!.total))
+  const radius = (id: string) => 3 + 15 * Math.sqrt(byTopic.get(id)!.total / maxTotal)
+  const lines = cloud.edges
+    .map(e => {
+      const [x1, y1] = cloud.pos[e.a]!
+      const [x2, y2] = cloud.pos[e.b]!
+      return `<line data-a="${e.a}" data-b="${e.b}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${(0.5 + 6 * e.w).toFixed(2)}"/>`
+    })
+    .join('')
+  const dots = cloud.nodes
+    .map((id, i) => {
+      const t = byTopic.get(id)!
+      const [x, y] = cloud.pos[i]!
+      const s = f.buckets.map(b => b.topics.find(x => x.id === id)?.share ?? 0).join(',')
+      const label = i < 30 ? `<text x="${x}" y="${(y - radius(id) - 3).toFixed(1)}" text-anchor="middle">${esc(t.name)}</text>` : ''
+      return `<g class="node" data-s="${s}"><circle class="${catColor.get(t.category) ?? 'co'}" cx="${x}" cy="${y}" r="${radius(id).toFixed(1)}"><title>${esc(t.name)}: ${esc(t.terms.slice(0, 8).join(', '))}</title></circle>${label}</g>`
+    })
+    .join('')
+  const catLegend = f.categories
+    .slice(0, CHART_TOPICS)
+    .map((c, k) => `<span class="key"><i class="c${k}"></i>${esc(c.name)}</span>`)
+    .join('')
+  const catRows = f.categories
+    .filter(c => c.topics.length > 1)
+    .map(c => `<tr><td><i class="${catColor.get(c.id) ?? 'co'}"></i>${esc(c.name)}</td><td class="num">${c.total.toFixed(2)}</td><td class="num">${c.topics.length}</td><td class="terms">${esc(c.topics.slice(0, 12).map(id => byTopic.get(id)!.name).join(', '))}</td></tr>`)
+    .join('')
+  const weeks = JSON.stringify(f.buckets.map(b => b.start))
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Focus Timeline</title>
@@ -610,12 +931,25 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 td{white-space:nowrap}
 td.terms{color:var(--dim);white-space:normal;min-width:16em}
 .cap{color:var(--fg);font-style:italic;margin-top:2px}
+#cloud .edges line{stroke:var(--dim);stroke-opacity:.35}
+#cloud circle{stroke:var(--bg);stroke-width:1}
+#cloud text{fill:var(--fg);font-size:10px;pointer-events:none}
+#cloud .off{opacity:.12}
+.slider{display:flex;gap:10px;align-items:center;margin:8px 0}
+.slider input{flex:1;max-width:420px}
 </style></head><body><main>
 <h1>Focus timeline</h1>
 <div class="dim">${f.buckets.length} ${f.bucket === 'week' ? 'weeks' : 'days'}${f.since ? ` since ${f.since}` : ''} · ${f.buckets.reduce((s, b) => s + b.prompts, 0)} prompts · newest ${esc(f.generatedAt ?? '–')}</div>
 <h2>Topic share per ${f.bucket}</h2>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Stacked topic share over time">${grid}${paths.join('')}${ticks}</svg>
 <div class="legend">${legend}</div>
+<h2>Relationship cloud</h2>
+<div class="dim">The ${cloud.nodes.length} largest topics, sized by total share and coloured by category (the ${CHART_TOPICS} largest; grey for the rest); a line joins two that show in the same prompts (Jaccard ≥ ${CLOUD_EDGE_MIN}). Pick a ${f.bucket} to dim the topics under ${PRESENT * 100}% of it.</div>
+<div class="slider"><input id="wk" type="range" min="0" max="${f.buckets.length}" value="${f.buckets.length}" aria-label="${f.bucket}"><span id="wkl">all ${f.bucket}s</span></div>
+<svg id="cloud" viewBox="0 0 ${CLOUD_W} ${CLOUD_H}" role="img" aria-label="Topic relationship cloud"><g class="edges">${lines}</g>${dots}</svg>
+<div class="legend">${catLegend}</div>
+<h2>Categories</h2>
+<div class="wrap"><table><thead><tr><th>Category</th><th>Total</th><th>Topics</th><th>Its topics</th></tr></thead><tbody>${catRows}</tbody></table></div>
 <h2>Topics by total share</h2>
 <div class="wrap"><table>${head}<tbody>${topicRows}</tbody></table></div>
 <h2>Noticed once</h2>
@@ -623,7 +957,28 @@ td.terms{color:var(--dim);white-space:normal;min-width:16em}
 <div class="wrap"><table>${head}<tbody>${onceRows}</tbody></table></div>
 <h2>${f.bucket === 'week' ? 'Weeks' : 'Days'}</h2>
 <div class="wrap"><table><thead><tr><th>Start</th><th>Prompts</th><th>Sessions</th><th>Top topic</th><th>Top terms</th></tr></thead><tbody>${bucketRows}</tbody></table></div>
-</main></body></html>
+</main>
+<script>
+(() => {
+  const weeks = ${weeks}
+  const input = document.getElementById('wk')
+  const label = document.getElementById('wkl')
+  const nodes = [...document.querySelectorAll('#cloud .node')]
+  const shares = nodes.map(n => n.dataset.s.split(',').map(Number))
+  const lines = [...document.querySelectorAll('#cloud .edges line')]
+  const update = () => {
+    const w = Number(input.value)
+    const all = w >= weeks.length
+    label.textContent = all ? 'all ${f.bucket}s' : '${f.bucket} of ' + weeks[w]
+    const on = shares.map(s => all || s[w] >= ${PRESENT})
+    nodes.forEach((n, i) => n.classList.toggle('off', !on[i]))
+    lines.forEach(l => l.classList.toggle('off', !(on[+l.dataset.a] && on[+l.dataset.b])))
+  }
+  input.addEventListener('input', update)
+  update()
+})()
+</script>
+</body></html>
 `
 }
 
@@ -666,12 +1021,17 @@ const main = () => {
   const repoCounts = starts.map(() => new Map<string, number>())
   const promptCount = new Array<number>(nb).fill(0)
   const promptsOf = new Map<string, number[]>()
+  // Concepts are keyed by stems; each shows as its most frequent surface form.
+  const { perPrompt, surfaces } = concepts(prompts.map(p => tokenize(p.text, repos)))
+  const shown = new Map<string, string>()
+  for (const [key, m] of surfaces) shown.set(key, [...m.entries()].sort((a, b) => b[1] - a[1] || cmp(a[0], b[0]))[0]![0])
+  const show = (key: string) => shown.get(key) ?? key
   prompts.forEach((p, pi) => {
     const b = index.get(bucketOf(p.at, bucket))!
     promptCount[b]!++
     sessions[b]!.add(`${p.harness}:${p.session}`)
     repoCounts[b]!.set(p.repo, (repoCounts[b]!.get(p.repo) ?? 0) + 1)
-    for (const t of termsOf(p.text, repos)) {
+    for (const t of perPrompt[pi]!) {
       counts[b]!.set(t, (counts[b]!.get(t) ?? 0) + 1)
       const list = promptsOf.get(t)
       if (list) list.push(pi)
@@ -700,9 +1060,16 @@ const main = () => {
   vocab.forEach((t, i) => {
     for (const p of promptsOf.get(t)!) termsByPrompt[p]!.push(i)
   })
-  const groups = cluster(
+  const termLinks = links(
     vocab.map(t => Int32Array.from(promptsOf.get(t)!)),
     termsByPrompt.map(ts => Int32Array.from(ts)),
+    MIN_SHARED,
+    LINK_MIN,
+  )
+  const groups = cluster(
+    termLinks,
+    vocab.map((_, i) => [i]),
+    { mergeMin: MERGE_MIN, maxSize: TOPIC_MAX },
   )
   const slug = (s: string) => s.replace(/[^\w~./:-]+/g, '-')
   const ids = new Set<string>()
@@ -717,19 +1084,21 @@ const main = () => {
     })
     .sort((a, b) => cmp(a.terms[0]!, b.terms[0]!))
     .map(({ terms, members }) => {
-      let id = slug(terms[0]!)
-      for (let k = 2; ids.has(id); k++) id = `${slug(terms[0]!)}~${k}`
+      const name = show(terms[0]!)
+      let id = slug(name)
+      for (let k = 2; ids.has(id); k++) id = `${slug(name)}~${k}`
       ids.add(id)
       // Where the topic shows: prompts holding at least two of its terms.
       const hits = new Map<number, number>()
       for (const i of members) for (const p of promptsOf.get(vocab[i]!)!) hits.set(p, (hits.get(p) ?? 0) + 1)
-      const where = [...hits.entries()].filter(([, c]) => c >= 2).map(([p]) => prompts[p]!)
+      const at = [...hits.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((x, y) => x - y)
+      const where = at.map(p => prompts[p]!)
       const sessionKeys = [...new Set(where.map(p => `${p.harness}:${p.session}`))].sort(cmp)
       const harnesses: Record<string, number> = {}
       for (const p of where) harnesses[p.harness] = (harnesses[p.harness] ?? 0) + 1
       const sorted = Object.fromEntries(Object.entries(harnesses).sort((x, y) => cmp(x[0], y[0])))
       const caption = sessionKeys.length === 1 ? firstPrompt.get(sessionKeys[0]!)!.replace(/\s+/g, ' ').slice(0, 200) : null
-      return { id, name: terms[0]!, terms, sessions: sessionKeys.length, harnesses: sorted, caption }
+      return { id, name, terms, members, at, sessions: sessionKeys.length, harnesses: sorted, caption }
     })
   // A bucket's total is the weight of every topic's terms in it, so its topic shares sum to 1.
   const shares = weights.map(w => {
@@ -753,17 +1122,72 @@ const main = () => {
         }
         if (v > peakV) (peakV = v), (peak = starts[b]!)
       }
-      const out: TopicOut = { id: tp.id, name: tp.name, terms: tp.terms, first, peak, last, total: round(total), sessions: tp.sessions, harnesses: tp.harnesses }
+      const out: TopicOut = {
+        id: tp.id,
+        name: tp.name,
+        category: '',
+        terms: tp.terms.map(show),
+        first,
+        peak,
+        last,
+        total: round(total),
+        sessions: tp.sessions,
+        harnesses: tp.harnesses,
+      }
       if (tp.caption !== null) out.firstPrompt = tp.caption
       return out
     })
+  const topicAt = new Map(topicsRaw.map(tp => [tp.id, tp.at]))
+  topics.sort((a, b) => b.total - a.total || cmp(a.id, b.id))
+
+  // Categories: the merge continued from the topics, looser; each named by its largest topic.
+  const topicMembers = new Map(topicsRaw.map(tp => [tp.id, tp.members]))
+  const topicOfTerm = new Map<number, number>()
+  topics.forEach((t, i) => {
+    for (const m of topicMembers.get(t.id)!) topicOfTerm.set(m, i)
+  })
+  const catGroups = cluster(
+    termLinks,
+    topics.map(t => topicMembers.get(t.id)!),
+    { mergeMin: CATEGORY_MERGE_MIN, maxSize: CATEGORY_MAX },
+  )
+  const catIds = new Set<string>()
+  const categories: CategoryOut[] = catGroups
+    .map(g => [...new Set(g.map(m => topicOfTerm.get(m)!))].sort((x, y) => x - y).map(i => topics[i]!))
+    .map(ts => {
+      let id = ts[0]!.id
+      for (let k = 2; catIds.has(id); k++) id = `${ts[0]!.id}~${k}`
+      catIds.add(id)
+      for (const t of ts) t.category = id
+      return { id, name: ts[0]!.name, topics: ts.map(t => t.id), total: round(ts.reduce((s, t) => s + t.total, 0)) }
+    })
     .sort((a, b) => b.total - a.total || cmp(a.id, b.id))
+
+  // The relationship cloud: the largest topics, linked by how often they show in the same prompts.
+  const cloudTopics = topics.slice(0, CLOUD_NODES)
+  const edges: CloudEdge[] = []
+  for (let i = 0; i < cloudTopics.length; i++)
+    for (let j = i + 1; j < cloudTopics.length; j++) {
+      const a = topicAt.get(cloudTopics[i]!.id)!
+      const b = topicAt.get(cloudTopics[j]!.id)!
+      let x = 0
+      let y = 0
+      let both = 0
+      while (x < a.length && y < b.length) {
+        if (a[x] === b[y]) both++, x++, y++
+        else if (a[x]! < b[y]!) x++
+        else y++
+      }
+      const jac = both / (a.length + b.length - both)
+      if (jac >= CLOUD_EDGE_MIN) edges.push({ a: i, b: j, w: jac })
+    }
+  const cloud: Cloud = { nodes: cloudTopics.map(t => t.id), edges, pos: layout(cloudTopics.length, edges) }
 
   const buckets: BucketOut[] = starts.map((start, b) => {
     const minCount = promptCount[b]! >= 30 ? 2 : 1
     const terms = [...weights[b]!.entries()]
       .filter(([t]) => counts[b]!.get(t)! >= minCount)
-      .map(([term, v]) => ({ term, tfidf: round(v), count: counts[b]!.get(term)! }))
+      .map(([term, v]) => ({ term: show(term), tfidf: round(v), count: counts[b]!.get(term)! }))
       .sort((x, y) => y.tfidf - x.tfidf || y.count - x.count || cmp(x.term, y.term))
       .slice(0, 40)
     const ts = topicsRaw
@@ -779,11 +1203,12 @@ const main = () => {
     since,
     bucket,
     buckets,
+    categories,
     topics,
   }
   mkdirSync(OUT_DIR, { recursive: true })
   writeFileSync(join(OUT_DIR, 'focus.json'), `${JSON.stringify(focus, null, 2)}\n`)
-  writeFileSync(join(OUT_DIR, 'focus.html'), html(focus))
+  writeFileSync(join(OUT_DIR, 'focus.html'), html(focus, cloud))
 
   const names = new Map(topics.map(t => [t.id, t.name]))
   const tally = (list: Prompt[], key: (p: Prompt) => string) => {
@@ -800,6 +1225,10 @@ const main = () => {
     const what = top ? `${names.get(top.id)} (${(top.share * 100).toFixed(0)}%)` : '-'
     console.log(`${b.start}  ${String(b.prompts).padStart(4)} prompts  ${what}  · ${b.terms.slice(0, 5).map(t => t.term).join(', ')}`)
   }
+  const big = categories.filter(c => c.topics.length > 1)
+  console.log(`${categories.length} categories (${big.length} with more than one topic); largest:`)
+  for (const c of categories.slice(0, 12))
+    console.log(`  ${c.name} (${c.topics.length} topics, ${c.total.toFixed(2)}): ${c.topics.slice(0, 6).map(id => names.get(id)).join(', ')}`)
   console.log(`wrote ${join(OUT_DIR, 'focus.json')} and focus.html`)
 }
 
