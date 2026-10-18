@@ -140,10 +140,11 @@ export type EpicRow = {
 /**
  * The pane's tabs: Overview (the sections above), Session (the session's context,
  * limits, activity, cost and git), Files (filetree's tree of the session's cwd),
- * Issues (the repo's open GitHub issues), Launcher (launch.json's dev servers)
- * and Lab (the engine experiments, for mod authors).
+ * Tasks (every session's task list, by repo), Issues (the repo's open GitHub
+ * issues), Launcher (launch.json's dev servers) and Lab (the engine experiments,
+ * for mod authors).
  */
-export type DashTab = 'overview' | 'session' | 'files' | 'issues' | 'launcher' | 'lab'
+export type DashTab = 'overview' | 'session' | 'tasks' | 'files' | 'issues' | 'launcher' | 'lab'
 
 // ---- filetree types (the Files tab, hooks/filetree/) ----
 
@@ -454,6 +455,67 @@ export type IssueList = {
 
 // ---- end issues types ----
 
+// ---- tasks types (the Tasks tab, hooks/tasks/) ----
+
+/**
+ * A task's state: running (its plan's in-progress step, in a session active in
+ * the last day), waiting (the session's last wrap-up asked you something),
+ * idle (a pending step, or an in-progress one in a session quiet for a day),
+ * done (a completed step).
+ */
+export type TaskState = 'running' | 'waiting' | 'idle' | 'done'
+
+/** One item of one session's task list. */
+export type TaskRow = {
+  /** `<sessionId>-<index>`. */
+  key: string
+  /** The item's content. */
+  text: string
+  state: TaskState
+  /** The first sentence of the session's last wrap-up recap; on the session's current row only, empty elsewhere. */
+  recap: string
+  /** Completed items of its plan, and all of them: the gauge. */
+  done: number
+  total: number
+  /** The session's id (its transcript's file name). */
+  session: string
+  /** The session's title: the app's custom title, else its first prompt, cut. */
+  title: string
+  /** The type of a subagent running in the session now; empty when none. */
+  agent: string
+  /** The session's last activity (its transcript's mtime, ms since epoch). */
+  at: number
+}
+
+/** One repo's tasks, running first, then waiting, idle and done. */
+export type TaskRepo = {
+  /** `owner/name` under ~/Code, else the cwd's last two segments. */
+  repo: string
+  /** Its most recent session's last activity. */
+  at: number
+  rows: TaskRow[]
+  running: number
+  waiting: number
+  idle: number
+  done: number
+}
+
+/** Every session active in the last week, as the Tasks tab draws it. */
+export type TaskView = {
+  /** When it was read (ms since epoch). */
+  at: number
+  /** Most recently active first. */
+  repos: TaskRepo[]
+  /** The waiting rows across repos, most recent first. */
+  needs: TaskRow[]
+  /** Sessions with a row. */
+  sessions: number
+  /** Why the transcripts couldn't be read. */
+  note?: string
+}
+
+// ---- end tasks types ----
+
 // ---- launcher types (the Launcher tab, hooks/launcher/) ----
 
 /** One entry of `.claude/launch.json`'s `configurations`, as the desktop app reads it. */
@@ -617,6 +679,12 @@ declare module 'claude-code' {
       issuesCursor: number | null
       /** Whether a wide app pane flows the tiles into columns (the footer's switch); on until flipped. */
       issuesColumns: boolean
+
+      // The Tasks tab (hooks/tasks/), each key prefixed `tasks`.
+      /** Every recent session's task list, by repo; null before the first read. */
+      tasksView: TaskView | null
+      /** Sections the person folded: `needs`, or `repo-<owner/name>`. */
+      tasksCollapsed: string[]
 
       // The Launcher tab (hooks/launcher/), each key prefixed `launcher`.
       launcherFile: LaunchFile | null

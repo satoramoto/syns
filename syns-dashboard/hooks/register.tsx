@@ -13,6 +13,7 @@ import { attach as attachIssues, COMMANDS as ISSUES_COMMANDS } from './issues/re
 import { attach as attachLab, COMMANDS as LAB_COMMANDS } from './lab/register'
 import { attach as attachLauncher, COMMANDS as LAUNCHER_COMMANDS } from './launcher/register'
 import { attach as attachSession, COMMANDS as SESSION_COMMANDS } from './session/register'
+import { attach as attachTasks, COMMANDS as TASKS_COMMANDS } from './tasks/register'
 import { showTab } from './tabs'
 import { render } from './view'
 import type { Els } from './view'
@@ -42,6 +43,7 @@ const CONFIRM_MS = 5_000
 const TABS: { id: DashTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'session', label: 'Session' },
+  { id: 'tasks', label: 'Tasks' },
   { id: 'files', label: 'Files' },
   { id: 'issues', label: 'Issues' },
   { id: 'launcher', label: 'Launcher' },
@@ -49,7 +51,7 @@ const TABS: { id: DashTab; label: string }[] = [
   { id: 'lab', label: 'Lab' },
 ]
 /** The mods' slash commands (each opens the pane on its tab); registered as the session starts. */
-const commands = [...SESSION_COMMANDS, ...FILES_COMMANDS, ...ISSUES_COMMANDS, ...LAUNCHER_COMMANDS, ...LAB_COMMANDS]
+const commands = [...SESSION_COMMANDS, ...TASKS_COMMANDS, ...FILES_COMMANDS, ...ISSUES_COMMANDS, ...LAUNCHER_COMMANDS, ...LAB_COMMANDS]
 /** The rows the tab row takes above a tab's body (its row and the room under it). */
 const TAB_ROWS = 2
 
@@ -509,6 +511,7 @@ export const register: Register = (on, options) => {
 
   // The mods' tabs (hooks/<mod>/), each drawing under the render above when its tab is shown and reading only then.
   attachSession(on, options, PANE)
+  attachTasks(on, options, PANE)
   attach(on, options, PANE)
   attachIssues(on, options, PANE)
   attachLauncher(on, options, PANE)
