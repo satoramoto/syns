@@ -1,0 +1,9 @@
+{
+  "name": "syns-analysis",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3"
+  }
+}
