@@ -460,14 +460,17 @@ in awesome-claude's inspector look on the desktop and the terminal:
 - **Next:** brain.json's own `next` if it has one, else the top pod's.
 - A footer: **Standup** (`/syn:standup`) and **Brief** (`/syn:back`).
 
-The sections above are the pane's first tab, **Overview**. The other tabs were
-awesome-claude's mods; their code is syns source now, each in
-`syns-dashboard/hooks/<mod>/`, and each reads only while its tab is shown:
+The sections above are the pane's first tab, **Overview**. The other tabs are
+each in `syns-dashboard/hooks/<mod>/` (all but Tasks and Analysis were
+awesome-claude's mods, syns source now), and each reads only while its tab is
+shown:
 
 - **Session** (`/syn-overview`): what Overview doesn't show of the session: its
   context window, the account's limits, activity (cost, time, turns, tools,
   files), git (the branch, its PRs, the branches the session started) and the
   machine. Tool calls and turns are counted whatever tab is shown.
+- **Tasks** (`/syn-board`): every session's task list of the last week, by
+  repo, with what waits on you (waiting sessions, brain.json's approvals) first.
 - **Files** (`/syn-filetree [path]`): the file tree of the session's cwd (or the
   folder given), with Claude's reads, writes and git steps marked as they
   happen.
@@ -476,6 +479,9 @@ awesome-claude's mods; their code is syns source now, each in
 - **Launcher** (`/syn-launcher`, `/syn-preview`): the dev servers in
   `.claude/launch.json`: start, stop, restart, take over, their output. Servers
   it started keep running and logging on any tab.
+- **Analysis** (`/syn-analysis`): the focus analyzer's last run
+  (`~/.syns/files/focus/focus.json`): terms, buckets and topics, with Run and
+  Open page.
 - **Lab** (`/syn-lab [id]`), last, for mod authors: the index of engine
   experiments; each experiment opens in a pane of its own.
 

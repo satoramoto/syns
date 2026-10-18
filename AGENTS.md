@@ -16,8 +16,9 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
   `syns-dashboard/kit/` by `bun build.ts` (committed; never edit it here,
   change it in zen and run the build again). Built the way awesome-claude's
   mods are: zen's `docs/harness-claude-code.md` holds the look and the engine's
-  limits. Its one pane has tabs: Overview (syn's own), Session, Files,
-  Issues, Launcher and Lab. All but Overview were awesome-claude's mods
+  limits. Its one pane has tabs: Overview (syn's own), Session, Tasks
+  (syn's own), Files, Issues, Launcher, Analysis (syn's own) and Lab. All but
+  Overview, Tasks and Analysis were awesome-claude's mods
   (`overview` is Session) and are syns source now, edited in place in
   `syns-dashboard/hooks/<mod>/`; so is `blast-radius`, which holds risky
   commands in a pane of its own and has no tab. Each mod has an `attach(on,
