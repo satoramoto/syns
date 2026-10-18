@@ -272,10 +272,14 @@ describe("epic-start P2 (c) every start and schedule is in the ledger", () => {
       expect(at("start-line", "grand-0002")).toEqual([]);
     });
 
-    test("the grandfathered note excuses only door and session: no via still fails, once", () => {
-      const f = at("start-line", "grand-0003");
+    test("a grandfathered start line with no via (bloom-swarm-0009): passes", () => {
+      expect(at("start-line", "grand-0003")).toEqual([]);
+    });
+
+    test("the grandfathered note still requires from approved and an approved line before it", () => {
+      const f = at("start-line", "grand-0004");
       expect(f.length).toBe(1);
-      expect(f[0].detail).toContain("via");
+      expect(f[0].detail).toContain("from review");
     });
 
     test("a start with no approved line of its own epic (others' came before) fails", () => {

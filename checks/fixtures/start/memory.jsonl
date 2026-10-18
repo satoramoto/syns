@@ -37,6 +37,7 @@
 {"id":"grand-0001","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
 {"id":"grand-0002","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","note":"started by hand from the approval, session grand"}
 {"id":"grand-0003","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","note":"started by hand, session grand"}
+{"id":"grand-0004","parent":"grand","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"active","by":"fixture","note":"started by hand, session grand"}
 {"id":"no-approval-0001","parent":"no-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
 {"id":"no-approval-0002","parent":"no-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"no-approval-run"}
 {"id":"late-approval-0001","parent":"late-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"late-approval-run"}

@@ -18,7 +18,7 @@ export type CheckName =
 export const SCHEDULE_DOORS = ["words", "page", "dashboard", "schedule"];
 /** Doors a start may come through: the schedule's, plus `hand` for a start made without the skill. */
 export const START_DOORS = [...SCHEDULE_DOORS, "hand"];
-/** A start line written before the rule (epic-start-0004) carries door and session in a note starting so. */
+/** A start line written before the rule (epic-start-0004) carries door and session in a note starting so, and may lack via. */
 export const GRANDFATHERED_START_NOTE = "started by hand";
 
 export interface Failure {
@@ -200,9 +200,10 @@ function checkStartsAndSchedules(ledger: any[], known: Set<string>, failures: Fa
     if (line.event === "epic.status" && line.to === "active" && known.has(line.parent)) {
       if (line.from !== "approved") fail("start-line", `from ${line.from ?? null}, not approved`);
       if (!approved.has(epic)) fail("start-line", "no approved line before it");
-      if (!nonEmptyString(line.via)) fail("start-line", "has no via");
+      // A start line written before the rule may also lack via (docs/epics.md).
       const grandfathered = typeof line.note === "string" && line.note.startsWith(GRANDFATHERED_START_NOTE);
       if (!grandfathered) {
+        if (!nonEmptyString(line.via)) fail("start-line", "has no via");
         if (!START_DOORS.includes(line.door)) fail("start-line", `door ${JSON.stringify(line.door)} is not one of ${START_DOORS.join("|")}`);
         if (!nonEmptyString(line.session)) fail("start-line", "names no session");
       }
