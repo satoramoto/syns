@@ -66,7 +66,8 @@ const promptText = (line: string): string => {
   const raw = /^((?:[^"\\]|\\.)*)/.exec(line.slice(at + PROMPT_MARK.length))?.[1] ?? ''
   let text: string
   try {
-    text = JSON.parse(`"${raw.replace(/\\u[0-9a-fA-F]{0,3}$|\\$/, '')}"`)
+    // Escapes come in whole pairs here; only a `\u` escape can be cut short.
+    text = JSON.parse(`"${raw.replace(/\\u[0-9a-fA-F]{0,3}$/, '')}"`)
   } catch {
     text = raw
   }
@@ -263,8 +264,9 @@ export const codexRow = (s: CodexScan, m: Meta, now: number): TaskRow => {
   }
 }
 
-/** `owner/name` for a cwd under `<home>/Code/`, else its last two segments. */
+/** `owner/name` for a cwd under `<home>/Code/`, `codex desktop` for one of Codex Desktop's folders (`<home>/Documents/Codex/<date>/<slug>`), else its last two segments. */
 export const repoOf = (cwd: string, home: string): string => {
+  if (cwd.startsWith(`${home}/Documents/Codex/`)) return 'codex desktop'
   const parts = (cwd.startsWith(`${home}/Code/`) ? cwd.slice(home.length + 6) : cwd).split('/').filter(Boolean)
   return cwd.startsWith(`${home}/Code/`) ? parts.slice(0, 2).join('/') : parts.slice(-2).join('/') || cwd
 }
