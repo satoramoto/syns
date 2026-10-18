@@ -29,7 +29,7 @@ Example: `~/.syns/epics/proposal-system/`; keep the shape equal to it.
 | `approval` | the inbox item id of its approval |
 | `questions` | inbox item ids of its questions (never the approval) |
 | `decisions` | inbox item ids answered for it |
-| `outcomes` | `{ id, text, by, job, proof, status, proofs }`, the acceptance |
+| `outcomes` | `{ id, text, by, job, proof, status, proofs, kind? }`, the acceptance |
 | `jobs` | `{ id, what, owner, mode, state, outcomes, commit?, repo?, files?, at }` |
 | `evidence` | `{ kind, url, note }` |
 | `links` | `parent`, `supersedes`, `feeds` (other epic ids) |
@@ -40,6 +40,8 @@ or `review`. `job` is the job that settles it; `proof` is the plan, one line
 naming the artifact that will show it. `status` is `open`, `proven`,
 `refuted` or `dropped`. `proofs` are the artifacts that did settle it, each
 `{ kind: page|file|pr|run, url | path, note, at }`, something Ryan can open.
+An outcome's optional `kind` is `"conjecture"` for a research claim whose
+answer is not known up front; any other outcome has no `kind`.
 Every job names at least one outcome (`outcomes`, by id) it serves.
 
 Every inbox item raised for an epic (its questions and its approval) carries
@@ -54,7 +56,10 @@ an epic; an `applies` naming its `epic.json` is only the fallback.
   `links.feeds` and make it an outcome there.
 - The proof plan comes before the job list: jobs exist to produce proofs.
 - Jobs done is not the epic done. An epic is done when every outcome is
-  `proven`, or `dropped` with its reason in the ledger.
+  `proven`, or `dropped` with its reason in the ledger. An outcome of kind
+  `conjecture` is settled when its job reports it `proven`, `refuted`, or
+  `open` with the reason (inbox 47); the epic can close with such an outcome
+  still `open`.
 
 Bad: "the next epic is drafted with this shape" (only a later epic shows
 it). Good: "a test-run page shows every epic.json's jobs name an outcome".

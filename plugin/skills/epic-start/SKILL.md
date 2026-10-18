@@ -69,6 +69,10 @@ If the tool is missing or refuses (a scheduled run often cannot start a
 session, or the app shows a card instead), say so in one line: this session
 becomes the epic's session. Read brief.md and work from it after step 4,
 and name this session in the record. The ledger names the door either way.
+This is the kept fallback (inbox 50): when start_session is refused, as on a
+turn started by another session or an automated event, the starting session
+becomes the epic's session, reads brief.md and runs it, and the ledger names
+the door and that session.
 
 ## 4. Record
 
