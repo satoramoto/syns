@@ -4,7 +4,7 @@ import { C, GRAY, GLYPH, MUTED, STATUS, TRACK, WAYFINDING } from '../kit/tokens'
 import { EDGE, MEASURE, SPACE, kit } from '../kit/ui'
 import type { FlowSwitch, Part } from '../kit/ui'
 import type { StatusKind } from '../kit/tokens'
-import type { AgentRow, BrainView, EpicRow, Ignored, PrCi, PrRow, PromiseRow } from '../types'
+import type { AgentRow, BrainView, EpicRow, Ignored, PrCi, PrRow, OutcomeRow } from '../types'
 import { daysAgo } from './brain'
 
 export type Els = Pick<Elements['desktop'], 'Box' | 'Text' | 'Svg'> & Partial<Pick<Elements['desktop'], 'Button' | 'Link'>>
@@ -59,8 +59,8 @@ export type DashActions = {
   standup: () => void
   /** Opens an epic's page (its first `page` evidence) in the browser. */
   openEpic: (p: EpicRow) => void
-  /** Opens a promise's first proof: its page or PR in the browser, its file in its app. */
-  openProof: (p: EpicRow, promise: PromiseRow) => void
+  /** Opens an outcome's first proof: its page or PR in the browser, its file in its app. */
+  openProof: (p: EpicRow, outcome: OutcomeRow) => void
   /** Runs `/syn:review <id>`. */
   review: (p: EpicRow) => void
   /** Runs `/syn:start <id> --door dashboard` on an approved epic. */
@@ -346,14 +346,14 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         })
       : null
 
-  // ---- Epics: each its status, id, phase and open questions; a proof bar and one line per promise under it; Open, Review and (when approved) Start beside it ----
+  // ---- Epics: each its status, id, phase and open questions; a proof bar and one line per outcome under it; Open, Review and (when approved) Start beside it ----
   const epicRows = d.epics ?? []
   const openQs = epicRows.reduce((n, p) => n + p.questions, 0)
   const inReview = epicRows.filter(p => p.status === 'review').length
   // On the terminal a list item's children sit a gutter (2 cells) in from the body.
   const under = k.width - 2
-  /** One promise as one bar segment: proven in the done colour, refuted in the failed one, open as track, dropped dim. */
-  const segment = (pr: PromiseRow): Part =>
+  /** One outcome as one bar segment: proven in the done colour, refuted in the failed one, open as track, dropped dim. */
+  const segment = (pr: OutcomeRow): Part =>
     pr.status === 'proven'
       ? { value: 1, color: STATUS.done.color }
       : pr.status === 'refuted'
@@ -361,14 +361,14 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
         : pr.status === 'dropped'
           ? { value: 1, color: GRAY.dark }
           : { value: 1, color: terminal ? MUTED : TRACK, room: true }
-  /** The promises as one bar, a segment each in order, and the figure "proven of total". */
+  /** The outcomes as one bar, a segment each in order, and the figure "proven of total". */
   const proofBar = (p: EpicRow) => {
-    const proven = p.promises.filter(pr => pr.status === 'proven').length
-    const of = ` of ${p.promises.length}`
+    const proven = p.outcomes.filter(pr => pr.status === 'proven').length
+    const of = ` of ${p.outcomes.length}`
     return (
       <Box key={`epic-${p.id}-proofs`} flexDirection="row" alignItems="center" gap={terminal ? 1 : SPACE.item} minWidth={0}>
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
-          {k.bar(p.promises.map(segment), p.promises.length, terminal ? { width: Math.max(4, under - String(proven).length - of.length - 1) } : {})}
+          {k.bar(p.outcomes.map(segment), p.outcomes.length, terminal ? { width: Math.max(4, under - String(proven).length - of.length - 1) } : {})}
         </Box>
         <Text>
           {String(proven)}
@@ -377,9 +377,9 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       </Box>
     )
   }
-  /** A proof plan, cut to fit beside a promise on the app surfaces (whose right cluster doesn't give way); the terminal cuts it itself. */
+  /** A proof plan, cut to fit beside an outcome on the app surfaces (whose right cluster doesn't give way); the terminal cuts it itself. */
   const plan = (text: string) => (terminal || text.length <= 32 ? text : `${text.slice(0, 31)}…`)
-  const promiseLine = (p: EpicRow, pr: PromiseRow) =>
+  const outcomeLine = (p: EpicRow, pr: OutcomeRow) =>
     k.item(`epic-${p.id}-${pr.id}`, {
       text: pr.text ? `${pr.id}  ${pr.text}` : pr.id,
       note: pr.by || undefined,
@@ -408,7 +408,7 @@ export const render = (els: Els, surface: RenderSurface, columns: number, rows: 
       subtitle: p.error ?? (p.goal || undefined),
       // The phase (with the revision past the first), then the open questions: the row's note.
       meta: [[p.phase || 'no status', p.rev > 1 ? `rev ${p.rev}` : ''].filter(Boolean).join(' · '), p.questions ? plural(p.questions, 'open question') : null],
-      children: p.promises.length ? [proofBar(p), ...p.promises.map(pr => promiseLine(p, pr))] : [],
+      children: p.outcomes.length ? [proofBar(p), ...p.outcomes.map(pr => outcomeLine(p, pr))] : [],
     })
   const epicsList = k.collapsibleList({
     id: 'epics',

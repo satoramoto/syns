@@ -1,7 +1,7 @@
 # Epics
 
 An epic is one ambitious goal that needs planning: its approach, the
-promises that say it worked, the jobs that prove them, the open questions.
+outcomes that say it worked, the jobs that prove them, the open questions.
 One folder from proposal through review, approval, delivery and revision.
 State in JSON, prose in markdown.
 
@@ -29,39 +29,39 @@ Example: `~/.syns/epics/proposal-system/`; keep the shape equal to it.
 | `approval` | the inbox item id of its approval |
 | `questions` | inbox item ids of its questions (never the approval) |
 | `decisions` | inbox item ids answered for it |
-| `promises` | `{ id, text, by, job, proof, status, proofs }`, the acceptance |
-| `jobs` | `{ id, what, owner, mode, state, promises, commit?, repo?, files?, at }` |
+| `outcomes` | `{ id, text, by, job, proof, status, proofs }`, the acceptance |
+| `jobs` | `{ id, what, owner, mode, state, outcomes, commit?, repo?, files?, at }` |
 | `evidence` | `{ kind, url, note }` |
 | `links` | `parent`, `supersedes`, `feeds` (other epic ids) |
 | `raisedBy`, `raisedAt` | who drafted it and when |
 
-A promise's `by` is how it is settled: `test`, `derivation`, `measurement`
+An outcome's `by` is how it is settled: `test`, `derivation`, `measurement`
 or `review`. `job` is the job that settles it; `proof` is the plan, one line
 naming the artifact that will show it. `status` is `open`, `proven`,
 `refuted` or `dropped`. `proofs` are the artifacts that did settle it, each
 `{ kind: page|file|pr|run, url | path, note, at }`, something Ryan can open.
-Every job names at least one promise (`promises`, by id) it serves.
+Every job names at least one outcome (`outcomes`, by id) it serves.
 
 Every inbox item raised for an epic (its questions and its approval) carries
 `"epic": "<id>"`. That field is how `/syn:inbox` knows an approval belongs to
 an epic; an `applies` naming its `epic.json` is only the fallback.
 
-## The promise rule
+## The outcome rule
 
-- A promise is settled by this epic's own jobs, and names the job and the
+- An outcome is settled by this epic's own jobs, and names the job and the
   proof that will settle it.
 - Anything only a later epic can settle belongs to that epic: link it under
-  `links.feeds` and promise it there.
+  `links.feeds` and make it an outcome there.
 - The proof plan comes before the job list: jobs exist to produce proofs.
-- Jobs done is not the epic done. An epic is done when every promise is
+- Jobs done is not the epic done. An epic is done when every outcome is
   `proven`, or `dropped` with its reason in the ledger.
 
 Bad: "the next epic is drafted with this shape" (only a later epic shows
-it). Good: "a test-run page shows every epic.json's jobs name a promise".
+it). Good: "a test-run page shows every epic.json's jobs name an outcome".
 
-When a job reports done, the session records its proofs: each promise it
+When a job reports done, the session records its proofs: each outcome it
 settles gets the artifact appended to `proofs`, its `status` set to `proven`
-(or `refuted`), and one `promise.status` ledger line.
+(or `refuted`), and one `outcome.status` ledger line.
 
 ## Lifecycle
 
@@ -153,9 +153,9 @@ the same document so the page shows it:
 `id` is `<epic id>-NNNN`, a four-digit count of that epic's lines (the first
 seven lines, `ps-0001`…`ps-0007`, predate this); `parent` is the epic id;
 `at` is UTC; `via` names the inbox item that caused it; `note` is optional
-(for a dropped promise, the reason). Events: `epic.status`, `epic.revised`
-(adds `rev`), `job.state` (`job`, `owner`, `promises`), `promise.status`
-(`promise`, `from`, `to`, `proof`: the artifact's url or path),
+(for a dropped outcome, the reason). Events: `epic.status`, `epic.revised`
+(adds `rev`), `job.state` (`job`, `owner`, `outcomes`), `outcome.status`
+(`outcome`, `from`, `to`, `proof`: the artifact's url or path),
 `epic.scheduled` (`fireAt`, `task`, `door`).
 
 A start is the `epic.status` line `approved` → `active`, `via` the epic's

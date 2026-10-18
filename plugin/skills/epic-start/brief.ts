@@ -6,8 +6,8 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-type Promise_ = { id: string; text: string; by: string; job: string; proof: string; status: string; proofs?: { url?: string; path?: string; note?: string }[] };
-type Job = { id: string; what: string; owner: string; mode: string; state: string; promises: string[]; repo?: string; files?: string[]; commit?: string; at?: string };
+type Outcome_ = { id: string; text: string; by: string; job: string; proof: string; status: string; proofs?: { url?: string; path?: string; note?: string }[] };
+type Job = { id: string; what: string; owner: string; mode: string; state: string; outcomes: string[]; repo?: string; files?: string[]; commit?: string; at?: string };
 type Epic = {
   id: string; thread?: string; mode?: string; rev?: number; status?: string;
   goal: string; why: string;
@@ -15,7 +15,7 @@ type Epic = {
   assumptions?: string[]; dependencies?: string[];
   risks?: { what: string; then: string }[];
   approval?: number; questions?: number[]; decisions?: number[];
-  promises?: Promise_[]; jobs?: Job[];
+  outcomes?: Outcome_[]; jobs?: Job[];
   evidence?: { kind: string; url: string; note?: string }[];
   revisions?: { rev: number; at: string; note: string }[];
   links?: { parent?: string | null; supersedes?: string | null; feeds?: string[] };
@@ -32,7 +32,7 @@ const e: Epic = JSON.parse(readFileSync(file, "utf8"));
 const out: string[] = [];
 const say = (...lines: string[]) => out.push(...lines);
 const list = (items: string[], none: string) => (items.length ? items : [none]).forEach((x) => say(`- ${x}`));
-const promises = e.promises ?? [];
+const outcomes = e.outcomes ?? [];
 const jobs = e.jobs ?? [];
 const asked = jobs.filter((j) => j.state === "asked");
 const others = jobs.filter((j) => j.state !== "asked");
@@ -48,7 +48,7 @@ say(`It is rev ${e.rev ?? 1}, status ${e.status ?? "unknown"}, thread ${e.thread
 say("## Where the files are", "");
 list([
   `The epic's folder: ~/.syns/epics/${id}/ (epic.json is the state you read and write; proposal.md is the argument; this brief is brief.md). Read epic.json and proposal.md in full before anything else.`,
-  "The contract for the shape, the promise rule and the ledger: ~/Code/satoramoto/syns/docs/epics.md.",
+  "The contract for the shape, the outcome rule and the ledger: ~/Code/satoramoto/syns/docs/epics.md.",
   "The brain, with the inbox: $SYN_BRAIN, or ~/.syns/brain.json.",
   "The ledger, append-only, one JSON object per line: ~/.syns/memory.jsonl.",
   ...(page ? [`The epic's page: ${page.url}. Regenerate it from ~/Code/satoramoto/syns/templates/epic-page.html when the epic changes and republish it to the same url (read it first, then publish with that url), with the capabilities comments (composer only), db and user; keep its Approval and Start rows.`] : []),
@@ -70,9 +70,9 @@ if (assumptions.length || deps.length) {
   say("");
 }
 
-say("## Promises", "", "The acceptance: the epic is done when every one of these is proven, or dropped with its reason.", "");
-if (!promises.length) say("- none");
-for (const p of promises) {
+say("## Outcomes", "", "The acceptance: the epic is done when every one of these is proven, or dropped with its reason.", "");
+if (!outcomes.length) say("- none");
+for (const p of outcomes) {
   say(`- ${p.id} (${p.status}; by ${p.by}; job ${p.job}): ${p.text}`);
   say(`  Proof plan: ${p.proof}`);
   for (const pr of p.proofs ?? []) say(`  Proof so far: ${pr.url ?? pr.path ?? ""}${pr.note ? ` (${pr.note})` : ""}`);
@@ -81,10 +81,10 @@ say("");
 const feeds = e.links?.feeds ?? [];
 if (feeds.length) say(`What only a later epic can settle belongs to it, not here: ${feeds.join(", ")}.`, "");
 
-say("## Jobs to start", "", "Each job in state asked, with its owner (the agent type that does it), its mode, what it is, where and which promises it serves:", "");
+say("## Jobs to start", "", "Each job in state asked, with its owner (the agent type that does it), its mode, what it is, where and which outcomes it serves:", "");
 if (!asked.length) say("- none in state asked");
 for (const j of asked) {
-  say(`- ${j.id}: owner ${j.owner}${mine(j) ? " (this job is yours: the orchestrator's own role, nothing more than its what)" : ""}, mode ${j.mode}, serves ${j.promises.join(", ")}.`);
+  say(`- ${j.id}: owner ${j.owner}${mine(j) ? " (this job is yours: the orchestrator's own role, nothing more than its what)" : ""}, mode ${j.mode}, serves ${j.outcomes.join(", ")}.`);
   say(`  ${j.what}`);
   if (j.repo) say(`  Repo: ${j.repo}`);
   if (j.files?.length) say(`  Files: ${j.files.join(", ")}`);
@@ -92,18 +92,18 @@ for (const j of asked) {
 say("");
 if (others.length) {
   say("Jobs already past asked (leave them to their sessions unless the ledger says they stalled):", "");
-  for (const j of others) say(`- ${j.id}: ${j.state}, owner ${j.owner}, serves ${j.promises.join(", ")}${j.repo ? `, repo ${j.repo}` : ""}${j.commit ? `, commit ${j.commit}` : ""}.`);
+  for (const j of others) say(`- ${j.id}: ${j.state}, owner ${j.owner}, serves ${j.outcomes.join(", ")}${j.repo ? `, repo ${j.repo}` : ""}${j.commit ? `, commit ${j.commit}` : ""}.`);
   say("");
 }
 
-say("## The promise rule and the ledger", "");
+say("## The outcome rule and the ledger", "");
 list([
-  "A promise is settled by this epic's own jobs, by the job and the proof it names. Jobs done is not the epic done: the epic is done only when every promise is proven, or dropped with its reason in the ledger.",
-  "Every job's agent gets its job, the promises it serves with their proof plans, and any cap or gate named in its what.",
-  `At each job's start and end, append a job.state line: {"id": "${id}-NNNN", "parent": "${id}", "at": <UTC now>, "event": "job.state", "job", "owner", "promises", "from", "to"}, and set the job's state in epic.json.`,
-  `When a job reports a promise settled, append the artifact to that promise's proofs ({kind: page|file|pr|run, url or path, note, at}; something Ryan can open), set its status to proven or refuted, and append a promise.status line with promise, from, to and proof (the url or path). A dropped promise gets its reason in the line's note.`,
+  "An outcome is settled by this epic's own jobs, by the job and the proof it names. Jobs done is not the epic done: the epic is done only when every outcome is proven, or dropped with its reason in the ledger.",
+  "Every job's agent gets its job, the outcomes it serves with their proof plans, and any cap or gate named in its what.",
+  `At each job's start and end, append a job.state line: {"id": "${id}-NNNN", "parent": "${id}", "at": <UTC now>, "event": "job.state", "job", "owner", "outcomes", "from", "to"}, and set the job's state in epic.json.`,
+  `When a job reports an outcome settled, append the artifact to that outcome's proofs ({kind: page|file|pr|run, url or path, note, at}; something Ryan can open), set its status to proven or refuted, and append an outcome.status line with outcome, from, to and proof (the url or path). A dropped outcome gets its reason in the line's note.`,
   `Ledger ids are ${id}-NNNN, the four-digit count of this epic's lines. Re-read the ledger right before each write; append, never rewrite.`,
-  `When every promise is settled, set status done (or dropped) with one epic.status line.`,
+  `When every outcome is settled, set status done (or dropped) with one epic.status line.`,
 ], "");
 say("");
 
@@ -132,7 +132,7 @@ list([
 ], "");
 say("");
 
-say("## Report", "", "Report at the end: proven, refuted or open per promise, commits, what needs Ryan.", "");
+say("## Report", "", "Report at the end: proven, refuted or open per outcome, commits, what needs Ryan.", "");
 
 const path = join(folder, "brief.md");
 writeFileSync(path, out.join("\n"));

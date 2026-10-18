@@ -1,10 +1,10 @@
 {
   "id": "unknown-job",
   "status": "draft",
-  "promises": [
+  "outcomes": [
     { "id": "P1", "text": "one", "by": "test", "job": "j9", "proof": "a run page", "status": "open", "proofs": [] }
   ],
   "jobs": [
-    { "id": "j1", "what": "first", "owner": "developer", "mode": "normal", "state": "asked", "promises": ["P1"], "at": "2026-10-17" }
+    { "id": "j1", "what": "first", "owner": "developer", "mode": "normal", "state": "asked", "outcomes": ["P1"], "at": "2026-10-17" }
   ]
 }

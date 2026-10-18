@@ -1,8 +1,8 @@
 {"id":"ok-0001","parent":"ok","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"none-0001","parent":"none","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
-{"id":"no-promises-field-0001","parent":"no-promises-field","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
-{"id":"empty-promises-0001","parent":"empty-promises","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
-{"id":"unknown-promise-0001","parent":"unknown-promise","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"no-outcomes-field-0001","parent":"no-outcomes-field","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"empty-outcomes-0001","parent":"empty-outcomes","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
+{"id":"unknown-outcome-0001","parent":"unknown-outcome","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"unknown-job-0001","parent":"unknown-job","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"no-job-0001","parent":"no-job","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"no-proof-0001","parent":"no-proof","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}

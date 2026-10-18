@@ -1,9 +1,9 @@
 {"id":"alpha-0001","parent":"alpha","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"beta-0001","parent":"beta","at":"2026-10-17T00:00:00Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
 {"id":"alpha-0002","parent":"alpha","at":"2026-10-17T00:00:01Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
-{"id":"alpha-0003","parent":"alpha","at":"2026-10-17T00:00:01Z","event":"job.state","job":"j1","to":"asked","owner":"developer","promises":["P1"]}
+{"id":"alpha-0003","parent":"alpha","at":"2026-10-17T00:00:01Z","event":"job.state","job":"j1","to":"asked","owner":"developer","outcomes":["P1"]}
 {"id":"ghost-0001","parent":"ghost","at":"2026-10-17T00:00:02Z","event":"epic.status","from":null,"to":"draft","by":"fixture"}
-{"id":"ghost-0002","parent":"ghost","at":"2026-10-17T00:00:02Z","event":"job.state","job":"j1","to":"asked","owner":"developer","promises":["P1"]}
+{"id":"ghost-0002","parent":"ghost","at":"2026-10-17T00:00:02Z","event":"job.state","job":"j1","to":"asked","owner":"developer","outcomes":["P1"]}
 {"id":"beta-0002","parent":"beta","at":"2026-10-17T00:00:02Z","event":"epic.status","from":"draft","to":"review","by":"fixture"}
 {"id":"alpha-0004","parent":"alpha","at":"2026-10-17T00:00:03Z","event":"epic.status","from":"review","to":"approved","by":"Ryan","via":"inbox 1"}
 {"id":"alpha-0099","parent":"beta","at":"2026-10-17T00:00:03Z","event":"epic.status","from":"review","to":"rejected","by":"Ryan","via":"inbox 2"}

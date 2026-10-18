@@ -4,7 +4,7 @@ argument-hint: <ask>
 ---
 
 Turn the ask in `$ARGUMENTS` into an epic, starting with its proposal, which
-Ryan reviews and approves through the inbox. The shape and the promise rule
+Ryan reviews and approves through the inbox. The shape and the outcome rule
 are in `docs/epics.md`; the example is
 `~/.syns/epics/proposal-system/epic.json`. Read both first.
 
@@ -21,18 +21,18 @@ are in `docs/epics.md`; the example is
    - `proposal.md` holding the argument: the problem, each approach
      considered with what it costs, and why the chosen one wins.
 
-   The brief states the promise rule, and the agent follows it in this
-   order. First the promises: each with `by` (`test`, `derivation`,
+   The brief states the outcome rule, and the agent follows it in this
+   order. First the outcomes: each with `by` (`test`, `derivation`,
    `measurement` or `review`), `status: "open"`, `proofs: []`, and its
    proof plan in `proof`, one line naming the artifact Ryan will be able to
    open (a page, a file, a PR, a run) that shows it. Then the jobs (M1, state
-   `asked`), which exist to produce those proofs: every promise names in
+   `asked`), which exist to produce those proofs: every outcome names in
    `job` one of this epic's jobs that settles it, and every job lists the
-   promises it serves. A promise only a later epic can settle is not this
+   outcomes it serves. An outcome only a later epic can settle is not this
    epic's: drop it here, and name that epic under `links.feeds`. When a job
    reports done, the session records its proofs: the artifact appended to
-   the promise's `proofs`, `status` set to `proven` (or `refuted`), and one
-   `promise.status` ledger line; the epic is done only when every promise is
+   the outcome's `proofs`, `status` set to `proven` (or `refuted`), and one
+   `outcome.status` ledger line; the epic is done only when every outcome is
    proven or dropped with its reason in the ledger, not when the jobs are.
 
    It returns its open questions, each with options and a recommendation.

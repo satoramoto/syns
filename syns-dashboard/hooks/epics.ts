@@ -1,4 +1,4 @@
-import type { EpicRow, PromiseRow } from '../types'
+import type { EpicRow, OutcomeRow } from '../types'
 import { firstSentence } from './brain'
 
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
@@ -8,18 +8,18 @@ const list = (v: unknown): any[] => (Array.isArray(v) ? v.filter(x => x != null)
 const phaseOf = (status: string): string =>
   status === 'draft' || status === 'review' ? 'proposal' : status === 'approved' || status === 'active' ? 'delivery' : status
 
-const PROMISE_STATUS = new Set(['proven', 'refuted', 'open', 'dropped'])
+const OUTCOME_STATUS = new Set(['proven', 'refuted', 'open', 'dropped'])
 
 /** What a proof opens: a file's path (`~` left for the opener to expand), else a page's or PR's URL; empty when it has neither. */
 const targetOf = (p: any): string => (str(p?.kind) === 'file' ? str(p.path) : str(p?.url) || str(p?.path))
 
-const toPromise = (p: any, i: number): PromiseRow => {
+const toOutcome = (p: any, i: number): OutcomeRow => {
   const status = str(p.status).trim().toLowerCase()
   return {
     id: str(p.id) || `P${i + 1}`,
     text: str(p.text),
     by: str(p.by),
-    status: PROMISE_STATUS.has(status) ? (status as PromiseRow['status']) : 'open',
+    status: OUTCOME_STATUS.has(status) ? (status as OutcomeRow['status']) : 'open',
     plan: str(p.proof),
     proof: list(p.proofs).map(targetOf).find(Boolean) ?? '',
   }
@@ -33,7 +33,7 @@ const toPromise = (p: any, i: number): PromiseRow => {
  * folder, with `error` saying why.
  */
 export const toEpic = (text: string, folder: string, open: Set<number> | null): EpicRow => {
-  const empty: EpicRow = { id: folder, rev: 0, status: '', phase: '', goal: '', promises: [], questions: 0, page: '' }
+  const empty: EpicRow = { id: folder, rev: 0, status: '', phase: '', goal: '', outcomes: [], questions: 0, page: '' }
   let d: any
   try {
     d = JSON.parse(text)
@@ -51,9 +51,9 @@ export const toEpic = (text: string, folder: string, open: Set<number> | null): 
     status,
     phase: phaseOf(status),
     goal: firstSentence(str(d.goal)),
-    promises: list(d.promises)
+    outcomes: list(d.outcomes)
       .filter(p => typeof p === 'object')
-      .map(toPromise),
+      .map(toOutcome),
     questions: questions.filter(q => (open ? open.has(q) : !decided.has(q))).length,
     page: page ? str(page.url) : '',
   }

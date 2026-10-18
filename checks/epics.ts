@@ -6,8 +6,8 @@ import { join } from "node:path";
 
 export type CheckName =
   | "epic-json" // an epic.json that can't be read
-  | "jobs-name-promises" // P2: every job names promises of its own epic
-  | "promises-name-jobs" // every promise names an existing job and a proof plan
+  | "jobs-name-outcomes" // P2: every job names outcomes of its own epic
+  | "outcomes-name-jobs" // every outcome names an existing job and a proof plan
   | "ledger-line" // a ledger line that isn't one JSON object
   | "status-parent" // P3: a status line's parent is an existing epic, the one its id names
   | "status-chain" // P3: an epic's status lines chain from null to its current status
@@ -42,7 +42,7 @@ export const STATUS_EVENTS = ["epic.status", "proposal.status"];
 interface Epic {
   id?: unknown;
   status?: unknown;
-  promises?: unknown;
+  outcomes?: unknown;
   jobs?: unknown;
 }
 
@@ -65,35 +65,35 @@ function readEpics(epicsDir: string, failures: Failure[]): Epic[] {
   return epics;
 }
 
-function checkJobsAndPromises(epic: Epic, id: string, failures: Failure[]) {
-  const promiseIds = new Set(asArray(epic.promises).map((p) => p?.id));
+function checkJobsAndOutcomes(epic: Epic, id: string, failures: Failure[]) {
+  const outcomeIds = new Set(asArray(epic.outcomes).map((p) => p?.id));
   const jobIds = new Set(asArray(epic.jobs).map((j) => j?.id));
 
   for (const job of asArray(epic.jobs)) {
-    const named = job?.promises;
+    const named = job?.outcomes;
     if (!Array.isArray(named)) {
-      failures.push({ check: "jobs-name-promises", epic: id, detail: `job ${job?.id} has no promises field` });
+      failures.push({ check: "jobs-name-outcomes", epic: id, detail: `job ${job?.id} has no outcomes field` });
       continue;
     }
     if (named.length === 0) {
-      failures.push({ check: "jobs-name-promises", epic: id, detail: `job ${job?.id} names no promise` });
+      failures.push({ check: "jobs-name-outcomes", epic: id, detail: `job ${job?.id} names no outcome` });
       continue;
     }
     for (const p of named) {
-      if (!promiseIds.has(p)) {
-        failures.push({ check: "jobs-name-promises", epic: id, detail: `job ${job?.id} names unknown promise ${p}` });
+      if (!outcomeIds.has(p)) {
+        failures.push({ check: "jobs-name-outcomes", epic: id, detail: `job ${job?.id} names unknown outcome ${p}` });
       }
     }
   }
 
-  for (const promise of asArray(epic.promises)) {
-    if (!nonEmptyString(promise?.job)) {
-      failures.push({ check: "promises-name-jobs", epic: id, detail: `promise ${promise?.id} names no job` });
-    } else if (!jobIds.has(promise.job)) {
-      failures.push({ check: "promises-name-jobs", epic: id, detail: `promise ${promise?.id} names unknown job ${promise.job}` });
+  for (const outcome of asArray(epic.outcomes)) {
+    if (!nonEmptyString(outcome?.job)) {
+      failures.push({ check: "outcomes-name-jobs", epic: id, detail: `outcome ${outcome?.id} names no job` });
+    } else if (!jobIds.has(outcome.job)) {
+      failures.push({ check: "outcomes-name-jobs", epic: id, detail: `outcome ${outcome?.id} names unknown job ${outcome.job}` });
     }
-    if (!nonEmptyString(promise?.proof)) {
-      failures.push({ check: "promises-name-jobs", epic: id, detail: `promise ${promise?.id} has no proof plan` });
+    if (!nonEmptyString(outcome?.proof)) {
+      failures.push({ check: "outcomes-name-jobs", epic: id, detail: `outcome ${outcome?.id} has no proof plan` });
     }
   }
 }
@@ -124,7 +124,7 @@ export function checkEpics(epicsDir: string, ledgerPath: string): Result {
   for (const epic of epics) {
     const id = nonEmptyString(epic.id) ? epic.id : "";
     ids.push(id);
-    checkJobsAndPromises(epic, id, failures);
+    checkJobsAndOutcomes(epic, id, failures);
   }
 
   const known = new Set(ids);

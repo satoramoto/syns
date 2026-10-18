@@ -43,8 +43,8 @@
   <h2>Live, per epic</h2>
   <div class="table"><table>
     <tr><th>Epic</th><th>Check</th><th>Promise</th><th>Result</th></tr>
-    <tr><td rowspan="3"><code>proposal-system</code></td><td>every job names promises, all of this epic (5 jobs)</td><td>P2</td><td class="r pass">pass</td></tr>
-    <tr><td>every promise names an existing job and a proof plan (6 promises)</td><td>P2</td><td class="r pass">pass</td></tr>
+    <tr><td rowspan="3"><code>proposal-system</code></td><td>every job names outcomes, all of this epic (5 jobs)</td><td>P2</td><td class="r pass">pass</td></tr>
+    <tr><td>every outcome names an existing job and a proof plan (6 outcomes)</td><td>P2</td><td class="r pass">pass</td></tr>
     <tr><td>status lines chain from null to the current status: null → draft → review → approved → active</td><td>P3</td><td class="r pass">pass</td></tr>
   </table></div>
 
@@ -60,9 +60,9 @@
   <h2>Fixtures (failure paths)</h2>
   <div class="table"><table>
     <tr><th>Case</th><th>Expected</th><th>Result</th></tr>
-    <tr><td>many jobs and promises, cross-named; and none at all</td><td>no failure</td><td class="r pass">pass</td></tr>
-    <tr><td>job without <code>promises</code>; with <code>[]</code>; naming an unknown promise</td><td>P2 fails, once each</td><td class="r pass">pass</td></tr>
-    <tr><td>promise naming an unknown job; no job; empty proof plan</td><td>promise check fails, once each</td><td class="r pass">pass</td></tr>
+    <tr><td>many jobs and outcomes, cross-named; and none at all</td><td>no failure</td><td class="r pass">pass</td></tr>
+    <tr><td>job without <code>outcomes</code>; with <code>[]</code>; naming an unknown outcome</td><td>P2 fails, once each</td><td class="r pass">pass</td></tr>
+    <tr><td>outcome naming an unknown job; no job; empty proof plan</td><td>outcome check fails, once each</td><td class="r pass">pass</td></tr>
     <tr><td>each defect fails only its own check</td><td>no cross-talk</td><td class="r pass">pass</td></tr>
     <tr><td>full chain interleaved with other epics and events</td><td>no failure</td><td class="r pass">pass</td></tr>
     <tr><td>status line whose parent is no epic; non-status line likewise</td><td>fails; ignored</td><td class="r pass">pass</td></tr>

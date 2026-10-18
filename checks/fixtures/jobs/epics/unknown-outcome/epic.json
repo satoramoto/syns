@@ -1,0 +1,10 @@
+{
+  "id": "unknown-outcome",
+  "status": "draft",
+  "outcomes": [
+    { "id": "P1", "text": "one", "by": "test", "job": "j1", "proof": "a run page", "status": "open", "proofs": [] }
+  ],
+  "jobs": [
+    { "id": "j1", "what": "names one real and one unknown outcome", "owner": "developer", "mode": "normal", "state": "asked", "outcomes": ["P1", "P9"], "at": "2026-10-17" }
+  ]
+}

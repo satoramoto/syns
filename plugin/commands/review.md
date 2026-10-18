@@ -9,12 +9,12 @@ the reviewer, and this pass only feeds him.
 1. Read `~/.syns/epics/<id>/epic.json` and `proposal.md`. If the folder
    doesn't exist, say so and stop.
 2. Send one `reviewer` agent (Sonnet) over both files, with `docs/epics.md`
-   for the shape and the promise rule. Its outcome: the real gaps only, each
-   one sentence naming the field or promise it is about:
-   - promises that break the promise rule: no `job` of this epic settles
+   for the shape and the outcome rule. Its outcome: the real gaps only, each
+   one sentence naming the field or outcome it is about:
+   - outcomes that break the outcome rule: no `job` of this epic settles
      them, no `proof` plan names an artifact Ryan can open, `by` can't
      settle them, or only a later epic could;
-   - jobs that serve no promise;
+   - jobs that serve no outcome;
    - risks the approach plainly carries that `risks` leaves out;
    - questions or inbox items without a recommendation;
    - an approach in `proposal.md` that the JSON contradicts.

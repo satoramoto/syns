@@ -479,7 +479,7 @@ export const register: Register = (on, options) => {
         back: () => ask($, 'syn:back'),
         standup: () => ask($, 'syn:standup'),
         openEpic: p => void openTarget($, p.page, `${p.id}'s page`).catch(() => $.ui.toast(`${p.id}: could not open its page`)),
-        openProof: (p, promise) => void openTarget($, promise.proof, `${p.id} ${promise.id}'s proof`).catch(() => $.ui.toast(`${p.id} ${promise.id}: could not open its proof`)),
+        openProof: (p, outcome) => void openTarget($, outcome.proof, `${p.id} ${outcome.id}'s proof`).catch(() => $.ui.toast(`${p.id} ${outcome.id}: could not open its proof`)),
         review: p => ask($, 'syn:review', p.id),
         start: p => ask($, 'syn:start', `${p.id} --door dashboard`),
         ignore: (list, value, ignore) => void setIgnored($, list, value, ignore).catch(() => $.ui.toast('Could not change ignored in brain.json')),

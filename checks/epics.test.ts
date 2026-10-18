@@ -1,5 +1,5 @@
-// Contract checks for epics, to docs/epics.md. Promises under test
-// (proposal-system): P2, every job names at least one of its epic's promises;
+// Contract checks for epics, to docs/epics.md. Outcomes under test
+// (proposal-system): P2, every job names at least one of its epic's outcomes;
 // P3, every status change of an epic is one ledger line with the epic as parent.
 // (epic-start): P2, every start and every schedule is in the ledger: a schedule
 // as one epic.scheduled line, a start as one epic.status line approved → active
@@ -49,11 +49,11 @@ describe("live", () => {
 
   for (const id of live.epics) {
     describe(id, () => {
-      test("P2: every job names promises, all of this epic", () => {
-        expect(of(live, "jobs-name-promises", id)).toEqual([]);
+      test("P2: every job names outcomes, all of this epic", () => {
+        expect(of(live, "jobs-name-outcomes", id)).toEqual([]);
       });
-      test("P2: every promise names an existing job and a proof plan", () => {
-        expect(of(live, "promises-name-jobs", id)).toEqual([]);
+      test("P2: every outcome names an existing job and a proof plan", () => {
+        expect(of(live, "outcomes-name-jobs", id)).toEqual([]);
       });
       test("P3: status lines chain from null to the current status", () => {
         expect(of(live, "status-chain", id)).toEqual([]);
@@ -65,54 +65,54 @@ describe("live", () => {
   }
 });
 
-// ---- Fixtures: (a) jobs and promises --------------------------------------
+// ---- Fixtures: (a) jobs and outcomes --------------------------------------
 
-describe("P2 (a) jobs name promises; promises name jobs", () => {
+describe("P2 (a) jobs name outcomes; outcomes name jobs", () => {
   const r = fixture("jobs");
 
-  test("many jobs and promises, all cross-named: passes", () => {
+  test("many jobs and outcomes, all cross-named: passes", () => {
     expect(r.failures.filter((f) => f.epic === "ok")).toEqual([]);
   });
 
-  test("no jobs and no promises: passes", () => {
+  test("no jobs and no outcomes: passes", () => {
     expect(r.failures.filter((f) => f.epic === "none")).toEqual([]);
   });
 
-  test("a job without the promises field fails", () => {
-    const f = of(r, "jobs-name-promises", "no-promises-field");
+  test("a job without the outcomes field fails", () => {
+    const f = of(r, "jobs-name-outcomes", "no-outcomes-field");
     expect(f.length).toBe(1);
     expect(f[0].detail).toContain("j2");
   });
 
-  test("a job with an empty promises list fails", () => {
-    const f = of(r, "jobs-name-promises", "empty-promises");
+  test("a job with an empty outcomes list fails", () => {
+    const f = of(r, "jobs-name-outcomes", "empty-outcomes");
     expect(f.length).toBe(1);
     expect(f[0].detail).toContain("j1");
   });
 
-  test("a job naming an unknown promise fails, once, for that promise only", () => {
-    const f = of(r, "jobs-name-promises", "unknown-promise");
+  test("a job naming an unknown outcome fails, once, for that outcome only", () => {
+    const f = of(r, "jobs-name-outcomes", "unknown-outcome");
     expect(f.length).toBe(1);
     expect(f[0].detail).toContain("P9");
   });
 
-  test("a promise naming an unknown job fails", () => {
-    const f = of(r, "promises-name-jobs", "unknown-job");
+  test("an outcome naming an unknown job fails", () => {
+    const f = of(r, "outcomes-name-jobs", "unknown-job");
     expect(f.length).toBe(1);
     expect(f[0].detail).toContain("j9");
   });
 
-  test("a promise naming no job fails", () => {
-    expect(of(r, "promises-name-jobs", "no-job").length).toBe(1);
+  test("an outcome naming no job fails", () => {
+    expect(of(r, "outcomes-name-jobs", "no-job").length).toBe(1);
   });
 
-  test("a promise with an empty proof plan fails", () => {
-    expect(of(r, "promises-name-jobs", "no-proof").length).toBe(1);
+  test("an outcome with an empty proof plan fails", () => {
+    expect(of(r, "outcomes-name-jobs", "no-proof").length).toBe(1);
   });
 
   test("each defect fails only its own check", () => {
-    expect(of(r, "promises-name-jobs", "no-promises-field")).toEqual([]);
-    expect(of(r, "jobs-name-promises", "unknown-job")).toEqual([]);
+    expect(of(r, "outcomes-name-jobs", "no-outcomes-field")).toEqual([]);
+    expect(of(r, "jobs-name-outcomes", "unknown-job")).toEqual([]);
     expect(of(r, "status-chain")).toEqual([]);
     expect(of(r, "status-parent")).toEqual([]);
   });
@@ -125,7 +125,7 @@ describe("P3 (b) status lines name their epic and chain", () => {
 
   test("a full chain, interleaved with other epics' lines and other events: passes", () => {
     expect(of(r, "status-chain", "alpha")).toEqual([]);
-    expect(of(r, "jobs-name-promises", "alpha")).toEqual([]);
+    expect(of(r, "jobs-name-outcomes", "alpha")).toEqual([]);
   });
 
   test("a status line whose parent is no epic fails", () => {

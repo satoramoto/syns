@@ -103,8 +103,8 @@ export type ContextSnap = {
 /** A live agent from `$.agent.list()`. */
 export type AgentRow = { id: string; description: string; type: string; status: string }
 
-/** One of an epic's `promises`: what it says, how it's settled and the first proof that settles it. */
-export type PromiseRow = {
+/** One of an epic's `outcomes`: what it says, how it's settled and the first proof that settles it. */
+export type OutcomeRow = {
   id: string
   text: string
   /** How it's settled: `review`, `test`, `measurement`, … */
@@ -117,7 +117,7 @@ export type PromiseRow = {
   proof: string
 }
 
-/** One `~/.syns/epics/<id>/epic.json` under Epics: its status, phase, promises and open questions. */
+/** One `~/.syns/epics/<id>/epic.json` under Epics: its status, phase, outcomes and open questions. */
 export type EpicRow = {
   id: string
   rev: number
@@ -127,8 +127,8 @@ export type EpicRow = {
   phase: string
   /** The goal's first sentence. */
   goal: string
-  /** Its promises, in order. */
-  promises: PromiseRow[]
+  /** Its outcomes, in order. */
+  outcomes: OutcomeRow[]
   /** Its `questions` still open in brain.json's inbox. */
   questions: number
   /** The first `evidence` entry of kind `page`: the epic's page; empty when none. */

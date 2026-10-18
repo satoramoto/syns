@@ -44,5 +44,5 @@
 {"id":"late-approval-0002","parent":"late-approval","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
 {"id":"legacy-approved-0001","parent":"legacy-approved","at":"2026-10-18T00:00:00Z","event":"proposal.status","from":"review","to":"approved","by":"fixture","via":"inbox 1"}
 {"id":"legacy-approved-0002","parent":"legacy-approved","at":"2026-10-18T00:00:00Z","event":"epic.status","from":"approved","to":"active","by":"fixture","via":"inbox 1","door":"words","session":"legacy-approved-run"}
-{"id":"not-start-0001","parent":"not-start","at":"2026-10-18T00:00:00Z","event":"job.state","job":"j1","to":"active","owner":"developer","promises":["P1"]}
+{"id":"not-start-0001","parent":"not-start","at":"2026-10-18T00:00:00Z","event":"job.state","job":"j1","to":"active","owner":"developer","outcomes":["P1"]}
 {"id":"not-start-0002","parent":"not-start","at":"2026-10-18T00:00:00Z","event":"proposal.status","from":"approved","to":"active","by":"fixture","note":"M1 lanes started"}

@@ -1,0 +1,10 @@
+{
+  "id": "empty-outcomes",
+  "status": "draft",
+  "outcomes": [
+    { "id": "P1", "text": "one", "by": "test", "job": "j1", "proof": "a run page", "status": "open", "proofs": [] }
+  ],
+  "jobs": [
+    { "id": "j1", "what": "names an empty list", "owner": "developer", "mode": "normal", "state": "asked", "outcomes": [], "at": "2026-10-17" }
+  ]
+}
