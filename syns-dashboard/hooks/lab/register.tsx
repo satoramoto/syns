@@ -82,7 +82,7 @@ const elementsOf = (table: object, surface: string, absent: Set<string>): any =>
 export const attach = (on: Parameters<Register>[0], _options: Parameters<Register>[1], pane: string): void => {
   PANE = pane
 
-  on('command.run', { command: 'lab' }, async ($, e) => {
+  on('command.run', { command: 'syn-lab' }, async ($, e) => {
     const id = e.args.trim()
     if (!id) {
       await openIndex($)
@@ -221,4 +221,4 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
 }
 
 /** `/lab`: the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'lab', description: 'Open the rendering lab: experiments on what the engine draws (/lab <id> opens one)', argumentHint: '[experiment id]' }]
+export const COMMANDS: Command[] = [{ name: 'syn-lab', description: 'Open the rendering lab: experiments on what the engine draws (/syn-lab <id> opens one)', argumentHint: '[experiment id]' }]

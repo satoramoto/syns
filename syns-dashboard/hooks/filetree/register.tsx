@@ -1224,7 +1224,7 @@ export const attach = (on: Parameters<Register>[0], options: Parameters<Register
   host = pane ?? null
   if (host) PANE = host
   if (host) {
-    on('command.run', { command: 'filetree' }, async ($, e) => {
+    on('command.run', { command: 'syn-filetree' }, async ($, e) => {
       const arg = (e.args ?? '').trim()
       // Home, for `~` in the path and the reply, before the tree has first drawn.
       if (!looked) await sessionReads($)
@@ -1413,7 +1413,7 @@ export const attach = (on: Parameters<Register>[0], options: Parameters<Register
 }
 
 /** `/filetree [path]` (a host's): the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'filetree', description: 'Open the syn dashboard on Files; args: [path] (no path = the cwd, followed)', argumentHint: '[path]' }]
+export const COMMANDS: Command[] = [{ name: 'syn-filetree', description: 'Open the syn dashboard on Files; args: [path] (no path = the cwd, followed)', argumentHint: '[path]' }]
 
 /** The tree, drawn for one render of its pane: `els` is that render's table (through `holdButtons`), `t` the tree as read at its start. */
 async function drawTree($: EngineInterface, e: RenderInput<'Pane', 'terminal' | 'desktop'>, els: Elements['terminal'] | Elements['desktop'], t: FileTree): Promise<RenderElement> {

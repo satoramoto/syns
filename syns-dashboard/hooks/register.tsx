@@ -365,7 +365,7 @@ export const register: Register = (on, options) => {
   attachBlast(on, options)
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
+    await $.command.register({ name: 'syn-dashboard', description: 'Open the syn dashboard: what we are doing, decided, running, what needs you, next' })
     for (const c of commands) await $.command.register(c)
     worker?.cancel()
     worker = $.clock.every(2_000, () => void tick($).catch(() => undefined))
@@ -385,7 +385,7 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  on('command.run', { command: 'dashboard' }, async $ => {
+  on('command.run', { command: 'syn-dashboard' }, async $ => {
     shownAt = 0
     await $.ui.open({ id: PANE, title: TITLE })
     await tick($, true).catch(() => undefined)

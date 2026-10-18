@@ -78,7 +78,7 @@ async function desktop($: any, on: any, columns = 46, opts: Parameters<typeof wo
   await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
   await w.clock.settle()
   // `/filetree` as the person types it: the dashboard's pane on Files.
-  await $.command.run({ command: 'filetree', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  await $.command.run({ command: 'syn-filetree', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await w.clock.settle()
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...pane(columns) })
   await w.clock.settle()

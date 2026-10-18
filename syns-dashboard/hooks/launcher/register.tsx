@@ -841,8 +841,8 @@ const DESCRIPTION = "Open the dashboard on this project's dev servers from .clau
 export const attach = (on: Parameters<Register>[0], _options: Parameters<Register>[1], pane: string): void => {
   PANE = pane
 
-  on('command.run', { command: 'launcher' }, ($, e) => command($, e))
-  on('command.run', { command: 'preview' }, ($, e) => command($, e))
+  on('command.run', { command: 'syn-launcher' }, ($, e) => command($, e))
+  on('command.run', { command: 'syn-preview' }, ($, e) => command($, e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
     if (!isShown()) return next(e)
@@ -883,4 +883,4 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
 }
 
 /** `/launcher` and `/preview`: the dashboard registers them as the session starts. */
-export const COMMANDS: Command[] = ['launcher', 'preview'].map(name => ({ name, description: DESCRIPTION, argumentHint: '[start|stop|restart <name>]', immediate: true }))
+export const COMMANDS: Command[] = ['syn-launcher', 'syn-preview'].map(name => ({ name, description: DESCRIPTION, argumentHint: '[start|stop|restart <name>]', immediate: true }))

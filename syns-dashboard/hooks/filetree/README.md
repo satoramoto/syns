@@ -28,7 +28,7 @@
 </p>
 
 > [!NOTE]
-> Here filetree is the **Files tab** of the syn dashboard (the `syns-dashboard` mod), not a mod of its own. `/filetree` opens the dashboard's pane on Files (`/filetree <path>` pins a folder); the tab row switches to it too. It reads and watches nothing while another tab is shown. Tested on Linux, macOS and Windows; mods don't load in WSL sessions of the Desktop app.
+> Here filetree is the **Files tab** of the syn dashboard (the `syns-dashboard` mod), not a mod of its own. `/syn-filetree` opens the dashboard's pane on Files (`/syn-filetree <path>` pins a folder); the tab row switches to it too. It reads and watches nothing while another tab is shown. Tested on Linux, macOS and Windows; mods don't load in WSL sessions of the Desktop app.
 
 ---
 
@@ -38,7 +38,7 @@ It comes with the syn dashboard: install `syns-dashboard` (see syns' `AGENTS.md`
 
 ## Features
 
-- Interactive file tree for the working directory where you're using Claude Code; it follows the cwd, or `/filetree <path>` pins another folder
+- Interactive file tree for the working directory where you're using Claude Code; it follows the cwd, or `/syn-filetree <path>` pins another folder
 - Search the file tree, including folders you have not opened yet
 - Git status per file and folder in color, with exact lines changed (`+N` `-N`) on modified files and `?:N M:N D:N` file counts on folders
 - Branch, upstream and ahead/behind in the header

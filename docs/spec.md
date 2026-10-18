@@ -409,7 +409,7 @@ decision.
 ### The dashboard today (`syns-dashboard`, built)
 
 The first version is a re-entry view, for sitting back down after time away.
-It opens on session start (and with `/dashboard`), reads `$SYN_BRAIN` or
+It opens on session start (and with `/syn-dashboard`), reads `$SYN_BRAIN` or
 `~/.syns/brain.json`, and reads it again whenever its mtime moves (checked
 every 2 s while the pane is shown; nothing runs while it's hidden). Sections,
 in awesome-claude's inspector look on the desktop and the terminal:
@@ -464,19 +464,19 @@ The sections above are the pane's first tab, **Overview**. The other tabs were
 awesome-claude's mods; their code is syns source now, each in
 `syns-dashboard/hooks/<mod>/`, and each reads only while its tab is shown:
 
-- **Session** (`/overview`): what Overview doesn't show of the session: its
+- **Session** (`/syn-overview`): what Overview doesn't show of the session: its
   context window, the account's limits, activity (cost, time, turns, tools,
   files), git (the branch, its PRs, the branches the session started) and the
   machine. Tool calls and turns are counted whatever tab is shown.
-- **Files** (`/filetree [path]`): the file tree of the session's cwd (or the
+- **Files** (`/syn-filetree [path]`): the file tree of the session's cwd (or the
   folder given), with Claude's reads, writes and git steps marked as they
   happen.
-- **Issues** (`/issues`): the repo's open GitHub issues, with refine, start
+- **Issues** (`/syn-issues`): the repo's open GitHub issues, with refine, start
   and sprint prompts.
-- **Launcher** (`/launcher`, `/preview`): the dev servers in
+- **Launcher** (`/syn-launcher`, `/syn-preview`): the dev servers in
   `.claude/launch.json`: start, stop, restart, take over, their output. Servers
   it started keep running and logging on any tab.
-- **Lab** (`/lab [id]`), last, for mod authors: the index of engine
+- **Lab** (`/syn-lab [id]`), last, for mod authors: the index of engine
   experiments; each experiment opens in a pane of its own.
 
 Each slash command opens the pane on its tab. **Blast Radius** has no tab: it

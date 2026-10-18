@@ -29,7 +29,7 @@ const view = atom({ plugin: 'syns-dashboard', key: 'tasksView' } as const, null)
 const collapsed = atom({ plugin: 'syns-dashboard', key: 'tasksCollapsed' } as const, [] as string[])
 /** The dashboard's brain.json view, read by its own timer: the inbox's open approvals. */
 const brain = atom({ plugin: 'syns-dashboard', key: 'brain' } as const, null)
-/** The dashboard's tab shown; `/board` writes it to open the pane on this tab. */
+/** The dashboard's tab shown; `/syn-board` writes it to open the pane on this tab. */
 const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
 const isShown = () => shownTab() === 'tasks'
 
@@ -321,7 +321,7 @@ const inbox = ($: EngineInterface) =>
  * transcripts only then.
  */
 export const attach = (on: Parameters<Register>[0], _options: Parameters<Register>[1], pane: string): void => {
-  on('command.run', { command: 'tasks' }, async $ => {
+  on('command.run', { command: 'syn-board' }, async $ => {
     await update($, tab, () => 'tasks')
     await $.ui.open({ id: pane, title: TITLE })
     await tick($, true).catch(() => undefined)
@@ -348,5 +348,5 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
   })
 }
 
-/** `/board`: the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'board', description: "Open the dashboard's Tasks tab: every session's task list of the last week, by repo" }]
+/** `/syn-board`: the dashboard registers it as the session starts. */
+export const COMMANDS: Command[] = [{ name: 'syn-board', description: "Open the dashboard's Tasks tab: every session's task list of the last week, by repo" }]

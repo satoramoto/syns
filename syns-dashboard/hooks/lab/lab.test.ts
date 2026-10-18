@@ -27,7 +27,7 @@ const DASH = 'syns-dashboard'
 
 /** `/lab` as the person types it: the dashboard's tab state set to the Lab tab, its pane opened. */
 const runLab = ($: any, args = '') =>
-  $.command.run({ command: 'lab', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  $.command.run({ command: 'syn-lab', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 /** Answers `$.ui.open` (the pane is placed), recording each pane opened. */
 const stubOpen = (on: any, opened: { id: string; title?: string }[] = []) => {

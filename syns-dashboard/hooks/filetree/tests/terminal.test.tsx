@@ -72,7 +72,7 @@ const pane = (bodyColumns: number, isFocused = false) => ({ component: 'Pane', r
 
 /** `/filetree` as the person types it: the dashboard's pane on Files. */
 async function files($: any, clock: any) {
-  await $.command.run({ command: 'filetree', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  await $.command.run({ command: 'syn-filetree', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
 }
 

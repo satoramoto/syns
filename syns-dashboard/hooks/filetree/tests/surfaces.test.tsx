@@ -491,7 +491,7 @@ test('/filetree opens the dashboard on Files with no layout checks, pins a folde
   await $.session.start({ cwd: root, surface: 'terminal', isInteractive: true })
   await clock.settle()
   // Not fullscreen and narrow: the dashboard's pane opens anyway, on Files.
-  const r = await $.command.run({ command: 'filetree', args: '', origin: { kind: 'person' }, presentation: { isFullscreen: false, columns: 80 } } as any)
+  const r = await $.command.run({ command: 'syn-filetree', args: '', origin: { kind: 'person' }, presentation: { isFullscreen: false, columns: 80 } } as any)
   await clock.settle()
   expect(JSON.stringify(r)).toContain('Files on the cwd')
   expect(opens.at(-1)).toMatchObject({ id: PANE, title: 'syn' })
@@ -514,7 +514,7 @@ test('/filetree opens the dashboard on Files with no layout checks, pins a folde
 })
 
 const shimmer = (name: string, tone: string) => `"t":${JSON.stringify(name)},"sh":"${tone}"`
-const fullscreen = (args: string) => ({ command: 'filetree', args, origin: { kind: 'person' }, presentation: { isFullscreen: true, columns: 200 } }) as any
+const fullscreen = (args: string) => ({ command: 'syn-filetree', args, origin: { kind: 'person' }, presentation: { isFullscreen: true, columns: 200 } }) as any
 
 test('after /clear the tree rebuilds itself, keeps a pinned folder, and an empty root never loops', { timeoutMs: 20_000 }, async ($, on) => {
   const ran: Ran = []

@@ -109,7 +109,7 @@ const engine = (on: On, issues: Gh | (() => Gh | Promise<Gh>) = { exitCode: 0, s
 
 /** `/issues` as the person types it; it settles once gh was read into state. */
 const open = ($: Engine) =>
-  $.command.run({ command: 'issues', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  $.command.run({ command: 'syn-issues', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 /** A first read held open: `/issues` draws the tab while gh runs; `done()` answers it and settles the command. */
 const holdFirstRead = async ($: Engine, on: On) => {

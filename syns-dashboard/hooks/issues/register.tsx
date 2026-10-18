@@ -240,7 +240,7 @@ const drawn = ($: EngineInterface) => {
  * reads gh only then. Returns its slash command, for the dashboard to register.
  */
 export const attach = (on: Parameters<Register>[0], _options: Parameters<Register>[1], pane: string): void => {
-  on('command.run', { command: 'issues' }, async $ => {
+  on('command.run', { command: 'syn-issues' }, async $ => {
     // Opened by the person on this tab: read now rather than on the next tick.
     // The pane is open (drawing "Reading issues…") while gh runs; awaited, so
     // the command settles with the list in state.
@@ -314,4 +314,4 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
 }
 
 /** `/issues`: the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'issues', description: "Open the dashboard's Issues tab: the open GitHub issues of this session's repository" }]
+export const COMMANDS: Command[] = [{ name: 'syn-issues', description: "Open the dashboard's Issues tab: the open GitHub issues of this session's repository" }]

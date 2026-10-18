@@ -178,7 +178,7 @@ const engine = (on: On, opts: { crash?: string; hang?: string; launch?: { versio
 }
 
 const launcher = ($: Engine, args = '') =>
-  $.command.run({ command: 'launcher', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  $.command.run({ command: 'syn-launcher', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 test('a session start registers /launcher and /preview, and reads no ports until the tab is shown', async ($, on) => {
   const world = engine(on)

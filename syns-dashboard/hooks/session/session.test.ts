@@ -155,7 +155,7 @@ const engine = (on: On, runs?: string[]) => {
 
 /** `/overview` as the person types it: the pane on the Session tab, the usage read. */
 const overview = ($: Engine) =>
-  $.command.run({ command: 'overview', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  $.command.run({ command: 'syn-overview', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 /** Opens the tab with /overview, which reads everything again on the next tick, and lets that tick run. */
 const reopen = async ($: Engine, clock: { advance: (ms: number) => Promise<void> }) => {

@@ -784,7 +784,7 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
   }).catch(($, e, next) => next(e))
 
   // `/overview`: the dashboard on this tab, everything read again now.
-  on('command.run', { command: 'overview' }, async $ => {
+  on('command.run', { command: 'syn-overview' }, async $ => {
     readAll()
     await update($, tab, () => MINE)
     await $.ui.open({ id: PANE, title: TITLE })
@@ -850,4 +850,4 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
 }
 
 /** `/overview`: the dashboard registers it as the session starts. */
-export const COMMANDS: Command[] = [{ name: 'overview', description: 'Open the syn dashboard on its Session tab: context, limits, cost, turns, tools, git and the machine' }]
+export const COMMANDS: Command[] = [{ name: 'syn-overview', description: 'Open the syn dashboard on its Session tab: context, limits, cost, turns, tools, git and the machine' }]
