@@ -231,8 +231,8 @@ export const renderAnalysis = (els: AnalysisEls, surface: RenderSurface, columns
       })
     : null
 
-  // ---- Topics: share of all topics' total, and lifespan ----
-  const topMax = Math.max(1e-9, ...v.topics.map(t => t.share))
+  // ---- Topics: its total (already a fraction in focus.json) as a percent, and lifespan ----
+  const topMax = Math.max(1e-9, ...v.topics.map(t => t.total))
   const topicPage = paged('topics', v.topics)
   const topics = v.topics.length
     ? k.collapsibleList({
@@ -247,9 +247,9 @@ export const renderAnalysis = (els: AnalysisEls, surface: RenderSurface, columns
             meta: t.first || t.last ? [t.first === t.last ? day(t.first) : `${day(t.first)} → ${day(t.last)}`] : undefined,
             right: [
               <Box key={`topic-${t.id}-gauge`} width={terminal ? 6 : 4} flexShrink={0} flexDirection="row" alignItems="center">
-                {k.gauge(t.share, topMax, INK, terminal ? { width: 6 } : {})}
+                {k.gauge(t.total, topMax, INK, terminal ? { width: 6 } : {})}
               </Box>,
-              pct(t.share),
+              pct(t.total),
             ],
           }),
         ), topicPage.nav],
