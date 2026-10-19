@@ -194,3 +194,7 @@ From upstream [`569c528`](https://github.com/anthropics/claude-code-playground/t
   `blastColumns` state; the kit comes from the dashboard's `kit/`. The tests
   load the whole dashboard plugin. The "Run it" steps below are upstream's: here
   it comes with the dashboard.
+- `/private/tmp` (and `/tmp`, its macOS alias) is outside the blast radius: an
+  `rm -r`/`-f` whose every target resolves under it, by an absolute path or
+  after a `cd` to an absolute folder there, runs unheld. A relative target with
+  no `cd`, a `~` path or a `..` segment is still held.

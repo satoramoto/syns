@@ -5,7 +5,9 @@
 // register.tsx and typed for TypeScript; the drawing moved to view.tsx, which
 // keeps upstream's terminal drawing and adds a desktop one, with the kit's
 // column view switch kept in the mod's state (`columns`). The holding,
-// classifying and measuring logic is upstream's, unchanged.
+// classifying and measuring logic is upstream's, with one change: an rm whose
+// targets all sit under /private/tmp (or /tmp) is outside the blast radius and
+// runs unheld (`SCRATCH_ROOTS`, `allScratch`).
 //
 // Modified again when it moved into syns' dashboard plugin (2026): `register`
 // became `attach`, called by the dashboard's register before its own hooks;
@@ -183,6 +185,29 @@ function joinDir(dir: string | null, arg: string | undefined): string {
   return dir ? `${dir}/${arg}` : arg;
 }
 
+// Folders outside the blast radius: scratch the system throws away. An rm whose
+// every target resolves under one of them runs unheld. /tmp is /private/tmp on
+// macOS; both spellings count.
+const SCRATCH_ROOTS = ["/private/tmp", "/tmp"];
+
+/** True when every rm target is inside a scratch root (see SCRATCH_ROOTS). */
+function allScratch(targets: string[], dir: string | null): boolean {
+  if (targets.length === 0) {
+    return false;
+  }
+  return targets.every((t) => {
+    const path = t.startsWith("/") ? t : dir && dir.startsWith("/") ? `${dir}/${t}` : null;
+    if (path === null) {
+      return false; // relative to the session folder, or ~: not known to be scratch
+    }
+    const clean = path.replace(/\/+/g, "/");
+    if (clean.split("/").includes("..")) {
+      return false; // a .. could climb out of the scratch root
+    }
+    return SCRATCH_ROOTS.some((root) => clean === root || clean.startsWith(`${root}/`));
+  });
+}
+
 /** The first risky segment of a shell command, or null. */
 function classify(command: string): Risk | null {
   let dir: string | null = null; // where a `cd` earlier on the line moved to; null means the session folder
@@ -261,6 +286,9 @@ function classifySegment(segment: string, dir: string | null, pushed: (string | 
       const force = flags.some((f) => f === "--force" || (/^-[^-]/.test(f) && f.includes("f")));
       if (recursive || force) {
         const targets = args.filter((a) => !a.startsWith("-") || a === "-");
+        if (allScratch(targets, dir)) {
+          return null; // scratch under /private/tmp: outside the blast radius
+        }
         return { kind: "rm", label: `rm ${flags.join(" ")}`.trim(), targets, dir };
       }
     }
