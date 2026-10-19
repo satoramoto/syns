@@ -1,7 +1,7 @@
 import type { Elements, RenderElement, RenderSurface } from 'claude-code'
 
 import { ago } from '../../kit/format'
-import { INK } from '../../kit/tokens'
+import { C, INK, STATUS } from '../../kit/tokens'
 import { EDGE, FOLD, MEASURE, SPACE, fold, kit } from '../../kit/ui'
 import type { AnalysisRun, AnalysisSection, AnalysisTerm, AnalysisView } from '../../types'
 import type { Els } from '../view'
@@ -59,7 +59,7 @@ const day = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? d.slice(5) : d)
  * share and lifespan). One section, one term and one bucket unfold at a time.
  */
 export const renderAnalysis = (els: AnalysisEls, surface: RenderSurface, columns: number, rows: number | undefined, d: AnalysisData, act: AnalysisActions, focused?: boolean): RenderElement => {
-  const { Box, Input } = els
+  const { Box, Text, Input } = els
   const terminal = surface === 'terminal'
   const k = kit(els as any, surface, columns, { focused, ...(terminal ? { measure: MEASURE } : {}) })
   const v = d.view
@@ -106,12 +106,26 @@ export const renderAnalysis = (els: AnalysisEls, surface: RenderSurface, columns
       {bucketPress('week')}
     </Box>
   )
+  // An error is one line on every surface: the failed mark in its colour, then the words.
+  // (The kit's error note marks it with an SVG icon on the desktop, which carries no text colour.)
+  const failed = (key: string, text: string) => (
+    <Box key={key} flexDirection="row" gap={terminal ? 1 : SPACE.pair} minWidth={0} alignItems="center">
+      <Box flexShrink={0}>
+        <Text {...k.ink(C.bad)}>{STATUS.failed.glyph}</Text>
+      </Box>
+      <Box flexShrink={1} minWidth={0}>
+        <Text wrap="truncate">{text}</Text>
+      </Box>
+    </Box>
+  )
   const state = d.run.running
     ? k.note('analysis-running', 'running…', 'loading')
     : d.run.error
-      ? k.note('analysis-error', d.run.error, 'error')
+      ? failed('analysis-error', d.run.error)
       : v?.note
-        ? k.note('analysis-note', v.note, v.mtime ? 'error' : 'empty')
+        ? v.mtime
+          ? failed('analysis-note', v.note)
+          : k.note('analysis-note', v.note, 'empty')
         : null
   const heading = k.collapsibleList({
     id: 'analysis',

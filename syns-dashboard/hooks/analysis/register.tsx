@@ -118,26 +118,38 @@ const runOnce = async ($: EngineInterface) => {
   const argv = [await bunOf($), 'analysis/focus.ts', ...(DATE.test(s) ? ['--since', s] : []), '--bucket', b]
   await update($, run, () => ({ running: true, startedAt: Date.now(), error: '' }))
   const proc = $.process.spawn({ argv, cwd: dir })
-  let capped = false
-  const cap = $.clock.after(RUN_CAP, () => {
-    capped = true
-    void proc.return(undefined as never).catch(() => undefined)
+  // The cap races each pull: a child writing nothing leaves its pull pending, and a
+  // `return()` queued behind that pull would never end the loop.
+  let cap: { cancel: () => void } | undefined
+  const capped = new Promise<'capped'>(resolve => {
+    cap = $.clock.after(RUN_CAP, () => resolve('capped'))
   })
   let stderr = ''
   let error = ''
   try {
-    for await (const piece of proc) if (piece.stream === 'stderr') stderr = (stderr + piece.text).slice(-TAIL)
-    const end = await proc.result
-    if (end.code !== 0) {
-      const last = stderr.trim().split('\n').pop() ?? ''
-      error = `focus.ts ${end.signal ? `ended by ${end.signal}` : `exited ${end.code}`}${last ? `: ${last}` : ''}`
+    for (;;) {
+      const step = await Promise.race([proc.next(), capped])
+      if (step === 'capped') {
+        error = `focus.ts timed out after ${RUN_CAP / 1000} s.`
+        // Closing the stream kills the child.
+        void proc.return(undefined as never).catch(() => undefined)
+        break
+      }
+      if (step.done) {
+        const end = step.value
+        if (end.code !== 0) {
+          const last = stderr.trim().split('\n').pop() ?? ''
+          error = `focus.ts ${end.signal ? `ended by ${end.signal}` : `exited ${end.code}`}${last ? `: ${last}` : ''}`
+        }
+        break
+      }
+      if (step.value.stream === 'stderr') stderr = (stderr + step.value.text).slice(-TAIL)
     }
   } catch (e) {
-    error = capped ? `focus.ts stopped after ${RUN_CAP / 1000} s.` : `focus.ts could not run: ${String((e as Error)?.message ?? e).slice(0, 160)}`
+    error = `focus.ts could not run: ${String((e as Error)?.message ?? e).slice(0, 160)}`
   } finally {
-    cap.cancel()
+    cap?.cancel()
   }
-  if (capped && !error) error = `focus.ts stopped after ${RUN_CAP / 1000} s.`
   await update($, run, () => ({ running: false, startedAt: 0, error }))
   await readFocus($, true).catch(() => undefined)
 }
