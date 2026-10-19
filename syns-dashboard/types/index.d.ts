@@ -562,6 +562,9 @@ export type AnalysisView = {
   note?: string
 }
 
+/** The Analysis tab's sections; `none` when the person folded the open one. */
+export type AnalysisSection = 'terms' | 'weeks' | 'topics' | 'none'
+
 /** The Run action's state: running since `startedAt`, or how the last run ended. */
 export type AnalysisRun = { running: boolean; startedAt: number; error: string }
 
@@ -742,8 +745,16 @@ declare module 'claude-code' {
       analysisView: AnalysisView | null
       /** The Run action: running, or the last run's error. */
       analysisRun: AnalysisRun
-      /** Sections folded (`terms`, `weeks`, `topics`, `bucket-<start>`) or terms unfolded (`term-<stem>`), by id. */
+      /**
+       * What's unfolded inside the open section: at most one term (`term-<stem>`, its
+       * neighbours) and one bucket (`bucket-<start>`, its terms). One at a time, so the
+       * drawing stays inside the engine's 100,000-character bound on a tree.
+       */
       analysisFolds: string[]
+      /** The one section unfolded (Terms by default), or none: one at a time, for the same bound. */
+      analysisSection: AnalysisSection
+      /** The open section's page (ANALYSIS_PAGE rows a page), from 0; back to 0 when another section opens. */
+      analysisPage: number
       /** The next run's `--since` (`YYYY-MM-DD`); null takes the file's. */
       analysisSince: string | null
       /** The next run's `--bucket`; null takes the file's. */

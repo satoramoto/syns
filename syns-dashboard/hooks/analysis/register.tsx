@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { holdButtons } from '../../kit/ui'
-import type { AnalysisRun, DashTab } from '../../types'
+import type { AnalysisRun, AnalysisSection, DashTab } from '../../types'
 import { type Command, TITLE, shownTab } from '../tabs'
 import { noteView, toView } from './read'
 import { renderAnalysis } from './view'
@@ -13,6 +13,8 @@ const run = atom({ plugin: 'syns-dashboard', key: 'analysisRun' } as const, { ru
 const folds = atom({ plugin: 'syns-dashboard', key: 'analysisFolds' } as const, [] as string[])
 const since = atom({ plugin: 'syns-dashboard', key: 'analysisSince' } as const, null as string | null)
 const bucket = atom({ plugin: 'syns-dashboard', key: 'analysisBucket' } as const, null as 'day' | 'week' | null)
+const section = atom({ plugin: 'syns-dashboard', key: 'analysisSection' } as const, 'terms' as AnalysisSection)
+const page = atom({ plugin: 'syns-dashboard', key: 'analysisPage' } as const, 0)
 /** The dashboard's tab shown; `/syn-analysis` writes it to open the pane on this tab. */
 const tab = atom({ plugin: 'syns-dashboard', key: 'tab' } as const, 'overview' as DashTab)
 const isShown = () => shownTab() === 'analysis'
@@ -181,6 +183,8 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
       view: v,
       run: r,
       folds: await read($, folds),
+      section: await read($, section),
+      page: await read($, page),
       since: (await read($, since)) ?? v?.since ?? '',
       bucket: (await read($, bucket)) ?? (v?.bucket === 'day' ? ('day' as const) : ('week' as const)),
       now: await $.clock.now(),
@@ -191,7 +195,17 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
       if ((await read($, run)).error) await update($, run, was => ({ ...was, error: '' }))
     }
     return renderAnalysis(els, e.surface, e.props.bodyColumns, rows, data, {
-      toggle: id => void update($, folds, f => (f.includes(id) ? f.filter(x => x !== id) : [...f, id])).catch(() => undefined),
+      // One term and one bucket unfolded at a time: opening one folds the other of its kind.
+      toggle: id => {
+        const kind = id.slice(0, id.indexOf('-') + 1)
+        void update($, folds, f => (f.includes(id) ? f.filter(x => x !== id) : [...f.filter(x => !x.startsWith(kind)), id])).catch(() => undefined)
+      },
+      section: id =>
+        void (async () => {
+          await update($, section, was => (was === id ? 'none' : id))
+          await update($, page, () => 0)
+        })().catch(() => undefined),
+      page: n => void update($, page, () => Math.max(0, n)).catch(() => undefined),
       run: () => void runFocus($).catch(() => undefined),
       // The page opens in the desktop's own apps; the terminal may be a remote shell.
       ...(e.surface === 'desktop' ? { open: () => void openPage($).catch(() => undefined) } : {}),
