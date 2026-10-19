@@ -21,11 +21,10 @@
 // The same transcripts give byte-identical output on the same machine (the
 // buckets follow its time zone).
 
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { HOME, cleanClaude, mtime, repoOf, sortedDir, walk } from './transcripts'
 
-const HOME = homedir()
 const OUT_DIR = join(HOME, '.syns', 'files', 'focus')
 const EXPORTS_DIR = join(HOME, '.syns', 'files', 'exports')
 
@@ -85,48 +84,6 @@ type Harness = string
 /** `source`: a Codex thread's `thread_source` (`user`, `agent_created_thread`, ...); empty elsewhere. */
 type Prompt = { at: number; harness: Harness; source: string; repo: string; session: string; text: string }
 
-/** Every `.jsonl` (or other `suffix`) file under `dir`, in sorted path order. */
-const walk = (dir: string, suffix: string, out: string[] = []): string[] => {
-  let entries: { name: string; dir: boolean }[]
-  try {
-    entries = readdirSync(dir, { withFileTypes: true }).map(e => ({ name: e.name, dir: e.isDirectory() }))
-  } catch {
-    return out
-  }
-  for (const e of entries.sort((a, b) => cmp(a.name, b.name))) {
-    const path = join(dir, e.name)
-    if (e.dir) walk(path, suffix, out)
-    else if (e.name.endsWith(suffix)) out.push(path)
-  }
-  return out
-}
-
-const sortedDir = (dir: string): string[] => {
-  try {
-    return readdirSync(dir).sort()
-  } catch {
-    return []
-  }
-}
-
-const mtime = (path: string): number => {
-  try {
-    const s = statSync(path)
-    return s.isFile() ? s.mtimeMs : -1
-  } catch {
-    return -1
-  }
-}
-
-/** `owner/name` for a cwd under `~/Code/`, `codex desktop` for Codex Desktop's folders, else its last two segments (as the Tasks tab names them). */
-const repoOf = (cwd: string): string => {
-  if (!cwd) return '(unknown)'
-  if (cwd.startsWith(`${HOME}/Documents/Codex/`)) return 'codex desktop'
-  const inCode = cwd.startsWith(`${HOME}/Code/`)
-  const parts = (inCode ? cwd.slice(HOME.length + 6) : cwd).split('/').filter(Boolean)
-  return (inCode ? parts.slice(0, 2) : parts.slice(-2)).join('/') || cwd
-}
-
 /** Each line of `text` containing `mark`, once per line. */
 function* linesWith(text: string, mark: string): Generator<{ line: string; after: number }> {
   let at = 0
@@ -140,23 +97,6 @@ function* linesWith(text: string, mark: string): Generator<{ line: string; after
 }
 
 const CLAUDE_MARK = '"role":"user","content":'
-
-/** The person's words in a Claude prompt: a slash command's name and arguments kept, the app's tagged blocks left out. */
-const cleanClaude = (raw: string): string => {
-  // An artifact comment arrives wrapped in the app's instructions; the person's words are the quoted lines.
-  if (raw.startsWith('[Artifact comment sent to Claude]')) {
-    const quote = /=== BEGIN ARTIFACT COMMENT \w+ ===\n([\s\S]*?)\n=== END ARTIFACT COMMENT/.exec(raw)?.[1] ?? ''
-    return quote.replace(/^> ?/gm, '').trim()
-  }
-  if (/^(Another Claude session sent a message:|\[Subagent )/.test(raw)) return ''
-  const command = /<command-name>\s*(\/[^<\s]+)\s*<\/command-name>/.exec(raw)?.[1] ?? ''
-  const text = raw
-    .replace(/<command-args>([\s\S]*?)<\/command-args>/g, ' $1 ')
-    .replace(/<([a-zA-Z][\w-]*)\b[^>]*>[\s\S]*?<\/\1>/g, ' ')
-    .replace(/<\/?[a-zA-Z][\w-]*\b[^>]*>/g, ' ')
-    .trim()
-  return `${command} ${text}`.trim()
-}
 
 const readClaude = (since: number, out: Prompt[]) => {
   const root = join(HOME, '.claude', 'projects')
