@@ -102,6 +102,8 @@ function world(on: any, w: World, ran: Ran) {
     if (argv[0] === 'uname') return ok(w.os === 'darwin' ? 'Darwin\n' : 'Linux\n')
     if (argv[0] === 'sh') return ok('missing\n')
     if (argv[0] === 'git') {
+      // Blast Radius dry-runs `git clean`; it would remove the one untracked file (a clean with nothing to remove is refused, not held).
+      if (argv[1] === 'clean' && argv.includes('-n')) return ok('Would remove gone.txt\n')
       const verb = argv.slice(4).find(a => !a.startsWith('-'))
       if (verb === 'rev-parse' && argv.at(-1) === 'HEAD') return ok(`${(w.heads && w.heads.length > 1 ? w.heads.shift() : w.heads?.[0]) ?? ''}\n`)
       if (verb === 'rev-parse') return w.top ? ok(`\n${w.top}\n`) : { value: { exitCode: 128, stdout: '', stderr: 'not a git repository', isStdoutTruncated: false, isStderrTruncated: false } }
