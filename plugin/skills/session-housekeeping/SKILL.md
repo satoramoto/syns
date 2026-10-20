@@ -42,6 +42,23 @@ Under 60 characters, by role:
 - A lead that starts a task appends the new session id to its pod's
   `sessions`.
 
+## 2a. Who starts what (the nesting rule)
+
+Sessions nest under the session that started them (the app's
+`parentSessionId`), and a nested session moves with its parent in the
+sidebar, so where a session is started decides where it lives:
+
+- The top session (the `syn` lead) talks to leads only. It starts leads, and
+  never a pod's task.
+- A lead starts only its own pod's tasks. Work for another pod, whatever
+  door it came through (an inbox answer, a report, a request), goes to that
+  pod's lead by SendMessage; the lead starts the task, so it nests under its
+  own lead and reports back to it.
+- A task starts no sessions; its parallel pieces are agents inside it.
+
+A session started in the wrong place cannot be re-parented: its starter
+hands its report to the right lead when it lands, closes it, and says so.
+
 ## 3. Find the pod's group
 
 `mcp__ccd_sidebar__list_groups`, then match by name, exactly the pod's id

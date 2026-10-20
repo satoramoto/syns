@@ -38,6 +38,12 @@ syn: the smallest version of the approval loop.
      `{ choice, note?, at }`, then move it from `inbox` to `answered`;
    - an approval (`reversible: false`) means the action may now happen, so do
      it, or hand it to an assistant.
+   - an item whose `pod` is not this session's pod is applied by that pod's
+     lead: send it the answer (SendMessage to the lead's session id, from
+     brain.json `pods[].lead`) and let the lead do or start the work, so any
+     task session nests under its own lead. Never start another pod's task
+     from here; if the pod has no lead, say so in the closing line and leave
+     the item answered but unapplied.
    - an approval with an `epic` field (or, failing that, whose `applies`
      names an epic's `epic.json`) is applied by the `epic-decision` skill
      (door `inbox`): the epic's `status` and `decisions`, the ledger line,
