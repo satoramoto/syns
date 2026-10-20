@@ -68,6 +68,28 @@ When a job reports done, the session records its proofs: each outcome it
 settles gets the artifact appended to `proofs`, its `status` set to `proven`
 (or `refuted`), and one `outcome.status` ledger line.
 
+## The blueprint
+
+The Plan phase's one artifact: `~/.syns/epics/<id>/blueprint.md`, sealed by
+Ryan's "do it", handed to the next phase once, never edited after. Its
+author is unavailable to that phase; a question from it is a new intent and
+a new blueprint. Four parts, in this order and no others:
+
+| Part | Holds |
+| --- | --- |
+| Intent | Ryan's words verbatim, dated; then the named perspectives |
+| Action | sentences, each naming the Intent fragment it serves and the check that calls its materialization true or false; no technique, stack or agent the intent did not name; an interface's form shown once, minimally |
+| Ambiguities | one row per term a perspective read two ways: anchors with their distances, the resolution, the decider (the proposer with Ryan's veto when reversible, else Ryan) |
+| Decision | do it, change this, or no; by whom, when |
+
+Ambiguity is measured, not judged: each named perspective reads the draft
+and returns its two-way terms and its questions; the blueprint is ready to
+seal when a full set of readings returns none. `outcomes` in `epic.json`
+mirror Action (`text` the sentence, `proof` its check). After
+materialization, each difference between the artifact and the Intent is
+matched to a row of Ambiguities or to Decision; an unmatched difference is
+drift, and its term goes into the lexicon so the next readings catch it.
+
 ## Lifecycle
 
 `draft` → `review` → `approved` | `rejected`; then `approved` → `active` →
@@ -77,10 +99,12 @@ one ledger line.
 
 ## Commands
 
-- `/syn:propose <ask>`: a developer agent explores two or three approaches,
-  writes the folder (proof plan first, then jobs), raises its questions and
-  one approval (not reversible, blocks M1) in the inbox, and sets `review`.
-  It never reviews.
+- `/syn:propose <intent>`: turns an intent into a sealed blueprint through
+  seven moves (intent, perspectives, draft, readings, alignment,
+  convergence, decision and seal; see "The blueprint"), raises its
+  ambiguities as questions and one approval (not reversible) in the inbox,
+  mirrors the blueprint's Action into `outcomes`, and sets `review`. It
+  never reviews.
 - `/syn:review <id>`: optional. One reviewer agent lists real gaps; the ones
   Ryan confirms become inbox questions. Never changes `status`.
 - `/syn:inbox`: answering an epic's approval sets its `status` (Approve →
