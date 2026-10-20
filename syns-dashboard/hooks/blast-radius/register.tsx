@@ -93,21 +93,30 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
     let opened = { isPlaced: false };
     let decision: string | null;
     let summary = risk.label;
+    let nothing: string | null = null; // why the command would change nothing, when it would
     try {
       // Measure where the command will run: the session folder, moved by any
       // `cd dir &&` or `git -C dir` earlier in the same command line.
       const sessionCwd = await $.session.cwd();
       const cwd = risk.dir ? await resolveDir($, sessionCwd, risk.dir) : sessionCwd;
-      mine.report = cwd === null
+      const report: Report = cwd === null
         ? { summary: `${risk.label} in ${risk.dir}`, lines: [], note: `Couldn't find the folder ${risk.dir}, so I couldn't measure what this would change.` }
         : await measure($, risk, cwd);
-      summary = mine.report.summary;
-
-      opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(mine.report) });
-      if (!opened.isPlaced) {
-        mine.where = "band";
+      summary = report.summary;
+      if (report.nothing !== undefined) {
+        // A no-op (an rm whose paths don't exist, say) usually means a wrong
+        // path: refuse it at once, with why, rather than ask or let it run
+        // and have the model believe it changed something. Nothing is drawn.
+        nothing = report.nothing;
+        mine.decision = "nothing";
+      } else {
+        mine.report = report;
+        opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(report) });
+        if (!opened.isPlaced) {
+          mine.where = "band";
+        }
+        $.ui.invalidate("ui.render");
       }
-      $.ui.invalidate("ui.render");
 
       const startedAt = await $.clock.now();
       while (mine.decision === null) {
@@ -143,6 +152,9 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
     if (decision === "proceed") {
       $.ui.toast("Blast Radius: running it");
       return next(e);
+    }
+    if (decision === "nothing") {
+      return { deny: `Blast Radius did not run this command: ${nothing}. Do not retry it unless the user asks you to.` };
     }
     const why = ({
       cancel: "the user pressed Cancel",
@@ -413,10 +425,11 @@ async function measureRm($: $, risk: any, cwd: string): Promise<Report> {
   const [head, ...rest] = run.stdout.split("\n").filter((l) => l !== "");
   const [files, bytes, found] = (head ?? "0 0 0").split(" ").map(Number);
   if (!found) {
-    return { summary: `delete nothing: no file matches ${risk.targets.join(" ")}`, lines: [], note: "The paths don't exist, so rm has nothing to remove." };
+    return { summary: `delete nothing: no file matches ${risk.targets.join(" ")}`, lines: [], nothing: "none of its paths exist, so there is nothing to delete" };
   }
   if (!files) {
-    return { summary: `delete ${found} ${found === 1 ? "path" : "paths"} with no files in ${found === 1 ? "it" : "them"}`, lines: [], note: `Paths: ${risk.targets.join(" ")}` };
+    // The paths exist but hold no files: only empty directories go.
+    return { summary: `remove ${found} empty ${found === 1 ? "directory" : "directories"}`, lines: [], note: `Paths: ${risk.targets.join(" ")}` };
   }
   return {
     summary: `delete ${files} ${files === 1 ? "file" : "files"} (about ${size(bytes as number)})`,
@@ -458,6 +471,9 @@ async function measureGit($: $, risk: any, cwd: string): Promise<Report> {
       return { summary: "git clean (could not dry-run it)", lines: [], note: run.stderr.trim().slice(0, 200) };
     }
     const gone = run.stdout.split("\n").filter((l) => l.startsWith("Would remove ")).map((l) => l.slice(13));
+    if (gone.length === 0) {
+      return { summary: "remove nothing: no untracked files match", lines: [], nothing: "no untracked files match, so git clean would remove nothing" };
+    }
     return {
       summary: gone.length === 0 ? "remove nothing: no untracked files match" : `remove ${gone.length} untracked ${gone.length === 1 ? "path" : "paths"}`,
       lines: gone.slice(0, LIST_MAX),
@@ -472,6 +488,9 @@ async function measureGit($: $, risk: any, cwd: string): Promise<Report> {
   const rows = status.stdout.split("\n").filter((l) => l.length > 3 && !l.startsWith("??"));
   // reset --hard drops staged and unstaged changes; checkout -- . drops unstaged ones.
   const lost = risk.kind === "git-reset" ? rows : rows.filter((l) => l[1] !== " ");
+  if (risk.kind === "git-reset" && lost.length === 0) {
+    return { summary: "discard nothing: no uncommitted changes", lines: [], nothing: "there are no uncommitted changes, so git reset --hard would discard nothing" };
+  }
   const stat = await $.process.run(["git", "diff", "--shortstat", risk.kind === "git-reset" ? "HEAD" : "--"], { cwd, timeoutMs: 15000 });
   return {
     summary: lost.length === 0 ? "discard nothing: no uncommitted changes" : `discard uncommitted changes in ${lost.length} ${lost.length === 1 ? "file" : "files"}`,

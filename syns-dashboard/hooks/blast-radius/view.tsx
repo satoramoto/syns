@@ -25,8 +25,13 @@ export type Risk = {
   tool?: string
 }
 
-/** What the command would change, as measured: { summary, lines, more, note }. */
-export type Report = { summary: string; lines: string[]; more?: number; note?: string }
+/**
+ * What the command would change, as measured: { summary, lines, more, note }.
+ * `nothing` is set when the command would change nothing at all (an rm of paths
+ * that don't exist): why, in a sentence. Such a command is denied at once, not
+ * held, so the report is never drawn.
+ */
+export type Report = { summary: string; lines: string[]; more?: number; note?: string; nothing?: string }
 
 /** The call being held, which the buttons answer. */
 export type Held = {

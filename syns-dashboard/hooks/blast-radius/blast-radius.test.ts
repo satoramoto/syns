@@ -67,9 +67,9 @@ const drive = async <T,>(clock: MockClock, work: Promise<T>): Promise<T> => {
   return settled
 }
 
-/** Holds `rm -rf build`, then draws the component once the mod measured it and opened its pane. */
-const hold = async ($: Engine, clock: MockClock, surface: 'terminal' | 'desktop', where: { component: string; props: object } = PANE) => {
-  const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any) as Promise<any>
+/** Holds `rm -rf build` (or `command`), then draws the component once the mod measured it and opened its pane. */
+const hold = async ($: Engine, clock: MockClock, surface: 'terminal' | 'desktop', where: { component: string; props: object } = PANE, command = 'rm -rf build') => {
+  const call = $.tool.call({ tool: 'Bash', command } as any) as Promise<any>
   await clock.settle()
   const ui = await drive(clock, $.ui.mount({ plugin: PLUGIN, surface, ...where } as any))
   return { call, ui: ui as any }
@@ -148,11 +148,11 @@ test('in a narrow terminal band, the report still fits: the command keeps the he
 })
 
 test('in a narrow terminal band, a long note breaks between words onto a second line instead of being cut at the first', async ($, on) => {
-  // Nothing matches, so the note says why rm has nothing to remove: 51 cells, in 26.
-  const clock = engine(on, false, '0 0 0')
-  const { call, ui } = await hold($, clock, 'terminal', { ...BAND, props: { ...BAND.props, bodyColumns: 30 } })
-  expect(await ui.find({ type: 'Text', text: "The paths don't exist, so" })).toBeDefined()
-  expect((await ui.find({ type: 'Text', text: 'rm has nothing to remove.' }))?.props).toMatchObject({ wrap: 'truncate', dimColor: true })
+  // The `cd` folder can't be found (the resolving script prints nothing), so the note says why it couldn't measure: 79 cells, in 26.
+  const clock = engine(on, false, '')
+  const { call, ui } = await hold($, clock, 'terminal', { ...BAND, props: { ...BAND.props, bodyColumns: 30 } }, 'cd nowhere && rm -rf build')
+  expect(await ui.find({ type: 'Text', text: "Couldn't find the folder" })).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /^nowhere, so I couldn't measure/ }))?.props).toMatchObject({ wrap: 'truncate', dimColor: true })
   await drive(clock, ui.press({ key: 'cancel' }))
   await drive(clock, call)
   await ui.unmount()
