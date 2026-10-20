@@ -46,6 +46,19 @@ const POLL_SECONDS = "0.25";
 const HOLD_LIMIT_MS = 10 * 60 * 1000;
 const LIST_MAX = 10;
 
+// ---- Where an rm may go, and where it never may ----------------------------
+// Scratch the system throws away (/tmp is /private/tmp on macOS; both spellings
+// count): an rm whose every target is under one runs unheld (see `allScratch`),
+// and an empty directory under one goes without asking.
+const SCRATCH_ROOTS = ["/private/tmp", "/tmp"];
+// Where the repos live, under $HOME: ~/Code/<org>/<repo>.
+const CODE_ROOT = "Code";
+// How deep under ~/Code a repository root sits (~/Code/<org>/<repo> is 2).
+// ~/Code itself and every path down to this depth is never deleted, approval
+// or not; deeper paths (worktrees, build output) are our own, and an empty
+// one goes without asking.
+const REPO_DEPTH = 2;
+
 // The call being held, or null. One at a time: Bash calls in a turn run in order.
 let held: Held | null = null;
 
@@ -87,35 +100,48 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
       }
       await $.process.run(["sleep", POLL_SECONDS], { timeoutMs: 5000 });
     }
-    const mine: Held = { command: String((e as any).command), risk, report: null, decision: null, where: "pane" };
+    // The Bash call's description is the model's own account of why: shown under the command.
+    const intent = String((e as any).description ?? "").trim();
+    const mine: Held = { command: String((e as any).command), why: intent || undefined, risk, report: null, decision: null, where: "pane" };
     held = mine;
 
     let opened = { isPlaced: false };
     let decision: string | null;
     let summary = risk.label;
-    let nothing: string | null = null; // why the command would change nothing, when it would
+    let refused: string | null = null; // why the command was refused without a hold, when it was
     try {
       // Measure where the command will run: the session folder, moved by any
       // `cd dir &&` or `git -C dir` earlier in the same command line.
       const sessionCwd = await $.session.cwd();
       const cwd = risk.dir ? await resolveDir($, sessionCwd, risk.dir) : sessionCwd;
-      const report: Report = cwd === null
-        ? { summary: `${risk.label} in ${risk.dir}`, lines: [], note: `Couldn't find the folder ${risk.dir}, so I couldn't measure what this would change.` }
-        : await measure($, risk, cwd);
-      summary = report.summary;
-      if (report.nothing !== undefined) {
-        // A no-op (an rm whose paths don't exist, say) usually means a wrong
-        // path: refuse it at once, with why, rather than ask or let it run
-        // and have the model believe it changed something. Nothing is drawn.
-        nothing = report.nothing;
-        mine.decision = "nothing";
+      // An rm's targets are placed first (a repository root? our own empty
+      // directories?), right before the call would run: nothing is measured
+      // or drawn for one that is refused or goes through on its own.
+      const place = risk.kind === "rm" && cwd !== null ? await placeRm($, risk, cwd) : {};
+      if (place.protected !== undefined) {
+        refused = `${place.protected} is a repository root under ~/${CODE_ROOT}, and Blast Radius never deletes those`;
+        mine.decision = "refused";
+      } else if (place.unasked) {
+        mine.decision = "unasked";
       } else {
-        mine.report = report;
-        opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(report) });
-        if (!opened.isPlaced) {
-          mine.where = "band";
+        const report: Report = cwd === null
+          ? { summary: `${risk.label} in ${risk.dir}`, lines: [], note: `Couldn't find the folder ${risk.dir}, so I couldn't measure what this would change.` }
+          : await measure($, risk, cwd);
+        summary = report.summary;
+        if (report.nothing !== undefined) {
+          // A no-op (an rm whose paths don't exist, say) usually means a wrong
+          // path: refuse it at once, with why, rather than ask or let it run
+          // and have the model believe it changed something. Nothing is drawn.
+          refused = report.nothing;
+          mine.decision = "refused";
+        } else {
+          mine.report = report;
+          opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(mine) });
+          if (!opened.isPlaced) {
+            mine.where = "band";
+          }
+          $.ui.invalidate("ui.render");
         }
-        $.ui.invalidate("ui.render");
       }
 
       const startedAt = await $.clock.now();
@@ -153,8 +179,11 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
       $.ui.toast("Blast Radius: running it");
       return next(e);
     }
-    if (decision === "nothing") {
-      return { deny: `Blast Radius did not run this command: ${nothing}. Do not retry it unless the user asks you to.` };
+    if (decision === "unasked") {
+      return next(e); // empty directories of our own: nothing to lose, nothing to say
+    }
+    if (decision === "refused") {
+      return { deny: `Blast Radius did not run this command: ${refused}. Do not retry it unless the user asks you to.` };
     }
     const why = ({
       cancel: "the user pressed Cancel",
@@ -196,11 +225,6 @@ function joinDir(dir: string | null, arg: string | undefined): string {
   }
   return dir ? `${dir}/${arg}` : arg;
 }
-
-// Folders outside the blast radius: scratch the system throws away. An rm whose
-// every target resolves under one of them runs unheld. /tmp is /private/tmp on
-// macOS; both spellings count.
-const SCRATCH_ROOTS = ["/private/tmp", "/tmp"];
 
 /** True when every rm target is inside a scratch root (see SCRATCH_ROOTS). */
 function allScratch(targets: string[], dir: string | null): boolean {
@@ -417,6 +441,83 @@ echo "$files $(( \${kb:-0} * 1024 )) \${#paths[@]}"
 find "\${paths[@]}" \\( -type f -o -type l \\) 2>/dev/null | head -n ${LIST_MAX}
 `;
 
+// ---- Placing an rm's targets ------------------------------------------------
+
+/** One existing rm target: what it is, whether it is a directory with no entries at all, and its real path. */
+type Target = { kind: "dir" | "file" | "link"; empty: boolean; real: string };
+
+// Each existing target (globs and ~ expanded, as in RM_SCRIPT) as one line:
+// kind, 1 if an empty directory (dotfiles count as entries), then its real
+// path (symlinks and .. resolved). Missing paths print nothing.
+const INSPECT_SCRIPT = `
+shopt -s nullglob dotglob
+for p in "$@"; do
+  case "$p" in "~"|"~/"*) p="$HOME\${p#\\~}";; esac
+  ms=("$p")
+  if [[ "$p" == *[*?[]* ]]; then ms=(); while IFS= read -r m; do ms+=("$m"); done < <(compgen -G "$p"); fi
+  for m in "\${ms[@]}"; do
+    if [[ -L "$m" ]]; then kind=link; elif [[ -d "$m" ]]; then kind=dir; elif [[ -e "$m" ]]; then kind=file; else continue; fi
+    empty=0; if [[ "$kind" == dir && -z "$(ls -A -- "$m")" ]]; then empty=1; fi
+    real=$(realpath -- "$m" 2>/dev/null) || real="$m"
+    printf '%s %s %s\\n' "$kind" "$empty" "$real"
+  done
+done
+`;
+
+/** How deep `real` sits under `root` (the root itself is 0), or null when it is not under it. */
+function depthUnder(root: string | null, real: string): number | null {
+  if (root === null) {
+    return null;
+  }
+  if (real === root) {
+    return 0;
+  }
+  return real.startsWith(`${root}/`) ? real.slice(root.length + 1).split("/").filter((s) => s !== "").length : null;
+}
+
+/** The real paths git lists as worktrees of the repo at `cwd`; empty when it is no repo. */
+async function listWorktrees($: $, cwd: string): Promise<Set<string>> {
+  const run = await $.process.run(["git", "worktree", "list", "--porcelain"], { cwd, timeoutMs: 10000 });
+  if (run.exitCode !== 0) {
+    return new Set();
+  }
+  return new Set(run.stdout.split("\n").filter((l) => l.startsWith("worktree ")).map((l) => l.slice(9)));
+}
+
+/**
+ * Where an rm's targets sit, checked right before the call would run:
+ * `protected` names a repository root among them (~/Code, ~/Code/<org> or
+ * ~/Code/<org>/<repo>, by real path), which is never deleted; `unasked` is
+ * true when every target is a directory with no entries at all under a
+ * scratch root or deeper than a repository root under ~/Code, or one git
+ * lists as a worktree: those go without asking. Anything else is held.
+ */
+async function placeRm($: $, risk: any, cwd: string): Promise<{ protected?: string; unasked?: boolean }> {
+  if (risk.targets.length === 0) {
+    return {};
+  }
+  const home = await $.env.get("HOME");
+  const code = home ? `${home}/${CODE_ROOT}` : null;
+  const run = await $.process.run(["bash", "-c", INSPECT_SCRIPT, "blast-radius-inspect", ...risk.targets], { cwd, timeoutMs: 15000 });
+  const targets: Target[] = run.stdout.split("\n").filter((l) => l !== "").map((l) => {
+    const [kind, empty, ...real] = l.split(" ");
+    return { kind: kind as Target["kind"], empty: empty === "1", real: real.join(" ") };
+  });
+  for (const t of targets) {
+    const depth = depthUnder(code, t.real);
+    if (depth !== null && depth <= REPO_DEPTH) {
+      return { protected: t.real };
+    }
+  }
+  if (targets.length === 0) {
+    return {}; // nothing exists: measureRm says so
+  }
+  const worktrees = await listWorktrees($, cwd);
+  const own = (real: string) =>
+    SCRATCH_ROOTS.some((root) => real.startsWith(`${root}/`)) || (depthUnder(code, real) ?? 0) > REPO_DEPTH || worktrees.has(real);
+  return { unasked: targets.every((t) => t.kind === "dir" && t.empty && own(t.real)) };
+}
+
 async function measureRm($: $, risk: any, cwd: string): Promise<Report> {
   if (risk.targets.length === 0) {
     return { summary: "rm with no paths", lines: [], note: "No paths to expand." };
@@ -581,6 +682,7 @@ function size(bytes: number) {
 
 // The drawing itself is in view.tsx.
 
-function paneRows(report: Report) {
-  return Math.min(24, 9 + report.lines.length + (report.more ? 1 : 0));
+function paneRows(state: Held) {
+  const report = state.report!;
+  return Math.min(24, 9 + report.lines.length + (report.more ? 1 : 0) + (state.why ? 1 : 0));
 }

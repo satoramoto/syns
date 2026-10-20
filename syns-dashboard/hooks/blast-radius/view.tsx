@@ -36,6 +36,8 @@ export type Report = { summary: string; lines: string[]; more?: number; note?: s
 /** The call being held, which the buttons answer. */
 export type Held = {
   command: string
+  /** The Bash call's own description: the model's stated intent, shown under the command when it says more than the command does. */
+  why?: string
   risk: Risk
   report: Report | null
   decision: string | null
@@ -91,9 +93,10 @@ export function renderTerminal(t: any, state: Held, columns = 40, opts: { band?:
   // A note that only lists the command's own paths says nothing the head doesn't.
   const note = report.note && !restates(report.note, state.command) ? report.note : null
   const noteRows = note ? ([...note].length > inner ? 2 : 1) : 0
+  const why = intent(state)
 
-  // Border 2, head 1, blank 1, Would 1, blank 1 above the list, blank 1 and the actions 1: 8 rows besides the list and note.
-  const room = opts.rows ? Math.max(0, Math.floor(opts.rows) - 8 - noteRows) : Infinity
+  // Border 2, head 1, blank 1, Would 1, blank 1 above the list, blank 1 and the actions 1: 8 rows besides the list, the note and the why line.
+  const room = opts.rows ? Math.max(0, Math.floor(opts.rows) - 8 - noteRows - (why ? 1 : 0)) : Infinity
   let shown = report.lines.length
   let more = report.more ?? 0
   if (shown + (more ? 1 : 0) > room) {
@@ -123,6 +126,8 @@ export function renderTerminal(t: any, state: Held, columns = 40, opts: { band?:
     <Box flexDirection="column" width="100%" minWidth={0} borderStyle="round" borderColor={k.ink(C.warn).color} paddingX={1}>
       {/* The command is the head: the one strong thing. Who's asking shows only beside the whole command. */}
       {k.item('head', { lead: 'alert', leadColor: C.warn, text: state.command, bold: true, right: who ? [WHO] : [] })}
+      {/* The model's stated intent, one quiet line under the command: the why beside the what. */}
+      {why ? k.item('why', { text: why, dim: true, indent: 2 }) : null}
       {/* One sentence, `Would delete 8 files`, rather than a label column: it keeps 6 more cells for the summary at 40 columns. */}
       <Box key="sum" flexDirection="row" gap={k.space.pair} minWidth={0} marginTop={k.space.block}>
         <Box flexShrink={0}>
@@ -154,6 +159,9 @@ export function renderTerminal(t: any, state: Held, columns = 40, opts: { band?:
 }
 
 /** Whether a note only lists paths the command already shows (`Paths: build`). */
+/** The call's description, when it says more than the command itself. */
+const intent = (state: Held) => (state.why && state.why !== state.command ? state.why : null)
+
 const restates = (note: string, command: string) => {
   const paths = /^Paths: (.+)$/.exec(note)?.[1]
   return paths !== undefined && paths.split(' ').every(p => command.includes(p))
@@ -264,6 +272,14 @@ export const renderApp = (els: AppElements, state: Held, columns: number, opts: 
           <Text wrap="truncate">{state.command}</Text>
         )}
       </Box>
+      {/* The model's stated intent, one quiet line under the command: the why beside the what. */}
+      {intent(state) ? (
+        <Box key="why" width="100%" minWidth={0} marginTop={SPACE.pair}>
+          <Text color={GRAY.mid} wrap="truncate">
+            {intent(state)}
+          </Text>
+        </Box>
+      ) : null}
       {row(
         'sum',
         [
