@@ -222,3 +222,30 @@ From upstream [`569c528`](https://github.com/anthropics/claude-code-playground/t
 - The Bash call's `description` (the model's own account of what the command
   is for) is drawn as one dim line under the command, on the terminal and the
   desktop, so Proceed can be judged from the why as well as the what.
+- **An `rm` goes to the Trash instead of running.** Blast Radius still
+  measures it and still applies the rules above (a repository root is refused;
+  paths that don't exist are refused), but for every other `rm` it moves the
+  resolved target paths to the Trash itself with macOS's `/usr/bin/trash -s`
+  (one call, all paths; directories go whole, so `-r`, `-f`, `-i`, `-v` and
+  `--` need no honouring) and refuses the original `rm` with a message the
+  model reads as done: "Blast Radius moved N files (about X) in M paths to the
+  Trash instead of deleting them: <paths>. They can be put back from the
+  Trash." No approval is asked. The pane, when nothing is held, is the record
+  of the last five such calls (the command, "trashed N files, X"). A path the
+  trash refuses (another volume's root, a system path, or no `trash` at all
+  on this machine) falls back to the hold-and-ask above; our own empty
+  directories the trash refused still run unasked. `git clean` and `git
+  reset` keep their behaviour: there is nothing of theirs to trash.
+- **Disk pressure.** Two constants at the top of `register.tsx`:
+  `FREE_FLOOR_PERCENT` (10) and `MEANINGFUL_PERCENT` (2), both against the
+  boot volume (`df -k /`). Once at the session's first Bash call and after
+  each trash action, when the volume is below the floor free and the Trash
+  (`du -sk ~/.Trash` plus `/Volumes/*/.Trashes/<uid>`, where readable) holds
+  at least the meaningful share of it, emptying it is put to the user once a
+  session: an approval in the brain's inbox (`$SYN_BRAIN` or
+  `~/.syns/brain.json`; kind approval, pod syn, not reversible, "Disk is at
+  N% free (floor 10%). The Trash holds X, Y% of the volume: empty it?",
+  options "Empty the Trash" / "Not now", applies `osascript -e 'tell
+  application "Finder" to empty trash'`) and a toast. Emptying happens only on
+  the user's yes, never by the mod. (The mod's band exists only while a
+  command is held, so the toast stands in for a band line.)

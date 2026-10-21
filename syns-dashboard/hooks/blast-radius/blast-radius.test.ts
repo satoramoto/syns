@@ -47,8 +47,11 @@ const BAND = {
 /** How often the mod opened its pane since the engine was made: a refused or unasked rm opens none. */
 let opens = 0
 
+/** What the engine's stand-ins answer besides the measuring: the trash's exit code (1: refused, so the rm is held), the disk script's output. */
+type World = { trash?: number; disk?: string }
+
 /** The engine beneath the mod, with a clock that moves only when the test moves it. */
-const engine = (on: On, placed = true, measured = RM_OUT, inspected = INSPECTED): MockClock => {
+const engine = (on: On, placed = true, measured = RM_OUT, inspected = INSPECTED, world: World = {}): MockClock => {
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 11, 12) })
   opens = 0
   on('session.cwd', async () => ({ value: '/repo' }))
@@ -65,8 +68,10 @@ const engine = (on: On, placed = true, measured = RM_OUT, inspected = INSPECTED)
       await clock.sleep(Number(e.argv[1]) * 1000)
       return run('')
     }
-    // The placing script ($0 blast-radius-inspect) first, then the measuring one; git (worktree list) is no repo here.
-    if (e.argv[0] === 'bash') return run(e.argv[3] === 'blast-radius-inspect' ? inspected : measured)
+    // The placing script ($0 blast-radius-inspect) first, then the measuring one; the disk script says nothing unless the test does.
+    if (e.argv[0] === 'bash') return run(e.argv[3] === 'blast-radius-inspect' ? inspected : e.argv[3] === 'blast-radius-disk' ? (world.disk ?? '') : measured)
+    // The trash refuses unless the test says it took the paths; git (worktree list) is no repo here.
+    if (e.argv[0] === '/usr/bin/trash') return run('', world.trash ?? 1)
     return run('', 1)
   })
   // The Bash tool itself, reached only when the mod lets the call through.
@@ -190,7 +195,52 @@ test('an rm of a repository root under ~/Code is refused outright, by real path,
   expect(opens).toBe(0)
 })
 
-test('an rm of empty directories of our own (deeper than a repo under ~/Code) runs without asking', async ($, on) => {
+test('an rm the trash takes is not run: its paths go to the Trash, the model is told, and the pane keeps the record', async ($, on) => {
+  const clock = engine(on, true, RM_OUT, INSPECTED, { trash: 0 })
+  const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any) as Promise<any>)
+  expect(result.deny).toBe('Blast Radius moved 13 files (about 48 KB) in 1 path to the Trash instead of deleting them: /repo/build. They can be put back from the Trash.')
+  // The record's pane opened once (no focus), and draws the command with what it moved: no buttons.
+  expect(opens).toBe(1)
+  const ui: any = await drive(clock, $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...PANE } as any))
+  expect(await ui.find({ type: 'Text', text: 'rm -rf build' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'trashed 13 files, 48 KB' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+  await ui.unmount()
+})
+
+test('when the boot volume is under the floor and the Trash holds enough, emptying it is put to the inbox once, as an approval', async ($, on) => {
+  // 5% free of a 1,000,000,000 KB volume; the Trash holds 3% of it.
+  const clock = engine(on, true, RM_OUT, INSPECTED, { disk: '1000000000 50000000\n30000000\n' })
+  const brain = { inbox: [{ id: 3, kind: 'question', status: 'open' }], answered: [{ id: 7 }] }
+  const writes: { path: string; text: string }[] = []
+  on('fs.read', async () => ({ value: JSON.stringify(brain) }))
+  on('fs.write', async (_$, e) => {
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  // Any Bash call: the check runs once at the session's first.
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  expect(writes).toHaveLength(1)
+  expect(writes[0]!.path).toBe(`${HOME}/.syns/brain.json`)
+  const item = JSON.parse(writes[0]!.text).inbox.at(-1)
+  expect(item).toMatchObject({ id: 8, kind: 'approval', pod: 'syn', status: 'open', reversible: false, options: ['Empty the Trash', 'Not now'] })
+  expect(item.question).toBe('Disk is at 5% free (floor 10%). The Trash holds 29 GB, 3% of the volume: empty it?')
+})
+
+test('with room on the disk, nothing is put to the inbox', async ($, on) => {
+  const clock = engine(on, true, RM_OUT, INSPECTED, { disk: '1000000000 500000000\n30000000\n' })
+  const writes: unknown[] = []
+  on('fs.read', async () => ({ value: '{}' }))
+  on('fs.write', async (_$, e) => {
+    writes.push(e.path)
+    return { value: undefined }
+  })
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  expect(writes).toHaveLength(0)
+})
+
+test('an rm of empty directories of our own (deeper than a repo under ~/Code) runs without asking when the trash refuses them', async ($, on) => {
   const clock = engine(on, true, '0 0 1', `dir 1 ${HOME}/Code/satoramoto/syns/.claude/worktrees/old`)
   const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf .claude/worktrees/old' } as any) as Promise<any>)
   expect(result.deny).toBeUndefined()
