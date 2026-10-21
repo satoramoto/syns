@@ -36,8 +36,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 import { holdButtons } from '../../kit/ui'
 
-import { renderApp, renderTerminal } from './view'
-import type { AppElements, Held, Report, Risk } from './view'
+import { renderApp, renderTerminal, renderTrashLog, size } from './view'
+import type { AppElements, Held, Report, Risk, Trashed } from './view'
 
 type $ = EngineInterface
 
@@ -58,9 +58,28 @@ const CODE_ROOT = "Code";
 // or not; deeper paths (worktrees, build output) are our own, and an empty
 // one goes without asking.
 const REPO_DEPTH = 2;
+// macOS's trash: an rm that may run goes here instead, so nothing is deleted.
+const TRASH_BIN = "/usr/bin/trash";
+// How many of the rm calls sent to the Trash the pane keeps, newest first.
+const TRASH_LOG_MAX = 5;
+
+// ---- Disk pressure -----------------------------------------------------------
+// The boot volume's free space, as a percent of its size (`df -k /`), under
+// which the Trash is worth surfacing.
+const FREE_FLOOR_PERCENT = 10;
+// What the Trash must hold back, as a percent of the boot volume's size
+// (`du -sk ~/.Trash` and `/Volumes/*/.Trashes/<uid>`, where readable), before
+// emptying it is put to the user.
+const MEANINGFUL_PERCENT = 2;
 
 // The call being held, or null. One at a time: Bash calls in a turn run in order.
 let held: Held | null = null;
+// The last rm calls sent to the Trash, newest first: the pane's record.
+let trashed: Trashed[] = [];
+// The disk check runs once at the session's first Bash call and after each
+// trash action; the Trash is put to the user at most once a session.
+let diskChecked = false;
+let diskSurfaced = false;
 
 /** Whether a wide app pane flows the report's lines into columns; the pane's footer switch flips it. */
 const columnsView = atom({ plugin: "syns-dashboard", key: "blastColumns" } as const, true);
@@ -87,6 +106,10 @@ async function draw($: $, e: any, state: Held, band: boolean) {
  */
 export const attach = (on: Parameters<Register>[0], _options: Parameters<Register>[1]): void => {
   on("tool.call", { tool: "Bash" }, async ($, e, next) => {
+    if (!diskChecked) {
+      diskChecked = true; // once a session, at its first Bash call
+      await checkDisk($).catch(() => undefined);
+    }
     const risk = classify(String((e as any).command ?? ""));
     if (risk === null) {
       return next(e);
@@ -109,6 +132,7 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
     let decision: string | null;
     let summary = risk.label;
     let refused: string | null = null; // why the command was refused without a hold, when it was
+    let moved: string | null = null; // what went to the Trash instead, when an rm did
     try {
       // Measure where the command will run: the session folder, moved by any
       // `cd dir &&` or `git -C dir` earlier in the same command line.
@@ -121,8 +145,6 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
       if (place.protected !== undefined) {
         refused = `${place.protected} is a repository root under ~/${CODE_ROOT}, and Blast Radius never deletes those`;
         mine.decision = "refused";
-      } else if (place.unasked) {
-        mine.decision = "unasked";
       } else {
         const report: Report = cwd === null
           ? { summary: `${risk.label} in ${risk.dir}`, lines: [], note: `Couldn't find the folder ${risk.dir}, so I couldn't measure what this would change.` }
@@ -134,6 +156,25 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
           // and have the model believe it changed something. Nothing is drawn.
           refused = report.nothing;
           mine.decision = "refused";
+        } else if (place.paths !== undefined && place.paths.length > 0 && (await trash($, place.paths))) {
+          // An rm that may run goes to the Trash instead, unasked: nothing is
+          // lost, and the pane keeps the record. The rm itself never runs.
+          const files = report.counts?.files ?? 0;
+          const bytes = report.counts?.bytes ?? 0;
+          const n = place.paths.length;
+          moved = `${files} ${files === 1 ? "file" : "files"} (about ${size(bytes)}) in ${n} ${n === 1 ? "path" : "paths"} to the Trash instead of deleting them: ${place.paths.join(" ")}`;
+          trashed = [{ command: mine.command, files, bytes, paths: n }, ...trashed].slice(0, TRASH_LOG_MAX);
+          mine.decision = "trashed";
+          // The record, in the pane, without taking the focus (no `focus`); it stays open.
+          try {
+            await $.ui.open({ id: PANE_ID, title: "Blast Radius", rows: Math.min(24, 4 + trashed.length) });
+          } catch {
+            // no room for a pane: the record waits for the next time it opens
+          }
+          $.ui.invalidate("ui.render");
+          await checkDisk($).catch(() => undefined);
+        } else if (place.unasked) {
+          mine.decision = "unasked"; // our own empty directories, and the trash refused them: let the rm run
         } else {
           mine.report = report;
           opened = await $.ui.open({ id: PANE_ID, title: "Blast Radius", focus: true, rows: paneRows(mine) });
@@ -182,6 +223,9 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
     if (decision === "unasked") {
       return next(e); // empty directories of our own: nothing to lose, nothing to say
     }
+    if (decision === "trashed") {
+      return { deny: `Blast Radius moved ${moved}. They can be put back from the Trash.` };
+    }
     if (decision === "refused") {
       return { deny: `Blast Radius did not run this command: ${refused}. Do not retry it unless the user asks you to.` };
     }
@@ -197,10 +241,14 @@ export const attach = (on: Parameters<Register>[0], _options: Parameters<Registe
   });
 
   on("ui.render", { component: "Pane", requestId: PANE_ID }, ($, e, next) => {
-    if (held === null || held.report === null) {
-      return next(e);
+    if (held !== null && held.report !== null) {
+      return draw($, e, held, false);
     }
-    return draw($, e, held, false);
+    if (trashed.length > 0) {
+      // Nothing held: the pane is the record of what went to the Trash.
+      return renderTrashLog($.ui.resolve(e) as any, e.surface === "terminal" ? "terminal" : "desktop", trashed, Number(e.props?.bodyColumns ?? 40));
+    }
+    return next(e);
   });
 
   on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
@@ -492,7 +540,7 @@ async function listWorktrees($: $, cwd: string): Promise<Set<string>> {
  * scratch root or deeper than a repository root under ~/Code, or one git
  * lists as a worktree: those go without asking. Anything else is held.
  */
-async function placeRm($: $, risk: any, cwd: string): Promise<{ protected?: string; unasked?: boolean }> {
+async function placeRm($: $, risk: any, cwd: string): Promise<{ protected?: string; unasked?: boolean; paths?: string[] }> {
   if (risk.targets.length === 0) {
     return {};
   }
@@ -515,7 +563,7 @@ async function placeRm($: $, risk: any, cwd: string): Promise<{ protected?: stri
   const worktrees = await listWorktrees($, cwd);
   const own = (real: string) =>
     SCRATCH_ROOTS.some((root) => real.startsWith(`${root}/`)) || (depthUnder(code, real) ?? 0) > REPO_DEPTH || worktrees.has(real);
-  return { unasked: targets.every((t) => t.kind === "dir" && t.empty && own(t.real)) };
+  return { unasked: targets.every((t) => t.kind === "dir" && t.empty && own(t.real)), paths: targets.map((t) => t.real) };
 }
 
 async function measureRm($: $, risk: any, cwd: string): Promise<Report> {
@@ -530,14 +578,96 @@ async function measureRm($: $, risk: any, cwd: string): Promise<Report> {
   }
   if (!files) {
     // The paths exist but hold no files: only empty directories go.
-    return { summary: `remove ${found} empty ${found === 1 ? "directory" : "directories"}`, lines: [], note: `Paths: ${risk.targets.join(" ")}` };
+    return { summary: `remove ${found} empty ${found === 1 ? "directory" : "directories"}`, lines: [], note: `Paths: ${risk.targets.join(" ")}`, counts: { files: 0, bytes: bytes || 0 } };
   }
   return {
     summary: `delete ${files} ${files === 1 ? "file" : "files"} (about ${size(bytes as number)})`,
     lines: rest.map((l) => l.replace(/^\.\//, "")),
     more: Math.max(0, files - rest.length),
     note: `Paths: ${risk.targets.join(" ")}`,
+    counts: { files, bytes: bytes || 0 },
   };
+}
+
+// ---- The Trash, and the disk -------------------------------------------------
+
+/** Moves the paths to the Trash, all in one call, stopping at the first the trash refuses. True when every path went. */
+async function trash($: $, paths: string[]): Promise<boolean> {
+  try {
+    const run = await $.process.run([TRASH_BIN, "-s", ...paths], { timeoutMs: 60000 });
+    return run.exitCode === 0;
+  } catch {
+    return false; // no trash here (not macOS, say): the rm is held and asked about as before
+  }
+}
+
+// Line 1: the boot volume's size and free space in KB. Line 2: what the Trash
+// holds in KB, the user's own and each volume's, where readable.
+const DISK_SCRIPT = `
+df -k / | awk 'NR == 2 { print $2, $4 }'
+du -skc "$HOME/.Trash" /Volumes/*/.Trashes/"$(id -u)" 2>/dev/null | tail -n 1 | cut -f1
+`;
+
+/**
+ * When the boot volume is below FREE_FLOOR_PERCENT free and the Trash holds
+ * at least MEANINGFUL_PERCENT of it, puts emptying the Trash to the user once
+ * a session: an approval in the brain's inbox, and a toast. Emptying happens
+ * only on the user's yes, never here.
+ */
+async function checkDisk($: $): Promise<void> {
+  if (diskSurfaced) {
+    return;
+  }
+  const run = await $.process.run(["bash", "-c", DISK_SCRIPT, "blast-radius-disk"], { timeoutMs: 60000 });
+  const [df, du] = run.stdout.split("\n");
+  const [total = 0, avail = NaN] = (df ?? "").trim().split(/\s+/).map(Number);
+  const trashKb = Number((du ?? "").trim()) || 0;
+  if (!total || !Number.isFinite(avail)) {
+    return;
+  }
+  const freePercent = (avail / total) * 100;
+  const trashPercent = (trashKb / total) * 100;
+  if (freePercent >= FREE_FLOOR_PERCENT || trashPercent < MEANINGFUL_PERCENT) {
+    return;
+  }
+  diskSurfaced = true;
+  const question = `Disk is at ${freePercent.toFixed(0)}% free (floor ${FREE_FLOOR_PERCENT}%). The Trash holds ${size(trashKb * 1024)}, ${trashPercent.toFixed(0)}% of the volume: empty it?`;
+  $.ui.toast(`Blast Radius: ${question} (in the inbox)`, { timeoutMs: 15000 });
+  await raiseInbox($, question);
+}
+
+/** Adds the approval to the brain's inbox (SYN_BRAIN or ~/.syns/brain.json), unless one from Blast Radius is already open. */
+async function raiseInbox($: $, question: string): Promise<void> {
+  const custom = await $.env.get("SYN_BRAIN");
+  const home = await $.env.get("HOME");
+  const path = custom || `${home ?? "~"}/.syns/brain.json`;
+  const brain = JSON.parse(String(await $.fs.read(path)));
+  const inbox: any[] = Array.isArray(brain.inbox) ? brain.inbox : [];
+  const answered: any[] = Array.isArray(brain.answered) ? brain.answered : [];
+  const raisedBy = "Blast Radius (syns-dashboard)";
+  if (inbox.some((i) => i.raisedBy === raisedBy && i.status !== "answered")) {
+    return;
+  }
+  const id = Math.max(0, ...[...inbox, ...answered].map((i) => Number(i.id) || 0)) + 1;
+  const at = new Date(await $.clock.now()).toISOString();
+  brain.inbox = [
+    ...inbox,
+    {
+      id,
+      kind: "approval",
+      pod: "syn",
+      status: "open",
+      question,
+      options: ["Empty the Trash", "Not now"],
+      recommended: 0,
+      reversible: false,
+      blocks: [],
+      raisedBy,
+      raisedAt: at,
+      applies: `Finder empty trash: osascript -e 'tell application "Finder" to empty trash'`,
+    },
+  ];
+  await $.fs.write(path, `${JSON.stringify(brain, null, 2)}\n`);
 }
 
 async function measureGit($: $, risk: any, cwd: string): Promise<Report> {
@@ -662,20 +792,6 @@ async function measureMigrations($: $, risk: any, cwd: string): Promise<Report> 
     more: Math.max(0, pending.length - LIST_MAX),
     note: `From ${lister.argv.join(" ")}.`,
   };
-}
-
-function size(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes < 1024) {
-    return `${bytes || 0} B`;
-  }
-  const units = ["KB", "MB", "GB", "TB"];
-  let n = bytes;
-  let i = -1;
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i += 1;
-  }
-  return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
 }
 
 // ---- Drawing --------------------------------------------------------------

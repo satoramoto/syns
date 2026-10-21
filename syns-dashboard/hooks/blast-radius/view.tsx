@@ -31,7 +31,25 @@ export type Risk = {
  * that don't exist): why, in a sentence. Such a command is denied at once, not
  * held, so the report is never drawn.
  */
-export type Report = { summary: string; lines: string[]; more?: number; note?: string; nothing?: string }
+export type Report = { summary: string; lines: string[]; more?: number; note?: string; nothing?: string; counts?: { files: number; bytes: number } }
+
+/** One rm call sent to the Trash: the pane's record. */
+export type Trashed = { command: string; files: number; bytes: number; paths: number }
+
+/** A byte count for people: `48 KB`, `1.2 GB`. */
+export const size = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes < 1024) {
+    return `${bytes || 0} B`
+  }
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let n = bytes
+  let i = -1
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024
+    i += 1
+  }
+  return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`
+}
 
 /** The call being held, which the buttons answer. */
 export type Held = {
@@ -165,6 +183,28 @@ const intent = (state: Held) => (state.why && state.why !== state.command ? stat
 const restates = (note: string, command: string) => {
   const paths = /^Paths: (.+)$/.exec(note)?.[1]
   return paths !== undefined && paths.split(' ').every(p => command.includes(p))
+}
+
+/**
+ * The pane when nothing is held: what went to the Trash instead of being
+ * deleted, newest first, each the command and what it moved.
+ */
+export const renderTrashLog = (els: any, surface: 'terminal' | 'desktop', entries: Trashed[], columns: number): RenderElement => {
+  const { Box } = els
+  const k = kit(els, surface, columns)
+  return (
+    <Box flexDirection="column" width="100%" minWidth={0} paddingX={1} marginTop={surface === 'terminal' ? 0 : 1}>
+      {k.note('head', 'Sent to the Trash instead of deleted, newest first', 'empty')}
+      {entries.map((t, i) =>
+        k.item(`t${i}`, {
+          lead: 'trash',
+          leadColor: GRAY.dark,
+          text: t.command,
+          right: [`trashed ${t.files} ${t.files === 1 ? 'file' : 'files'}, ${size(t.bytes)}`],
+        }),
+      )}
+    </Box>
+  )
 }
 
 /** The icon beside the summary: what kind of loss it is. */
