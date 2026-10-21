@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# syn-lead [pod]: open a pod's lead session in the Claude desktop app.
+# Reads the lead's session id from the brain file, so the script stays right
+# when the lead changes. The deep link focuses the session with its composer
+# ready; nothing can send a message into it from outside the app.
+set -euo pipefail
+
+pod="${1:-syn}"
+brain="${SYN_BRAIN:-$HOME/.syns/brain.json}"
+
+if [ ! -f "$brain" ]; then
+  echo "syn-lead: no brain file at $brain" >&2
+  exit 1
+fi
+
+id="$(jq -r --arg pod "$pod" '.pods[] | select(.id == $pod) | .lead // empty' "$brain")"
+
+if [ -z "$id" ]; then
+  echo "syn-lead: pod '$pod' has no lead session in $brain" >&2
+  exit 1
+fi
+
+open "claude://claude.ai/epitaxy/$id"
