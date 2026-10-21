@@ -28,6 +28,11 @@ const RM_OUT = ['13 49152 1', 'build/index.html', 'build/assets/index.js'].join(
 
 const run = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
+/** What the placing script says of `rm -rf build` in the session folder: one directory with files, outside ~/Code. */
+const INSPECTED = 'dir 0 /repo/build'
+/** The home the mod's ~/Code rules are read against. */
+const HOME = '/home/ryan'
+
 const PANE = {
   component: 'Pane',
   requestId: 'blast-radius',
@@ -39,11 +44,22 @@ const BAND = {
   props: { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
 } as const
 
+/** How often the mod opened its pane since the engine was made: a refused or unasked rm opens none. */
+let opens = 0
+
+/** What the engine's stand-ins answer besides the measuring: the trash's exit code (1: refused, so the rm is held), the disk script's output. */
+type World = { trash?: number; disk?: string }
+
 /** The engine beneath the mod, with a clock that moves only when the test moves it. */
-const engine = (on: On, placed = true, measured = RM_OUT): MockClock => {
+const engine = (on: On, placed = true, measured = RM_OUT, inspected = INSPECTED, world: World = {}): MockClock => {
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 11, 12) })
+  opens = 0
   on('session.cwd', async () => ({ value: '/repo' }))
-  on('ui.open', async () => ({ value: placed ? { isPlaced: true as const } : { isPlaced: false as const, reason: 'the terminal is too narrow' } }))
+  on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('ui.open', async () => {
+    opens += 1
+    return { value: placed ? { isPlaced: true as const } : { isPlaced: false as const, reason: 'the terminal is too narrow' } }
+  })
   on('ui.close', async () => ({ value: undefined }))
   on('ui.toast', async () => ({ value: undefined }))
   on('process.run', async (_$, e) => {
@@ -52,7 +68,11 @@ const engine = (on: On, placed = true, measured = RM_OUT): MockClock => {
       await clock.sleep(Number(e.argv[1]) * 1000)
       return run('')
     }
-    return e.argv[0] === 'bash' ? run(measured) : run('', 1)
+    // The placing script ($0 blast-radius-inspect) first, then the measuring one; the disk script says nothing unless the test does.
+    if (e.argv[0] === 'bash') return run(e.argv[3] === 'blast-radius-inspect' ? inspected : e.argv[3] === 'blast-radius-disk' ? (world.disk ?? '') : measured)
+    // The trash refuses unless the test says it took the paths; git (worktree list) is no repo here.
+    if (e.argv[0] === '/usr/bin/trash') return run('', world.trash ?? 1)
+    return run('', 1)
   })
   // The Bash tool itself, reached only when the mod lets the call through.
   on('tool.call', async () => ({ result: { stdout: '', stderr: '' }, text: 'ran' }) as any)
@@ -67,9 +87,9 @@ const drive = async <T,>(clock: MockClock, work: Promise<T>): Promise<T> => {
   return settled
 }
 
-/** Holds `rm -rf build`, then draws the component once the mod measured it and opened its pane. */
-const hold = async ($: Engine, clock: MockClock, surface: 'terminal' | 'desktop', where: { component: string; props: object } = PANE) => {
-  const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any) as Promise<any>
+/** Holds `rm -rf build` (or `command`, with the call's `description`), then draws the component once the mod measured it and opened its pane. */
+const hold = async ($: Engine, clock: MockClock, surface: 'terminal' | 'desktop', where: { component: string; props: object } = PANE, command = 'rm -rf build', description?: string) => {
+  const call = $.tool.call({ tool: 'Bash', command, description } as any) as Promise<any>
   await clock.settle()
   const ui = await drive(clock, $.ui.mount({ plugin: PLUGIN, surface, ...where } as any))
   return { call, ui: ui as any }
@@ -148,14 +168,106 @@ test('in a narrow terminal band, the report still fits: the command keeps the he
 })
 
 test('in a narrow terminal band, a long note breaks between words onto a second line instead of being cut at the first', async ($, on) => {
-  // Nothing matches, so the note says why rm has nothing to remove: 51 cells, in 26.
-  const clock = engine(on, false, '0 0 0')
-  const { call, ui } = await hold($, clock, 'terminal', { ...BAND, props: { ...BAND.props, bodyColumns: 30 } })
-  expect(await ui.find({ type: 'Text', text: "The paths don't exist, so" })).toBeDefined()
-  expect((await ui.find({ type: 'Text', text: 'rm has nothing to remove.' }))?.props).toMatchObject({ wrap: 'truncate', dimColor: true })
+  // The `cd` folder can't be found (the resolving script prints nothing), so the note says why it couldn't measure: 79 cells, in 26.
+  const clock = engine(on, false, '')
+  const { call, ui } = await hold($, clock, 'terminal', { ...BAND, props: { ...BAND.props, bodyColumns: 30 } }, 'cd nowhere && rm -rf build')
+  expect(await ui.find({ type: 'Text', text: "Couldn't find the folder" })).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /^nowhere, so I couldn't measure/ }))?.props).toMatchObject({ wrap: 'truncate', dimColor: true })
   await drive(clock, ui.press({ key: 'cancel' }))
   await drive(clock, call)
   await ui.unmount()
+})
+
+const REFUSED = (why: string) => `Blast Radius did not run this command: ${why}. Do not retry it unless the user asks you to.`
+
+test('an rm whose paths do not exist is refused at once, with why, and no pane opens', async ($, on) => {
+  const clock = engine(on, true, '0 0 0', '')
+  const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any) as Promise<any>)
+  expect(result.deny).toBe(REFUSED('none of its paths exist, so there is nothing to delete'))
+  expect(opens).toBe(0)
+})
+
+test('an rm of a repository root under ~/Code is refused outright, by real path, approval or not', async ($, on) => {
+  // `..` climbs to the repo itself; the placing script resolves it.
+  const clock = engine(on, true, '13 49152 1', `dir 0 ${HOME}/Code/satoramoto/syns`)
+  const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf ../syns' } as any) as Promise<any>)
+  expect(result.deny).toBe(REFUSED(`${HOME}/Code/satoramoto/syns is a repository root under ~/Code, and Blast Radius never deletes those`))
+  expect(opens).toBe(0)
+})
+
+test('an rm the trash takes is not run: its paths go to the Trash, the model is told, and the pane keeps the record', async ($, on) => {
+  const clock = engine(on, true, RM_OUT, INSPECTED, { trash: 0 })
+  const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any) as Promise<any>)
+  expect(result.deny).toBe('Blast Radius moved 13 files (about 48 KB) in 1 path to the Trash instead of deleting them: /repo/build. They can be put back from the Trash.')
+  // The record's pane opened once (no focus), and draws the command with what it moved: no buttons.
+  expect(opens).toBe(1)
+  const ui: any = await drive(clock, $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...PANE } as any))
+  expect(await ui.find({ type: 'Text', text: 'rm -rf build' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'trashed 13 files, 48 KB' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+  await ui.unmount()
+})
+
+test('when the boot volume is under the floor and the Trash holds enough, emptying it is put to the inbox once, as an approval', async ($, on) => {
+  // 5% free of a 1,000,000,000 KB volume; the Trash holds 3% of it.
+  const clock = engine(on, true, RM_OUT, INSPECTED, { disk: '1000000000 50000000\n30000000\n' })
+  const brain = { inbox: [{ id: 3, kind: 'question', status: 'open' }], answered: [{ id: 7 }] }
+  const writes: { path: string; text: string }[] = []
+  on('fs.read', async () => ({ value: JSON.stringify(brain) }))
+  on('fs.write', async (_$, e) => {
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  // Any Bash call: the check runs once at the session's first.
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  expect(writes).toHaveLength(1)
+  expect(writes[0]!.path).toBe(`${HOME}/.syns/brain.json`)
+  const item = JSON.parse(writes[0]!.text).inbox.at(-1)
+  expect(item).toMatchObject({ id: 8, kind: 'approval', pod: 'syn', status: 'open', reversible: false, options: ['Empty the Trash', 'Not now'] })
+  expect(item.question).toBe('Disk is at 5% free (floor 10%). The Trash holds 29 GB, 3% of the volume: empty it?')
+})
+
+test('with room on the disk, nothing is put to the inbox', async ($, on) => {
+  const clock = engine(on, true, RM_OUT, INSPECTED, { disk: '1000000000 500000000\n30000000\n' })
+  const writes: unknown[] = []
+  on('fs.read', async () => ({ value: '{}' }))
+  on('fs.write', async (_$, e) => {
+    writes.push(e.path)
+    return { value: undefined }
+  })
+  await drive(clock, $.tool.call({ tool: 'Bash', command: 'ls' } as any) as Promise<any>)
+  expect(writes).toHaveLength(0)
+})
+
+test('an rm of empty directories of our own (deeper than a repo under ~/Code) runs without asking when the trash refuses them', async ($, on) => {
+  const clock = engine(on, true, '0 0 1', `dir 1 ${HOME}/Code/satoramoto/syns/.claude/worktrees/old`)
+  const result = await drive(clock, $.tool.call({ tool: 'Bash', command: 'rm -rf .claude/worktrees/old' } as any) as Promise<any>)
+  expect(result.deny).toBeUndefined()
+  expect(result.text).toBe('ran')
+  expect(opens).toBe(0)
+})
+
+test('an rm of an empty directory outside our roots is held and named as such', async ($, on) => {
+  const clock = engine(on, false, '0 0 1', 'dir 1 /repo/build')
+  const { call, ui } = await hold($, clock, 'terminal', BAND)
+  expect(await ui.find({ type: 'Text', text: 'remove 1 empty directory' })).toBeDefined()
+  await drive(clock, ui.press({ key: 'cancel' }))
+  const result = await drive(clock, call)
+  expect(String(result.deny)).toContain('remove 1 empty directory')
+  await ui.unmount()
+})
+
+test("the call's description is drawn under the command as the why, on the terminal and the desktop", async ($, on) => {
+  const clock = engine(on)
+  const { call, ui } = await hold($, clock, 'terminal', PANE, 'rm -rf build', 'Remove the stale build output')
+  expect((await ui.find({ type: 'Text', text: 'Remove the stale build output' }))?.props).toMatchObject({ dimColor: true })
+  await ui.unmount()
+  const app: any = await drive(clock, $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...PANE } as any))
+  expect(await app.find({ type: 'Text', text: 'Remove the stale build output' })).toBeDefined()
+  await drive(clock, app.press({ key: 'cancel' }))
+  await drive(clock, call)
+  await app.unmount()
 })
 
 test('the desktop draws the held command, what it would delete and real buttons; Cancel refuses', async ($, on) => {

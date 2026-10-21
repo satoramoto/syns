@@ -198,3 +198,54 @@ From upstream [`569c528`](https://github.com/anthropics/claude-code-playground/t
   `rm -r`/`-f` whose every target resolves under it, by an absolute path or
   after a `cd` to an absolute folder there, runs unheld. A relative target with
   no `cd`, a `~` path or a `..` segment is still held.
+- A command that would change nothing is refused at once, with why, instead of
+  held: an `rm` none of whose paths exist, a `git clean` with no untracked
+  files to remove, a `git reset --hard` with no uncommitted changes. The
+  model is told ("Blast Radius did not run this command: none of its paths
+  exist, so there is nothing to delete. …"), as an rm that finds nothing
+  usually means a wrong path. An `rm` whose paths exist but hold no files is
+  held with the summary "remove N empty directories".
+- Where an `rm` may go, and where it never may (the constants `SCRATCH_ROOTS`,
+  `CODE_ROOT` and `REPO_DEPTH` at the top of `register.tsx`), checked by real
+  path (symlinks and `..` resolved) right before the call would run:
+  1. **Protected:** `~/Code`, `~/Code/<org>` and `~/Code/<org>/<repo>` are
+     repository roots and are never deleted, approval or not. The call is
+     refused outright, with no pane: "… is a repository root under ~/Code,
+     and Blast Radius never deletes those."
+  2. **Unasked:** when every target is a directory with no entries at all
+     (dotfiles count) under `/private/tmp` (the scratchpads), deeper than a
+     repository root under `~/Code` (worktrees under `.claude/worktrees/`,
+     sibling worktree folders, build output), or a path `git worktree list`
+     names, the call just runs: nothing to lose, nothing drawn.
+  3. Everything else is held and asked, as before: non-empty directories
+     anywhere, empty directories outside those roots, files.
+- The Bash call's `description` (the model's own account of what the command
+  is for) is drawn as one dim line under the command, on the terminal and the
+  desktop, so Proceed can be judged from the why as well as the what.
+- **An `rm` goes to the Trash instead of running.** Blast Radius still
+  measures it and still applies the rules above (a repository root is refused;
+  paths that don't exist are refused), but for every other `rm` it moves the
+  resolved target paths to the Trash itself with macOS's `/usr/bin/trash -s`
+  (one call, all paths; directories go whole, so `-r`, `-f`, `-i`, `-v` and
+  `--` need no honouring) and refuses the original `rm` with a message the
+  model reads as done: "Blast Radius moved N files (about X) in M paths to the
+  Trash instead of deleting them: <paths>. They can be put back from the
+  Trash." No approval is asked. The pane, when nothing is held, is the record
+  of the last five such calls (the command, "trashed N files, X"). A path the
+  trash refuses (another volume's root, a system path, or no `trash` at all
+  on this machine) falls back to the hold-and-ask above; our own empty
+  directories the trash refused still run unasked. `git clean` and `git
+  reset` keep their behaviour: there is nothing of theirs to trash.
+- **Disk pressure.** Two constants at the top of `register.tsx`:
+  `FREE_FLOOR_PERCENT` (10) and `MEANINGFUL_PERCENT` (2), both against the
+  boot volume (`df -k /`). Once at the session's first Bash call and after
+  each trash action, when the volume is below the floor free and the Trash
+  (`du -sk ~/.Trash` plus `/Volumes/*/.Trashes/<uid>`, where readable) holds
+  at least the meaningful share of it, emptying it is put to the user once a
+  session: an approval in the brain's inbox (`$SYN_BRAIN` or
+  `~/.syns/brain.json`; kind approval, pod syn, not reversible, "Disk is at
+  N% free (floor 10%). The Trash holds X, Y% of the volume: empty it?",
+  options "Empty the Trash" / "Not now", applies `osascript -e 'tell
+  application "Finder" to empty trash'`) and a toast. Emptying happens only on
+  the user's yes, never by the mod. (The mod's band exists only while a
+  command is held, so the toast stands in for a band line.)
