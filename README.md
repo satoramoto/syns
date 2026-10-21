@@ -27,6 +27,12 @@ a base context per repo. Until then, by hand:
 4. For each repo you work in, copy `templates/base-context.md` to
    `<repo>/.claude/base-context.md` and gitignore it.
 5. Load the plugin: `claude --plugin-dir /path/to/syns/plugin`, then `/syn`.
+6. A hotkey to a pod's lead session: `ln -s ~/Code/satoramoto/syns/bin/syn-lead
+   ~/.local/bin/syn-lead`, then bind `~/.local/bin/syn-lead` (or `syn-lead
+   <pod>`) to a key with a macOS Shortcuts "Run Shell Script" action or
+   Raycast. It reads the lead's session id from `brain.json` and opens its
+   deep link, which focuses the session with the composer ready; nothing
+   outside the app can send a message into it.
 
 The templates are a starting point, not a framework. Skills and agents should
 grow out of your own use: change, drop or add them as your workflow develops.

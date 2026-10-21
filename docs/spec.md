@@ -520,6 +520,12 @@ registered in brain.json listed and launched from it, and events from
 - `/syn feature`: mark the current ask a feature.
 - `/syn stats`: numbers from the log.
 - `/syn cancel <job>`: cancel a job.
+- `/syn:wtf`: where are we, what are we doing, and why, for this channel:
+  three short paragraphs from brain.json and the pod's epic (the pod this
+  session belongs to, its epic's status and rev and the loop step inferred
+  from it; the pod's state, next, running jobs and what waits on Ryan; the
+  pod's why and the epic's Intent in Ryan's words). In no pod, the board as
+  a whole. `/wtf` in `~/.claude/commands/` is a one-line shim that runs it.
 
 ## Non-goals (for now)
 
