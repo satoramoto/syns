@@ -10,6 +10,11 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
 - `templates/`: starter files a new user copies into `~/.claude/` (and a base
   context per repo). Keep them generic: no one's personal setup.
 - `plugin/`: the `syn` Claude Code plugin (a skeleton for now).
+- `repo-explorer/`: a mockup that browses `~/Code` as a list of repos (tags,
+  dependencies, status, worktrees) instead of a file tree. `node
+  repo-explorer/scan.mjs` writes `~/.syns/repos.json` (tags and purposes live in
+  the sidecar `~/.syns/repo-tags.json`, never overwritten) and the git-ignored
+  `repo-explorer/repos.js` that `index.html` loads; open `index.html` after.
 - `syns-dashboard/`: the dashboard mod, a pane reading brain.json live (see
   `docs/spec.md`, "The dashboard today"). It draws with zen's Claude Code kit
   (satoramoto/zen, `src/harness/claude-code/kit/`), copied into
