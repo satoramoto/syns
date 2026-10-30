@@ -41,6 +41,14 @@ Anything that names one harness's tools goes in that harness's file, not here.
 - No artificial CPU or thread caps on builds.
 - **Never touch my browser tab.** Don't navigate, scroll or click in a browser tab I have open. For any check, open your own background tab, act only on it, and close it when done. Put this rule in every subagent brief that might use the browser.
 
+## File editing
+
+- Never modify files with Python, sed, awk, perl, or shell redirection/heredocs (`cat > file <<EOF`, `echo >`, `tee`). Use the harness's edit tool for changes and its write tool only for new files or full rewrites of files you've just read.
+- If an edit fails (no match or multiple matches), re-read the relevant section and widen the matched text with surrounding lines. Do not fall back to a script.
+- Never regenerate a file from earlier tool output; it may be truncated.
+- For changes across many files, make individual edits per file (or ask first) rather than writing a bulk-rewrite script.
+- Running scripts is fine; using scripts to mutate source files is not.
+
 ## Testing
 
 - **Tests are written to a spec, by a `test-engineer`, as their own step.** Not as a side effect of a change. The spec is the contract: numbered behaviours plus the exact public API (types, signatures, names). It enumerates cases from boundaries (input partitions and their edges, surfaces, state transitions, failure paths) and writes those, nothing more. No spec yet means it drafts one for me to approve first.
