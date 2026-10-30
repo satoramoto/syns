@@ -9,6 +9,10 @@ machine is specified in [`docs/spec.md`](docs/spec.md); words are defined in
 - `VISION.md`, `docs/`: the why, the spec, the lexicon, prior art.
 - `templates/`: starter files a new user copies into `~/.claude/` (and a base
   context per repo). Keep them generic: no one's personal setup.
+- `core/`: Ryan's live working rules, the one source for every harness.
+  `core/AGENTS.md` is harness-neutral (Codex reads it via a symlink at
+  `~/.codex/AGENTS.md`); `core/claude.md` holds only what names Claude Code's
+  tools, agents or models. `~/.claude/CLAUDE.md` imports both.
 - `plugin/`: the `syn` Claude Code plugin (a skeleton for now).
 - `syns-dashboard/`: the dashboard mod, a pane reading brain.json live (see
   `docs/spec.md`, "The dashboard today"). It draws with zen's Claude Code kit
